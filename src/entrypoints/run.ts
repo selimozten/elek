@@ -33,6 +33,7 @@ import {
   updateTrackingComment,
   createPRReview,
   postComment,
+  fetchReviewComments,
 } from "../github/comments.js";
 import { runPi } from "../pi.js";
 import type { PiRunResult } from "../types.js";
@@ -81,6 +82,11 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
+  const modelLabel = inputs.model
+    ? `${inputs.provider}/${inputs.model}`
+    : inputs.provider;
+  const runId = process.env.GITHUB_RUN_ID || "?";
+  const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
   // Configure git for potential code changes
   configureGitAuth(githubToken, context);
@@ -95,11 +101,11 @@ async function run(): Promise<void> {
     piBranch = createPiBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment
+  // Create tracking comment (with spinner, Claude-style)
   let commentId: number | undefined;
   if (inputs.stickyComment) {
     try {
-      const comment = await createTrackingComment(octokit, context);
+      const comment = await createTrackingComment(octokit, context, modelLabel);
       commentId = comment.id;
     } catch (err) {
       console.warn("Could not create tracking comment:", err);
@@ -108,9 +114,19 @@ async function run(): Promise<void> {
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
   const data = await fetchGitHubData(context);
-  const prompt = buildPrompt(data, userRequest);
 
-  // Write prompt to file for debugging
+  // Include PR review comments for context
+  if (context.isPR) {
+    try {
+      data.reviewComments = await fetchReviewComments(octokit, context);
+    } catch (err) {
+      console.warn("Could not fetch review comments:", err);
+    }
+  }
+
+  const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId);
+
+  // Write prompt to file
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
@@ -118,16 +134,6 @@ async function run(): Promise<void> {
 
   // ── Phase 4: Run pi ──────────────────────────────────────────────────
   console.log("── Running pi ──");
-
-  if (commentId) {
-    await updateTrackingComment(
-      octokit,
-      context,
-      commentId,
-      "🤖 **pi is analyzing...**\n\nAnalyzing changes, this may take a minute...",
-    );
-  }
-
   const result: PiRunResult = runPi(prompt, inputs);
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
@@ -136,63 +142,65 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
-  if (result.conclusion === "success" && piBranch) {
-    // Check if pi made changes
+  // Always post the review comment first (before git ops, which can fail)
+  if (commentId) {
+    const reviewBody = [
+      result.conclusion === "success"
+        ? `🤖 **${modelLabel}** analysis complete`
+        : `⚠️ **${modelLabel}** encountered an issue`,
+      "",
+      result.output.substring(0, 4000),
+      "",
+      `[View run](${jobRunLink})`,
+    ].join("\n");
+
     try {
+      await updateTrackingComment(octokit, context, commentId, reviewBody);
+    } catch (err) {
+      console.warn("Could not update tracking comment, posting new one:", err);
+      try {
+        await postComment(octokit, context, reviewBody);
+      } catch (err2) {
+        console.warn("Could not post comment either:", err2);
+      }
+    }
+  }
+
+  // Then handle any code changes pi made (separate from the review comment)
+  if (result.conclusion === "success" && piBranch) {
+    try {
+      // Only count non-lockfile changes as pi's work
+      // Filter in JS instead of grep -v to avoid exit code 1 when no matches
       const status = execSync("git status --porcelain", {
         encoding: "utf-8",
         stdio: "pipe",
       });
 
-      if (status.trim()) {
+      const relevantChanges = status
+        .split("\n")
+        .filter((line) => line && !line.includes("package-lock.json") && !line.includes("node_modules"))
+        .join("\n");
+
+      if (relevantChanges.trim()) {
         commitChanges(`pi: automated changes for #${context.entityNumber}`);
         pushBranch(piBranch);
 
-        await updateTrackingComment(
-          octokit,
-          context,
-          commentId!,
-          [
-            "🤖 **pi made changes**",
-            "",
-            `Branch: \`${piBranch}\``,
-            "",
-            `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
-            "",
-            "---",
-            "### Analysis",
-            "",
-            result.output.substring(0, 2000),
-          ].join("\n"),
-        );
-      } else {
-        await updateTrackingComment(
-          octokit,
-          context,
-          commentId!,
-          [
-            "🤖 **pi analysis complete**",
-            "",
-            result.output.substring(0, 4000),
-          ].join("\n"),
-        );
+        const changeNotice = [
+          `🔨 **${modelLabel}** also made code changes:`,
+          "",
+          `Branch: \`${piBranch}\``,
+          `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
+        ].join("\n");
+
+        try {
+          await postComment(octokit, context, changeNotice);
+        } catch (err) {
+          console.warn("Could not post change notice:", err);
+        }
       }
     } catch (err) {
-      console.warn("Could not commit/push changes:", err);
+      console.warn("Git operations failed:", err);
     }
-  } else if (commentId) {
-    await updateTrackingComment(
-      octokit,
-      context,
-      commentId,
-      [
-        result.conclusion === "success"
-          ? "🤖 **pi analysis complete**"
-          : "⚠️ **pi encountered an issue**",
-        "",
-        result.output.substring(0, 4000),
-      ].join("\n"),
-    );
   }
 
   // Post PR review if no tracking comment
@@ -212,9 +220,11 @@ async function run(): Promise<void> {
         context,
         [
           result.conclusion === "success" ? "🤖" : "⚠️",
-          " **pi response**",
+          ` **${modelLabel}**`,
           "",
           result.output.substring(0, 4000),
+          "",
+          `[View run](${jobRunLink})`,
         ].join("\n"),
       );
     } catch (err) {

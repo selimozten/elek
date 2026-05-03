@@ -3,6 +3,7 @@
  * Handles pull_request, issues, issue_comment, pull_request_review events.
  */
 import * as core from "@actions/core";
+import { readFileSync } from "fs";
 import type { GitHubEntityContext, ActionInputs } from "../types";
 
 export function parseInputs(): ActionInputs {
@@ -35,8 +36,7 @@ export function parseEntityContext(): GitHubEntityContext | null {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) throw new Error("GITHUB_EVENT_PATH not set");
 
-  const fs = require("fs");
-  const payload = JSON.parse(fs.readFileSync(eventPath, "utf-8"));
+  const payload = JSON.parse(readFileSync(eventPath, "utf-8"));
 
   const actor = process.env.GITHUB_ACTOR || payload.sender?.login || "unknown";
 
