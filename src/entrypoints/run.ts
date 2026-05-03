@@ -94,8 +94,11 @@ async function run(): Promise<void> {
 
   // Resolve mode → tool allowlist + MCP wiring
   const resolvedMode = resolveMode(inputs.mode);
+  // MCP is feature-flagged off by default; eager-connect was hanging pi
+  // in CI. Set ELEK_ENABLE_MCP=1 in workflow env to re-enable while we debug.
+  const mcpEnabled = process.env.ELEK_ENABLE_MCP === "1" && resolvedMode.useMcpServer;
   console.log(
-    `Mode: ${resolvedMode.mode} | tools: ${resolvedMode.piTools} | mcp: ${resolvedMode.useMcpServer}`,
+    `Mode: ${resolvedMode.mode} | tools: ${resolvedMode.piTools} | mcp: ${mcpEnabled}`,
   );
   // Override the tools input with the mode-resolved set so pi sees it.
   inputs.tools = resolvedMode.piTools;
@@ -147,11 +150,6 @@ async function run(): Promise<void> {
   mkdirSync(promptDir, { recursive: true });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
-  // MCP wiring is feature-flagged. pi-mcp-adapter + --no-extensions removal
-  // hung pi in CI (zero stdout for 8 min) on first deploy. The handlers and
-  // post-step are tested and ready; this gate exists so the wiring can be
-  // re-enabled per-run via env var while we debug, without a code change.
-  const mcpEnabled = process.env.ELEK_ENABLE_MCP === "1" && resolvedMode.useMcpServer;
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
 
   if (mcpEnabled && context.isPR) {
