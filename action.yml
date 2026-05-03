@@ -1,0 +1,182 @@
+name: "elek — AI Code Review"
+description: >
+  Model-agnostic AI code review for GitHub. Sieve through PRs and issues
+  with pi coding agent. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq,
+  Mistral, xAI, OpenRouter — bring your own key.
+branding:
+  icon: "filter"
+  color: "purple"
+
+inputs:
+  # ── Trigger ──
+  trigger_phrase:
+    description: "Phrase in comments or issue body that triggers the action"
+    required: false
+    default: "@pi"
+
+  # ── Model ──
+  provider:
+    description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, xai, openrouter, etc.)"
+    required: false
+    default: "anthropic"
+  model:
+    description: "Model identifier (e.g. claude-sonnet-4-5, gpt-4o, gemini-2.5-pro). Leave empty for provider default."
+    required: false
+    default: ""
+  thinking:
+    description: "Thinking level: off, minimal, low, medium, high, xhigh"
+    required: false
+    default: "medium"
+
+  # ── API Keys (pass through to pi via standard env vars) ──
+  anthropic_api_key:
+    description: "Anthropic API key"
+    required: false
+  openai_api_key:
+    description: "OpenAI API key"
+    required: false
+  google_api_key:
+    description: "Google Gemini API key"
+    required: false
+  deepseek_api_key:
+    description: "DeepSeek API key"
+    required: false
+  groq_api_key:
+    description: "Groq API key"
+    required: false
+  mistral_api_key:
+    description: "Mistral API key"
+    required: false
+  xai_api_key:
+    description: "xAI API key"
+    required: false
+  openrouter_api_key:
+    description: "OpenRouter API key"
+    required: false
+
+  # ── GitHub Auth ──
+  github_token:
+    description: "GitHub token with repo and PR permissions. Defaults to GITHUB_TOKEN."
+    required: false
+    default: ${{ github.token }}
+
+  # ── Behavior ──
+  prompt:
+    description: "Custom instructions for pi. If empty and triggered via @pi mention, uses the comment/issue body."
+    required: false
+    default: ""
+  system_prompt:
+    description: "System prompt override for pi"
+    required: false
+    default: ""
+  max_turns:
+    description: "Maximum conversation turns (limits cost). Default: 20."
+    required: false
+    default: "20"
+  tools:
+    description: "Comma-separated tool allowlist. Default: read,write,edit,bash,grep,find,ls"
+    required: false
+    default: "read,write,edit,bash,grep,find,ls"
+  base_branch:
+    description: "Base branch for PRs (defaults to repository default branch)"
+    required: false
+  branch_prefix:
+    description: "Prefix for branches created by pi"
+    required: false
+    default: "pi/"
+  actor_filter:
+    description: "Comma-separated usernames allowed to trigger. Empty = all humans."
+    required: false
+    default: ""
+  allowed_bots:
+    description: "Comma-separated bot usernames allowed to trigger, or '*' for all"
+    required: false
+    default: ""
+  sticky_comment:
+    description: "Update a single tracking comment instead of new comments each turn"
+    required: false
+    default: "true"
+
+outputs:
+  conclusion:
+    description: "Execution conclusion: success or failure"
+    value: ${{ steps.run.outputs.conclusion }}
+  branch_name:
+    description: "Branch created/used by pi"
+    value: ${{ steps.run.outputs.branch_name }}
+  comment_id:
+    description: "ID of the tracking comment"
+    value: ${{ steps.run.outputs.comment_id }}
+  session_id:
+    description: "pi session ID for continuation"
+    value: ${{ steps.run.outputs.session_id }}
+  summary:
+    description: "Execution summary text"
+    value: ${{ steps.run.outputs.summary }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: "20.x"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        npm install
+        # Make node_modules/.bin available on PATH (pi, tsx)
+        echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
+
+    - name: Run pi Action
+      id: run
+      shell: bash
+      run: |
+        tsx "$GITHUB_ACTION_PATH/src/entrypoints/run.ts"
+      env:
+        # ── Trigger ──
+        INPUT_TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
+
+        # ── Model ──
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_THINKING: ${{ inputs.thinking }}
+
+        # ── API Keys ──
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+        GOOGLE_API_KEY: ${{ inputs.google_api_key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek_api_key }}
+        GROQ_API_KEY: ${{ inputs.groq_api_key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}
+        XAI_API_KEY: ${{ inputs.xai_api_key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+
+        # ── GitHub / Behavior ──
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
+        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+        INPUT_TOOLS: ${{ inputs.tools }}
+        INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
+        INPUT_BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+        INPUT_ACTOR_FILTER: ${{ inputs.actor_filter }}
+        INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
+        INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
+
+        # ── Runtime ──
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_EVENT_ACTION: ${{ github.event.action }}
+        GITHUB_ACTOR: ${{ github.actor }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        RUNNER_TEMP: ${{ runner.temp }}
