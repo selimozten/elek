@@ -36,6 +36,8 @@ import {
   fetchReviewComments,
 } from "../github/comments.js";
 import { runPi } from "../pi.js";
+import type { ProgressEvent } from "../pi.js";
+import { formatProgressComment, type ProgressState } from "../github/progress.js";
 import type { PiRunResult } from "../types.js";
 
 async function run(): Promise<void> {
@@ -132,9 +134,45 @@ async function run(): Promise<void> {
   mkdirSync(promptDir, { recursive: true });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
-  // ── Phase 4: Run pi ──────────────────────────────────────────────────
+  // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
-  const result: PiRunResult = runPi(prompt, inputs);
+
+  const progress: ProgressState = {
+    readContext: false,
+    analyzed: false,
+    wroteReview: false,
+    lastTool: "",
+  };
+
+  let lastUpdate = 0;
+  const onProgress = async (event: ProgressEvent) => {
+    if (event.type === "tool_start") {
+      if (!progress.readContext) {
+        progress.readContext = true;
+      } else if (progress.readContext && !progress.analyzed) {
+        progress.analyzed = true;
+      }
+      progress.lastTool = event.detail?.replace(/^(Running|Completed) /, "") || "";
+    } else if (event.type === "text" || event.type === "thinking") {
+      if (!progress.readContext) progress.readContext = true;
+      if (!progress.analyzed) progress.analyzed = true;
+      progress.wroteReview = true;
+    }
+
+    // Rate-limit updates to every 3 seconds to avoid API rate limits
+    const now = Date.now();
+    if (commentId && now - lastUpdate > 3000) {
+      lastUpdate = now;
+      const body = formatProgressComment(progress, modelLabel, jobRunLink);
+      try {
+        await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+      } catch {
+        // Silently ignore — we'll update again soon
+      }
+    }
+  };
+
+  const result: PiRunResult = await runPi(prompt, inputs, onProgress);
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   if (result.output) {
