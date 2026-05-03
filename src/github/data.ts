@@ -74,8 +74,13 @@ export async function fetchGitHubData(
         direction: "desc",
       });
 
+      // Include EVERY comment, including our own prior bot reviews — the
+      // model needs to see its previous findings so it can iterate on them
+      // (acknowledge what's been addressed, flag what's still outstanding).
+      // Same pattern as claude-code-action: feed full context, let the model
+      // reason about its own history rather than us pre-processing it.
       base.comments = comments
-        .filter((c) => c.body && !c.body.includes("<!-- elek-bot:"))
+        .filter((c) => !!c.body)
         .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
         .reverse();
     } catch (err) {
@@ -208,6 +213,7 @@ export function buildPrompt(
   parts.push("1. **Analyze the context** — Read the body, diff, and any comments to understand what changed and why.");
   if (isPR) {
     parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
+    parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);
   }
   parts.push("");
   parts.push("2. **Review thoroughly** — Check for:");
