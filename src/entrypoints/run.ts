@@ -113,7 +113,7 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
-  const data = await fetchGitHubData(context);
+  const data = await fetchGitHubData(context, octokit);
 
   // Include PR review comments for context
   if (context.isPR) {
