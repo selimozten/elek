@@ -96,4 +96,15 @@ describe("buildPrompt", () => {
     const out = buildPrompt({ ...baseData, body: "" }, "", "m", "j");
     expect(out).toContain("(no description)");
   });
+
+  it("injects MCP tool guidance only when useMcp is true", () => {
+    const withMcp = buildPrompt(baseData, "", "m", "j", undefined, { useMcp: true });
+    expect(withMcp).toContain("create_inline_comment");
+    expect(withMcp).toContain("update_tracking_comment");
+    expect(withMcp).toContain("```suggestion");
+
+    const noMcp = buildPrompt(baseData, "", "m", "j");
+    expect(noMcp).not.toContain("create_inline_comment");
+    expect(noMcp).not.toContain("update_tracking_comment");
+  });
 });

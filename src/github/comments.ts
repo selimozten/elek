@@ -5,34 +5,28 @@
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";
+import { spinnerHeader } from "./spinner";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
-/** Action's home repo — always exists, always has assets/spinner.svg on `main`. */
-const SPINNER_REPO = "selimozten/elek";
-const SPINNER_REF = "main";
-const SPINNER_URL = `https://raw.githubusercontent.com/${SPINNER_REPO}/${SPINNER_REF}/assets/spinner.svg`;
-
-function spinnerHtml(): string {
-  // SVG via <img>: GitHub serves it as a standalone image (animations preserved).
-  // We use a stable URL on the action's home repo so fork PRs don't 404.
-  return `<img src="${SPINNER_URL}" width="14" height="14" alt="⏳" style="vertical-align: middle; margin-left: 4px;" />`;
-}
-
-interface GitHubApi {
+// Loose adapter type matching @actions/github's getOctokit return shape.
+// Octokit's full types are deeply specific and don't structurally fit a
+// hand-rolled minimal interface, so we accept `any` for params + responses
+// and access only the fields we actually use.
+type GitHubApi = {
   rest: {
     issues: {
-      createComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      updateComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      listComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string; type?: string }; body?: string }> }>;
+      createComment: (params: any) => Promise<any>;
+      updateComment: (params: any) => Promise<any>;
+      listComments: (params: any) => Promise<any>;
     };
     pulls: {
-      createReview(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      listReviews(params: any): Promise<{ data: Array<{ id: number; body?: string; state?: string }> }>;
-      listReviewComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string }; body?: string; path?: string; line?: number }> }>;
+      createReview: (params: any) => Promise<any>;
+      listReviews: (params: any) => Promise<any>;
+      listReviewComments: (params: any) => Promise<any>;
     };
   };
-}
+};
 
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
@@ -94,11 +88,9 @@ export async function createTrackingComment(
   modelLabel: string,
 ): Promise<{ id: number; htmlUrl: string }> {
   const runLink = jobRunLink(context);
-  const spin = spinnerHtml();
-
   const sig = commentSignature(modelLabel);
   const body = [
-    `${spin} **${modelLabel}** analyzing…  ${sig}`,
+    `${spinnerHeader(modelLabel)} ${sig}`,
     "",
     `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
     "",

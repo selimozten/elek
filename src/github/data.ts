@@ -5,13 +5,13 @@
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
 
-interface MinimalOctokit {
+type MinimalOctokit = {
   rest: {
     issues: {
-      listComments(params: any): Promise<{ data: Array<{ body?: string; user?: { login: string }; created_at: string }> }>;
+      listComments: (params: any) => Promise<any>;
     };
   };
-}
+};
 
 export interface GitHubData {
   type: "pr" | "issue";
@@ -74,8 +74,13 @@ export async function fetchGitHubData(
         direction: "desc",
       });
 
-      base.comments = comments
-        .filter((c) => c.body && !c.body.includes("<!-- elek-bot:"))
+      // Include EVERY comment, including our own prior bot reviews — the
+      // model needs to see its previous findings so it can iterate on them
+      // (acknowledge what's been addressed, flag what's still outstanding).
+      // Same pattern as claude-code-action: feed full context, let the model
+      // reason about its own history rather than us pre-processing it.
+      base.comments = (comments as Array<{ body?: string; user?: { login?: string } }>)
+        .filter((c) => !!c.body)
         .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
         .reverse();
     } catch (err) {
@@ -98,6 +103,7 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
+  options: { useMcp?: boolean; allowEdit?: boolean } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
@@ -178,6 +184,29 @@ export function buildPrompt(
   parts.push("</user_request>");
   parts.push("");
 
+  // ── MCP tool guidance (review/review+edit modes) ──
+  if (options.useMcp) {
+    parts.push("## Available tools (via the `mcp` proxy)");
+    parts.push("");
+    parts.push("You have an `mcp` proxy tool. Tool names are server-prefixed; ours are `elek_review_*`. Two operations:");
+    parts.push("");
+    parts.push('- `mcp({tool: "elek_review_create_inline_comment", args: "{\\"path\\":\\"...\\",\\"line\\":N,\\"body\\":\\"...\\"}"})`');
+    parts.push("  Post a finding on a specific line of the diff. For multi-line ranges, add `startLine`.");
+    parts.push("  Buffered by default — only sent at the end of the run. Set `confirmed: true` to post immediately.");
+    parts.push("  Use markdown suggestion blocks for actionable fixes:");
+    parts.push("    ```suggestion");
+    parts.push("    new code here");
+    parts.push("    ```");
+    parts.push("");
+    parts.push('- `mcp({tool: "elek_review_update_tracking_comment", args: "{\\"body\\":\\"...\\"}"})`');
+    parts.push("  Replace the body of your tracking comment. Use this to maintain a live todo checklist as you work.");
+    parts.push("");
+    parts.push("Note: `args` is a JSON STRING (not an object). If you forget the prefix, use `mcp({search: \"<keyword>\"})` to discover the right name.");
+    parts.push("");
+    parts.push("These are the ONLY ways your inline-comment output is visible. Console output is discarded.");
+    parts.push("");
+  }
+
   // ── Workflow Instructions ──
   parts.push("## Instructions");
   parts.push("");
@@ -186,6 +215,7 @@ export function buildPrompt(
   parts.push("1. **Analyze the context** — Read the body, diff, and any comments to understand what changed and why.");
   if (isPR) {
     parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
+    parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);
   }
   parts.push("");
   parts.push("2. **Review thoroughly** — Check for:");

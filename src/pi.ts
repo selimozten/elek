@@ -77,6 +77,8 @@ export async function runPi(
   prompt: string,
   inputs: ActionInputs,
   onProgress?: (event: ProgressEvent) => Promise<void>,
+  /** When true, pi loads extensions (needed for pi-mcp-adapter). */
+  loadExtensions?: boolean,
 ): Promise<PiRunResult> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
@@ -88,7 +90,7 @@ export async function runPi(
   writeFileSync(promptFile, prompt, "utf-8");
 
   const piBin = findPiBinary();
-  const args = buildPiArgs(inputs, promptFile);
+  const args = buildPiArgs(inputs, promptFile, !!loadExtensions);
   const env = buildPiEnv(inputs);
 
   console.log(`pi binary: ${piBin}`);
@@ -104,29 +106,48 @@ export async function runPi(
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
 
+  // pi --mode json hangs forever when spawned with stdio:["pipe",…] from
+  // Node — pi keeps the stdin pipe open waiting for input that never
+  // arrives. Reproduced locally (see /tmp/elek-debug/repro.mjs in dev
+  // history): hang with stdio:["pipe",…], works perfectly with
+  // stdio:["ignore",…] (stdin closed). The fix is in the spawn call below.
+  // Set ELEK_PI_TEXT_MODE=1 to fall back to `pi -p` if JSON mode regresses.
+  const useJsonMode = process.env.ELEK_PI_TEXT_MODE !== "1";
+
   return new Promise((resolve) => {
-    // Use --mode json for streaming events (JSONL format)
-    const jsonArgs = [...args, "--mode", "json"];
+    const finalArgs = useJsonMode
+      ? [...args.filter((a) => a !== "-p"), "--mode", "json"]
+      : ["-p", ...args];
 
-    // Remove -p since --mode json already implies non-interactive
-    const filteredArgs = jsonArgs.filter((a) => a !== "-p");
+    console.log(
+      `Command: ${piBin} ${finalArgs.map((a) => (a.startsWith("@") ? "@<prompt>" : a)).join(" ")}`,
+    );
 
-    console.log(`Command: ${piBin} ${filteredArgs.map((a) => (a.startsWith("@") ? "@<prompt>" : a)).join(" ")}`);
-
-    const child = spawn(piBin, filteredArgs, {
+    const child = spawn(piBin, finalArgs, {
       env,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"], // close stdin (pi -p doesn't read it)
       timeout: 30 * 60 * 1000,
     });
 
-    const rl = createInterface({ input: child.stdout! });
     let stderr = "";
+    let stdoutRaw = "";
 
     child.stderr!.on("data", (data) => {
       stderr += data.toString();
     });
 
-    rl.on("line", (line: string) => {
+    if (!useJsonMode) {
+      // Text mode: just collect stdout as the assistant's review text.
+      child.stdout!.on("data", (chunk) => {
+        stdoutRaw += chunk.toString();
+      });
+    }
+
+    const rl = useJsonMode
+      ? createInterface({ input: child.stdout! })
+      : null;
+
+    rl?.on("line", (line: string) => {
       let event: any;
       try {
         event = JSON.parse(line);
@@ -198,15 +219,24 @@ export async function runPi(
       }
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(
         `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount}`,
       );
 
-      onProgress?.({ type: "done" });
+      // AWAIT the final progress update — otherwise it races with run.ts's
+      // post-pi `updateTrackingComment(reviewBody)` and the progress checklist
+      // can land *after* the review, overwriting it.
+      try {
+        await onProgress?.({ type: "done" });
+      } catch {
+        // already logged inside onProgress
+      }
 
-      const output = extractAssistantText(finalAssistant) || streamingText.trim();
+      const output = useJsonMode
+        ? (extractAssistantText(finalAssistant) || streamingText.trim())
+        : stdoutRaw.trim();
       const stopReason = finalAssistant?.stopReason;
       const isErrorStop = stopReason === "error" || stopReason === "aborted";
 
@@ -261,15 +291,21 @@ function extractAssistantText(msg?: PiAssistantMessage): string {
 /**
  * Build the CLI arguments for pi.
  */
-function buildPiArgs(inputs: ActionInputs, promptFile: string): string[] {
+function buildPiArgs(
+  inputs: ActionInputs,
+  promptFile: string,
+  loadExtensions: boolean,
+): string[] {
   const args: string[] = [
     "--no-session",
     "--provider", inputs.provider,
     "--thinking", inputs.thinking,
-    "--no-extensions",
     "--no-skills",
     "--no-context-files",
   ];
+  if (!loadExtensions) {
+    args.push("--no-extensions");
+  }
 
   if (inputs.model) {
     args.push("--model", inputs.model);

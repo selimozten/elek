@@ -19,7 +19,7 @@ const baseInputs: ActionInputs = {
   actorFilter: "",
   allowedBots: "",
   stickyComment: true,
-  signCommits: false,
+  mode: "review",
 };
 
 const baseCtx: GitHubEntityContext = {
