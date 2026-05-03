@@ -140,63 +140,57 @@ async function run(): Promise<void> {
     ? `**${inputs.provider}/${inputs.model}**`
     : `**${inputs.provider}**`;
 
-  if (result.conclusion === "success" && piBranch) {
-    // Check if pi made changes
+  // Always post the review comment first (before git ops, which can fail)
+  if (commentId) {
+    const reviewBody = [
+      result.conclusion === "success"
+        ? `🤖 ${modelLabel} **analysis complete**`
+        : `⚠️ ${modelLabel} **encountered an issue**`,
+      "",
+      result.output.substring(0, 4000),
+    ].join("\n");
+
     try {
-      const status = execSync("git status --porcelain", {
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
+      await updateTrackingComment(octokit, context, commentId, reviewBody);
+    } catch (err) {
+      console.warn("Could not update tracking comment, posting new one:", err);
+      try {
+        await postComment(octokit, context, reviewBody);
+      } catch (err2) {
+        console.warn("Could not post comment either:", err2);
+      }
+    }
+  }
+
+  // Then handle any code changes pi made (separate from the review comment)
+  if (result.conclusion === "success" && piBranch) {
+    try {
+      // Only count non-lockfile changes as pi's work
+      const status = execSync(
+        "git status --porcelain | grep -v package-lock.json | grep -v node_modules",
+        { encoding: "utf-8", stdio: "pipe" },
+      );
 
       if (status.trim()) {
         commitChanges(`pi: automated changes for #${context.entityNumber}`);
         pushBranch(piBranch);
 
-        await updateTrackingComment(
-          octokit,
-          context,
-          commentId!,
-          [
-            `🤖 ${modelLabel} **made changes**`,
-            "",
-            `Branch: \`${piBranch}\``,
-            "",
-            `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
-            "",
-            "---",
-            "### Analysis",
-            "",
-            result.output.substring(0, 2000),
-          ].join("\n"),
-        );
-      } else {
-        await updateTrackingComment(
-          octokit,
-          context,
-          commentId!,
-          [
-            `🤖 ${modelLabel} **analysis complete**`,
-            "",
-            result.output.substring(0, 4000),
-          ].join("\n"),
-        );
+        const changeNotice = [
+          `🔨 ${modelLabel} also made code changes:`,
+          "",
+          `Branch: \`${piBranch}\``,
+          `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
+        ].join("\n");
+
+        try {
+          await postComment(octokit, context, changeNotice);
+        } catch (err) {
+          console.warn("Could not post change notice:", err);
+        }
       }
     } catch (err) {
-      console.warn("Could not commit/push changes:", err);
+      console.warn("Git operations failed:", err);
     }
-  } else if (commentId) {
-    await updateTrackingComment(
-      octokit,
-      context,
-      commentId,
-      [
-        result.conclusion === "success"
-          ? `🤖 ${modelLabel} **analysis complete**`
-          : `⚠️ ${modelLabel} **encountered an issue**`,
-        "",
-        result.output.substring(0, 4000),
-      ].join("\n"),
-    );
   }
 
   // Post PR review if no tracking comment
