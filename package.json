@@ -1,11 +1,19 @@
 {
   "name": "elek",
   "version": "1.0.0",
-  "description": "Elek — model-agnostic AI code review for GitHub. Sieve through PRs and issues with pi.",
+  "description": "Model-agnostic AI code review for GitHub Actions. Tightly scoped tool surface — model can post inline review threads but cannot approve, merge, or close.",
   "type": "module",
+  "homepage": "https://github.com/selimozten/elek",
+  "bugs": "https://github.com/selimozten/elek/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/selimozten/elek.git"
+  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "bun test test/",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -21,6 +29,18 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   },
-  "keywords": ["pi-package", "github-actions", "code-review", "ai", "elek"],
+  "keywords": [
+    "github-actions",
+    "code-review",
+    "ai",
+    "pi-coding-agent",
+    "deepseek",
+    "anthropic",
+    "openai",
+    "model-agnostic",
+    "mcp",
+    "pull-request",
+    "automated-review"
+  ],
   "license": "MIT"
 }
