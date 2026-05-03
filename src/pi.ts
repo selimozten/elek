@@ -2,16 +2,45 @@
  * pi CLI runner — spawns pi in JSON mode for streaming progress updates.
  * Calls back on progress events so the orchestrator can update the tracking comment
  * step-by-step, matching Claude Code's progressive checklist UX.
+ *
+ * Event format (verified against pi 0.72.1, see /opt/homebrew/.../docs/json.md):
+ *   - {"type":"session", id, version, ...}                 first line, session header
+ *   - {"type":"agent_start"} | {"type":"agent_end", messages:[...]}
+ *   - {"type":"turn_start"} | {"type":"turn_end", message, toolResults}
+ *   - {"type":"message_start", message} | {"type":"message_end", message}
+ *   - {"type":"message_update", message, assistantMessageEvent:{type, ...}}
+ *       assistantMessageEvent.type ∈ text_start|text_delta|text_end|
+ *                                    thinking_start|thinking_delta|thinking_end|
+ *                                    toolcall_start|toolcall_delta|toolcall_end|done|error
+ *   - {"type":"tool_execution_start", toolCallId, toolName, args}
+ *   - {"type":"tool_execution_update", ...partialResult}
+ *   - {"type":"tool_execution_end", toolCallId, toolName, result, isError}
+ *
+ * Final assistant text comes from agent_end.messages — the last assistant message's
+ * `content` array filtered for {type:"text"} entries. Streaming text_delta events
+ * are used only for progress signaling; they would over-aggregate across turns.
  */
 import { spawn } from "child_process";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
-import type { ActionInputs, PiRunResult } from "../types";
+import type { ActionInputs, PiRunResult } from "./types";
 
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
   detail?: string;
+}
+
+interface PiTextContent { type: "text"; text: string }
+interface PiThinkingContent { type: "thinking"; thinking: string }
+interface PiToolCall { type: "toolCall"; toolName?: string }
+type PiContent = PiTextContent | PiThinkingContent | PiToolCall | { type: string; [k: string]: unknown };
+
+interface PiAssistantMessage {
+  role: "assistant";
+  content: PiContent[];
+  stopReason?: string;
+  errorMessage?: string;
 }
 
 /**
@@ -66,14 +95,19 @@ export async function runPi(
   console.log(`Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`);
 
   const startTime = Date.now();
-  const outputParts: string[] = [];
-  let currentTool = "";
+  let sessionId: string | undefined;
   let toolCount = 0;
+  let turnCount = 0;
+  let finalAssistant: PiAssistantMessage | undefined;
+  let lastErrorMessage: string | undefined;
+  // Streaming text deltas — used as a fallback if agent_end is missing.
+  // Reset at every turn_start so we keep only the last turn's text.
+  let streamingText = "";
 
   return new Promise((resolve) => {
     // Use --mode json for streaming events (JSONL format)
     const jsonArgs = [...args, "--mode", "json"];
-    
+
     // Remove -p since --mode json already implies non-interactive
     const filteredArgs = jsonArgs.filter((a) => a !== "-p");
 
@@ -93,61 +127,109 @@ export async function runPi(
     });
 
     rl.on("line", (line: string) => {
+      let event: any;
       try {
-        const event = JSON.parse(line);
+        event = JSON.parse(line);
+      } catch {
+        return; // non-JSON line (warnings, etc.)
+      }
 
-        // Track tool usage for progress
-        if (event.type === "tool_execution_start") {
-          currentTool = event.toolName || "unknown";
+      switch (event.type) {
+        case "session":
+          sessionId = event.id;
+          break;
+
+        case "turn_start":
+          turnCount++;
+          streamingText = "";
+          break;
+
+        case "tool_execution_start": {
+          const toolName: string = event.toolName || "unknown";
           toolCount++;
-          onProgress?.({
-            type: "tool_start",
-            detail: `Running ${currentTool}...`,
-          });
-        } else if (event.type === "tool_execution_end") {
+          // Render bash commands as `bash(<cmd>)` for nicer progress lines.
+          const detail =
+            toolName === "bash" && event.args?.command
+              ? `bash(${String(event.args.command).split("\n")[0].slice(0, 60)})`
+              : toolName;
+          onProgress?.({ type: "tool_start", detail });
+          break;
+        }
+
+        case "tool_execution_end":
           onProgress?.({
             type: "tool_end",
-            detail: `Completed ${currentTool}`,
+            detail: event.toolName || "tool",
           });
-        } else if (event.type === "message_update") {
+          break;
+
+        case "message_update": {
           const update = event.assistantMessageEvent;
-          if (update?.type === "text_delta") {
-            outputParts.push(update.delta);
-            onProgress?.({
-              type: "text",
-              detail: "Writing review...",
-            });
-          } else if (update?.type === "thinking_delta") {
-            onProgress?.({
-              type: "thinking",
-              detail: "Analyzing...",
-            });
+          if (!update) break;
+          if (update.type === "text_delta") {
+            streamingText += update.delta || "";
+            onProgress?.({ type: "text" });
+          } else if (update.type === "thinking_delta") {
+            onProgress?.({ type: "thinking" });
           }
+          break;
         }
-      } catch {
-        // Non-JSON line (stderr bleed-through), ignore
+
+        case "message_end": {
+          const msg = event.message;
+          if (msg?.role === "assistant") {
+            finalAssistant = msg;
+            if (msg.errorMessage) lastErrorMessage = msg.errorMessage;
+          }
+          break;
+        }
+
+        case "agent_end": {
+          // Authoritative final state — pick the last assistant message.
+          const messages: PiAssistantMessage[] = (event.messages || []).filter(
+            (m: any) => m?.role === "assistant",
+          );
+          if (messages.length > 0) {
+            finalAssistant = messages[messages.length - 1];
+            if (finalAssistant?.errorMessage) lastErrorMessage = finalAssistant.errorMessage;
+          }
+          break;
+        }
       }
     });
 
     child.on("close", (code) => {
       const elapsed = (Date.now() - startTime) / 1000;
-      console.log(`pi exited with code ${code} in ${elapsed.toFixed(1)}s`);
+      console.log(
+        `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount}`,
+      );
 
-      const output = outputParts.join("").trim() || stderr.trim();
+      onProgress?.({ type: "done" });
 
-      if (code === 0 && output) {
+      const output = extractAssistantText(finalAssistant) || streamingText.trim();
+      const stopReason = finalAssistant?.stopReason;
+      const isErrorStop = stopReason === "error" || stopReason === "aborted";
+
+      if (code === 0 && output && !isErrorStop) {
         resolve({
           conclusion: "success",
           output,
-          turnsUsed: toolCount,
+          sessionId,
+          turnsUsed: turnCount,
           costUsd: 0,
         });
       } else {
-        console.error(`pi failed (code ${code}):`, output.substring(0, 500));
+        const errMsg =
+          lastErrorMessage ||
+          output ||
+          stderr.trim().slice(-500) ||
+          `pi exited with code ${code}`;
+        console.error(`pi failed: ${errMsg.substring(0, 500)}`);
         resolve({
           conclusion: "failure",
-          output: output || `Exit code ${code}`,
-          turnsUsed: toolCount,
+          output: errMsg,
+          sessionId,
+          turnsUsed: turnCount,
           costUsd: 0,
         });
       }
@@ -155,6 +237,7 @@ export async function runPi(
 
     child.on("error", (err) => {
       console.error(`pi spawn error:`, err.message);
+      onProgress?.({ type: "done" });
       resolve({
         conclusion: "failure",
         output: err.message,
@@ -163,6 +246,16 @@ export async function runPi(
       });
     });
   });
+}
+
+/** Concatenate the text content blocks of an assistant message. */
+function extractAssistantText(msg?: PiAssistantMessage): string {
+  if (!msg) return "";
+  return msg.content
+    .filter((c): c is PiTextContent => c.type === "text" && typeof (c as PiTextContent).text === "string")
+    .map((c) => c.text)
+    .join("")
+    .trim();
 }
 
 /**

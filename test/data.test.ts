@@ -1,0 +1,99 @@
+/**
+ * Tests for buildPrompt — XML-tagged structured prompt for pi.
+ * Pure formatting; no GitHub or git calls.
+ */
+import { describe, it, expect } from "bun:test";
+import { buildPrompt, type GitHubData } from "../src/github/data";
+
+const baseData: GitHubData = {
+  type: "pr",
+  title: "Add login flow",
+  body: "Implements basic auth",
+  author: "alice",
+  comments: [],
+  reviewComments: [],
+  labels: ["enhancement"],
+  assignees: [],
+  entityNumber: 17,
+  pr: { headRef: "feat/auth", baseRef: "main" },
+  diff: "@@ -1,2 +1,3 @@\n+console.log('hi')",
+};
+
+describe("buildPrompt", () => {
+  it("includes the structured context block with title, author, branch", () => {
+    const out = buildPrompt(baseData, "review pls", "deepseek/v4", "https://job/1");
+    expect(out).toContain("<context>");
+    expect(out).toContain("PR Title: Add login flow");
+    expect(out).toContain("Author: alice");
+    expect(out).toContain("Branch: feat/auth → main");
+    expect(out).toContain("</context>");
+  });
+
+  it("wraps the diff in a fenced diff block inside <changed_files>", () => {
+    const out = buildPrompt(baseData, "", "m", "j");
+    expect(out).toContain("<changed_files>");
+    expect(out).toContain("```diff");
+    expect(out).toContain("+console.log('hi')");
+    expect(out).toContain("</changed_files>");
+  });
+
+  it("truncates a giant diff with a (... N more lines) marker", () => {
+    const big = Array.from({ length: 600 }, (_, i) => `+ line ${i}`).join("\n");
+    const out = buildPrompt({ ...baseData, diff: big }, "", "m", "j");
+    expect(out).toContain("... (");
+    expect(out).toContain("more lines)");
+  });
+
+  it("includes user_request and metadata blocks", () => {
+    const out = buildPrompt(baseData, "find bugs", "deepseek/v4", "https://j", 555);
+    expect(out).toContain("<user_request>");
+    expect(out).toContain("find bugs");
+    expect(out).toContain("</user_request>");
+    expect(out).toContain("<metadata>");
+    expect(out).toContain("comment_id: 555");
+    expect(out).toContain("model: deepseek/v4");
+  });
+
+  it("falls back to default review prompt when userRequest is empty", () => {
+    const out = buildPrompt(baseData, "", "m", "j");
+    expect(out).toContain("Please review this pull request");
+  });
+
+  it("uses issue_body tag and omits diff for issue context", () => {
+    const issueData: GitHubData = {
+      type: "issue",
+      title: "Crash on login",
+      body: "Steps: ...",
+      author: "alice",
+      comments: [],
+      reviewComments: [],
+      labels: [],
+      assignees: [],
+      entityNumber: 42,
+    };
+    const out = buildPrompt(issueData, "", "m", "j");
+    expect(out).toContain("<issue_body>");
+    expect(out).toContain("Steps: ...");
+    expect(out).not.toContain("<changed_files>");
+    expect(out).toContain("Please review this issue");
+  });
+
+  it("includes review comments only when present", () => {
+    const out = buildPrompt(
+      { ...baseData, reviewComments: ["[src/a.ts:10]: nit: rename foo"] },
+      "",
+      "m",
+      "j",
+    );
+    expect(out).toContain("<review_comments>");
+    expect(out).toContain("nit: rename foo");
+
+    const out2 = buildPrompt(baseData, "", "m", "j");
+    expect(out2).not.toContain("<review_comments>");
+  });
+
+  it("renders 'no description' when body is empty", () => {
+    const out = buildPrompt({ ...baseData, body: "" }, "", "m", "j");
+    expect(out).toContain("(no description)");
+  });
+});

@@ -1,20 +1,22 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
- * Deduplicates: searches for existing bot comment before creating new.
- * Uses custom spinner GIF from repo assets.
+ * Deduplicates by signature so the same comment is reused across pushes.
+ * Uses the animated pi spinner from the action's home repo on `main`,
+ * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
-const BOT_LOGIN = "github-actions[bot]";
+/** Action's home repo — always exists, always has assets/spinner.svg on `main`. */
+const SPINNER_REPO = "selimozten/elek";
+const SPINNER_REF = "main";
+const SPINNER_URL = `https://raw.githubusercontent.com/${SPINNER_REPO}/${SPINNER_REF}/assets/spinner.svg`;
 
-/** Dynamic spinner URL using current branch so it works on PRs too */
 function spinnerHtml(): string {
-  const repo = process.env.GITHUB_REPOSITORY || "selimozten/elek";
-  const ref = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "main";
-  const url = `https://raw.githubusercontent.com/${repo}/${ref}/assets/spinner.gif`;
-  return `<img src="${url}" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />`;
+  // SVG via <img>: GitHub serves it as a standalone image (animations preserved).
+  // We use a stable URL on the action's home repo so fork PRs don't 404.
+  return `<img src="${SPINNER_URL}" width="14" height="14" alt="⏳" style="vertical-align: middle; margin-left: 4px;" />`;
 }
 
 interface GitHubApi {
@@ -44,31 +46,40 @@ function commentSignature(modelLabel: string): string {
 }
 
 /**
- * Find an existing elek bot comment for a specific model.
- * Returns the comment ID if found, undefined otherwise.
+ * Find an existing elek comment for this model on the issue/PR.
+ * The signature alone is unique enough — we don't filter by bot login
+ * because tokens (default GITHUB_TOKEN, PATs, GitHub Apps) all show up
+ * with different `user.login` values. Anyone faking the signature is
+ * impersonating the bot, which is itself a bug we'd rather surface than hide.
+ *
+ * Pages through all comments since long-lived PRs may have many.
  */
 async function findExistingComment(
   octokit: GitHubApi,
   context: GitHubEntityContext,
   modelLabel: string,
 ): Promise<number | undefined> {
+  const sig = commentSignature(modelLabel);
   try {
-    const { data: comments } = await octokit.rest.issues.listComments({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: context.entityNumber,
-      per_page: 50,
-    });
-
-    const sig = commentSignature(modelLabel);
-    const existing = comments.findLast(
-      (c) =>
-        c.user?.login === BOT_LOGIN &&
-        c.body?.includes(sig),
-    );
-
-    return existing?.id;
-  } catch {
+    let page = 1;
+    let lastMatchId: number | undefined;
+    while (page <= 10) {
+      const { data: comments } = await octokit.rest.issues.listComments({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.entityNumber,
+        per_page: 100,
+        page,
+      });
+      for (const c of comments) {
+        if (c.body?.includes(sig)) lastMatchId = c.id;
+      }
+      if (comments.length < 100) break;
+      page++;
+    }
+    return lastMatchId;
+  } catch (err) {
+    console.warn("findExistingComment failed:", (err as Error).message);
     return undefined;
   }
 }

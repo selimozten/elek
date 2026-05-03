@@ -1,0 +1,166 @@
+/**
+ * Tests for parseEntityContext — turning raw GitHub event payloads
+ * into the canonical GitHubEntityContext used everywhere downstream.
+ *
+ * Strategy: write a fake event JSON to RUNNER_TEMP, set GITHUB_EVENT_PATH
+ * and GITHUB_EVENT_NAME, then assert against the parsed result.
+ */
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { writeFileSync, mkdtempSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import { parseEntityContext } from "../src/github/context";
+
+let tmp: string;
+const ENV_KEYS = [
+  "GITHUB_EVENT_NAME",
+  "GITHUB_EVENT_PATH",
+  "GITHUB_ACTOR",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REPOSITORY_OWNER",
+];
+const saved: Record<string, string | undefined> = {};
+
+function writeEvent(payload: unknown): string {
+  const path = join(tmp, "event.json");
+  writeFileSync(path, JSON.stringify(payload), "utf-8");
+  return path;
+}
+
+beforeEach(() => {
+  tmp = mkdtempSync(join(tmpdir(), "elek-test-"));
+  for (const k of ENV_KEYS) saved[k] = process.env[k];
+  process.env.GITHUB_REPOSITORY = "octo/repo";
+  process.env.GITHUB_REPOSITORY_OWNER = "octo";
+  process.env.GITHUB_ACTOR = "alice";
+});
+
+afterEach(() => {
+  rmSync(tmp, { recursive: true, force: true });
+  for (const k of ENV_KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
+
+describe("parseEntityContext", () => {
+  it("parses a pull_request opened event", () => {
+    process.env.GITHUB_EVENT_NAME = "pull_request";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "opened",
+      pull_request: {
+        number: 42,
+        title: "Add feature",
+        body: "fixes #1",
+        head: { ref: "feat/x", sha: "headsha" },
+        base: { ref: "main", sha: "basesha" },
+      },
+      repository: { default_branch: "main" },
+    });
+
+    const ctx = parseEntityContext();
+    expect(ctx).not.toBeNull();
+    expect(ctx!.eventName).toBe("pull_request");
+    expect(ctx!.isPR).toBe(true);
+    expect(ctx!.entityNumber).toBe(42);
+    expect(ctx!.actor).toBe("alice");
+    expect(ctx!.pr?.headRef).toBe("feat/x");
+    expect(ctx!.pr?.baseRef).toBe("main");
+    expect(ctx!.triggerText).toBe("fixes #1");
+  });
+
+  it("parses an issues event and extracts labels/assignees", () => {
+    process.env.GITHUB_EVENT_NAME = "issues";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "labeled",
+      issue: {
+        number: 7,
+        title: "Bug",
+        body: "broken",
+        labels: [{ name: "bug" }, "needs-triage"],
+        assignees: [{ login: "bob" }],
+      },
+    });
+
+    const ctx = parseEntityContext();
+    expect(ctx!.isPR).toBe(false);
+    expect(ctx!.entityNumber).toBe(7);
+    expect(ctx!.issue?.labels).toEqual(["bug", "needs-triage"]);
+    expect(ctx!.issue?.assignees).toEqual(["bob"]);
+  });
+
+  it("skips PR-as-issue payloads on issues event", () => {
+    process.env.GITHUB_EVENT_NAME = "issues";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "opened",
+      issue: { number: 5, pull_request: { url: "..." }, body: "" },
+    });
+    expect(parseEntityContext()).toBeNull();
+  });
+
+  it("parses an issue_comment event on a PR (sets isPR=true via issue.pull_request)", () => {
+    process.env.GITHUB_EVENT_NAME = "issue_comment";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "created",
+      comment: { body: "@pi review please" },
+      issue: { number: 99, title: "PR title", body: "", pull_request: { url: "..." } },
+    });
+
+    const ctx = parseEntityContext();
+    expect(ctx!.isPR).toBe(true);
+    expect(ctx!.eventName).toBe("issue_comment");
+    expect(ctx!.entityNumber).toBe(99);
+    expect(ctx!.triggerText).toBe("@pi review please");
+    expect(ctx!.pr).toBeDefined();
+  });
+
+  it("parses an issue_comment event on a plain issue (isPR=false)", () => {
+    process.env.GITHUB_EVENT_NAME = "issue_comment";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "created",
+      comment: { body: "@pi help" },
+      issue: { number: 12, title: "Q", body: "" },
+    });
+
+    const ctx = parseEntityContext();
+    expect(ctx!.isPR).toBe(false);
+    expect(ctx!.issue).toBeDefined();
+  });
+
+  it("returns null for unsupported events", () => {
+    process.env.GITHUB_EVENT_NAME = "push";
+    process.env.GITHUB_EVENT_PATH = writeEvent({ ref: "refs/heads/main" });
+    expect(parseEntityContext()).toBeNull();
+  });
+
+  it("falls back to payload data when env vars are missing", () => {
+    delete process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_REPOSITORY_OWNER;
+    delete process.env.GITHUB_ACTOR;
+
+    process.env.GITHUB_EVENT_NAME = "pull_request";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "opened",
+      sender: { login: "carol" },
+      pull_request: {
+        number: 1,
+        title: "T",
+        body: "B",
+        head: { ref: "h", sha: "s" },
+        base: { ref: "main", sha: "b" },
+      },
+      repository: {
+        owner: { login: "octo" },
+        name: "repo",
+        full_name: "octo/repo",
+        default_branch: "main",
+      },
+    });
+
+    const ctx = parseEntityContext();
+    expect(ctx!.actor).toBe("carol");
+    expect(ctx!.repo.owner).toBe("octo");
+    expect(ctx!.repo.repo).toBe("repo");
+    expect(ctx!.repo.fullName).toBe("octo/repo");
+  });
+});

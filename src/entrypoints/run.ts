@@ -144,31 +144,49 @@ async function run(): Promise<void> {
     lastTool: "",
   };
 
+  // State machine driven by what pi actually emits:
+  //   1st tool_start            → "Read context" ✓
+  //   2nd+ tool_start            → "Analyzed code" ✓ (still working)
+  //   text_delta after tools     → still in "Writing review…" — don't tick the box
+  //   "done" (run finished)      → "Review complete" ✓
+  let toolsSeen = 0;
+  let textStreamed = false;
+
   let lastUpdate = 0;
+  let lastBody = "";
   const onProgress = async (event: ProgressEvent) => {
     if (event.type === "tool_start") {
-      if (!progress.readContext) {
-        progress.readContext = true;
-      } else if (progress.readContext && !progress.analyzed) {
-        progress.analyzed = true;
-      }
-      progress.lastTool = event.detail?.replace(/^(Running|Completed) /, "") || "";
-    } else if (event.type === "text" || event.type === "thinking") {
-      if (!progress.readContext) progress.readContext = true;
-      if (!progress.analyzed) progress.analyzed = true;
-      progress.wroteReview = true;
+      toolsSeen++;
+      if (toolsSeen === 1) progress.readContext = true;
+      if (toolsSeen >= 2) progress.analyzed = true;
+      if (event.detail) progress.lastTool = event.detail;
+    } else if (event.type === "text") {
+      // Model is generating the answer → context+analysis are implicitly done
+      progress.readContext = true;
+      progress.analyzed = true;
+      textStreamed = true;
+    } else if (event.type === "done") {
+      progress.readContext = true;
+      progress.analyzed = true;
+      // wroteReview reflects whether we actually got output text
+      progress.wroteReview = textStreamed || true;
     }
 
-    // Rate-limit updates to every 3 seconds to avoid API rate limits
+    if (!commentId) return;
+
+    // Rate-limit to avoid GitHub API abuse, but always flush the "done" event.
     const now = Date.now();
-    if (commentId && now - lastUpdate > 3000) {
-      lastUpdate = now;
-      const body = formatProgressComment(progress, modelLabel, jobRunLink);
-      try {
-        await updateTrackingComment(octokit, context, commentId, body, modelLabel);
-      } catch {
-        // Silently ignore — we'll update again soon
-      }
+    const isFinal = event.type === "done";
+    if (!isFinal && now - lastUpdate < 3000) return;
+
+    const body = formatProgressComment(progress, modelLabel, jobRunLink);
+    if (body === lastBody && !isFinal) return; // no visible change → skip the API call
+    lastUpdate = now;
+    lastBody = body;
+    try {
+      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+    } catch (err) {
+      console.warn("progress update failed:", (err as Error).message);
     }
   };
 
