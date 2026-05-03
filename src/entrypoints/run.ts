@@ -15,7 +15,8 @@
  */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, unlinkSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 import { execSync } from "child_process";
 
@@ -152,10 +153,20 @@ async function run(): Promise<void> {
 
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
 
-  if (mcpEnabled && context.isPR) {
+  // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json.
+  // We choose the home-config path so the file (which carries GITHUB_TOKEN
+  // in its env block) NEVER lands in the workspace — workspace files can be
+  // uploaded as artifacts, persisted between steps on self-hosted runners,
+  // or even committed by an over-eager model. Cleaned up in a finally block
+  // below regardless of whether pi succeeds.
+  const mcpConfigPath = mcpEnabled && context.isPR
+    ? join(homedir(), ".config", "mcp", "mcp.json")
+    : null;
+
+  if (mcpConfigPath) {
     const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
     const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
-    const mcpConfigPath = join(process.cwd(), ".mcp.json");
+    mkdirSync(join(homedir(), ".config", "mcp"), { recursive: true });
     writeFileSync(
       mcpConfigPath,
       JSON.stringify(
@@ -240,7 +251,15 @@ async function run(): Promise<void> {
     }
   };
 
-  const result: PiRunResult = await runPi(prompt, inputs, onProgress, mcpEnabled);
+  let result: PiRunResult;
+  try {
+    result = await runPi(prompt, inputs, onProgress, mcpEnabled);
+  } finally {
+    // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
+    if (mcpConfigPath) {
+      try { unlinkSync(mcpConfigPath); } catch { /* already gone */ }
+    }
+  }
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   if (result.output) {
@@ -248,6 +267,14 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
+  // GitHub's hard limit on issue/PR comments is 65,536 chars; leave
+  // headroom for the wrapper (header, signature, links).
+  const MAX_REVIEW_CHARS = 60_000;
+  const truncate = (s: string) =>
+    s.length > MAX_REVIEW_CHARS
+      ? `${s.slice(0, MAX_REVIEW_CHARS)}\n\n_…review truncated, ${s.length - MAX_REVIEW_CHARS} chars omitted_`
+      : s;
+
   // Always post the review comment first (before git ops, which can fail)
   if (commentId) {
     const reviewBody = [
@@ -255,7 +282,7 @@ async function run(): Promise<void> {
         ? `🤖 **${modelLabel}** analysis complete`
         : `⚠️ **${modelLabel}** encountered an issue`,
       "",
-      result.output.substring(0, 4000),
+      truncate(result.output),
       "",
       `[View run](${jobRunLink})`,
     ].join("\n");
@@ -334,7 +361,7 @@ async function run(): Promise<void> {
           result.conclusion === "success" ? "🤖" : "⚠️",
           ` **${modelLabel}**`,
           "",
-          result.output.substring(0, 4000),
+          truncate(result.output),
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
@@ -350,7 +377,9 @@ async function run(): Promise<void> {
     try {
       const summary = await postBuffered({
         readBuffer: () => readFileSync(bufferPath, "utf-8"),
-        octokit: octokit as unknown as Parameters<typeof postBuffered>[0]["octokit"],
+        // @actions/github's octokit exposes the API under `.rest` —
+        // structurally compatible with PostBufferedOctokit (no cast needed).
+        octokit: octokit.rest,
         env: {
           repoOwner: context.repo.owner,
           repoName: context.repo.repo,

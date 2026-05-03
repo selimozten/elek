@@ -5,13 +5,29 @@
  * Pure orchestration logic lives in `postBuffered(deps)`; the file's bottom
  * runs it against real fs/octokit when invoked as a CLI.
  */
-import { buildReviewCommentParams, type OctokitLike } from "../mcp/handlers";
+import { buildReviewCommentParams } from "../mcp/handlers";
+
+/**
+ * The narrow Octokit slice the post-step actually uses. Defined explicitly
+ * (not `Pick<OctokitLike, …>` derived) so callers don't need an
+ * `as unknown as` cast — both `@actions/github` and `@octokit/rest`
+ * Octokits have method signatures permissive enough to satisfy this.
+ */
+export interface PostBufferedOctokit {
+  pulls: {
+    createReviewComment(params: Record<string, unknown>): Promise<{
+      data: { id: number };
+    }>;
+    get(params: Record<string, unknown>): Promise<{
+      data: { head: { sha: string } };
+    }>;
+  };
+}
 
 export interface PostBufferedDeps {
   /** Returns the full buffer file contents (or "" if missing). */
   readBuffer: () => string;
-  /** Pulls subset of OctokitLike — only what this step needs. */
-  octokit: Pick<OctokitLike, "pulls">;
+  octokit: PostBufferedOctokit;
   env: { repoOwner: string; repoName: string; prNumber: string };
   log?: (msg: string) => void;
 }

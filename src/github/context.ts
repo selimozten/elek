@@ -21,7 +21,6 @@ export function parseInputs(): ActionInputs {
     actorFilter: core.getInput("actor_filter") || "",
     allowedBots: core.getInput("allowed_bots") || "",
     stickyComment: core.getInput("sticky_comment") !== "false",
-    signCommits: core.getInput("sign_commits") === "true",
     mode: core.getInput("mode") || "review",
   };
 }

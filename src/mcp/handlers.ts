@@ -95,8 +95,10 @@ export function buildReviewCommentParams(
     body: entry.body,
     side,
     commit_id: entry.commit_id ?? fallbackSha,
-    line: entry.line,
   };
+  if (entry.line !== undefined) {
+    params.line = entry.line;
+  }
   if (isMultiLine) {
     params.start_line = entry.startLine;
     params.start_side = side;
@@ -128,6 +130,12 @@ export async function createInlineComment(
     return {
       ok: false,
       error: "Either 'line' (single-line) or 'startLine'+'line' (multi-line) must be provided",
+    };
+  }
+  if (args.startLine !== undefined && args.line === undefined) {
+    return {
+      ok: false,
+      error: "Multi-line comments require both 'startLine' and 'line' (the end line)",
     };
   }
   const safeBody = sanitize(args.body);

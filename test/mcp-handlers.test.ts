@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import {
+  buildReviewCommentParams,
   createInlineComment,
   updateTrackingComment,
   type Deps,
@@ -110,6 +111,39 @@ describe("updateTrackingComment", () => {
       comment_id: 555,
       body: "## working on it\n- [x] read",
     });
+  });
+});
+
+describe("buildReviewCommentParams", () => {
+  const env = { repoOwner: "octo", repoName: "repo", prNumber: "1" };
+
+  it("does not include `line` in the params when it's undefined", () => {
+    // Defends against a stray entry slipping past validation that has neither
+    // line nor startLine — GitHub rejects { line: undefined } noisily.
+    const params = buildReviewCommentParams({ path: "p", body: "b" }, env, "sha");
+    expect("line" in params).toBe(false);
+  });
+
+  it("includes single-line `line` and omits start_line/start_side", () => {
+    const params = buildReviewCommentParams(
+      { path: "p", body: "b", line: 10 },
+      env,
+      "sha",
+    );
+    expect(params.line).toBe(10);
+    expect("start_line" in params).toBe(false);
+    expect("start_side" in params).toBe(false);
+  });
+
+  it("includes start_line + start_side for multi-line", () => {
+    const params = buildReviewCommentParams(
+      { path: "p", body: "b", startLine: 5, line: 10, side: "LEFT" },
+      env,
+      "sha",
+    );
+    expect(params.start_line).toBe(5);
+    expect(params.start_side).toBe("LEFT");
+    expect(params.line).toBe(10);
   });
 });
 
@@ -277,6 +311,20 @@ describe("createInlineComment", () => {
       commit_id: "abc1234",
       body: "extract this into a helper",
     });
+  });
+
+  it("rejects when startLine is set but line is missing (multi-line needs both)", async () => {
+    const { deps, calls, buffer } = makeDeps();
+    const result = await createInlineComment(deps, {
+      path: "src/x.ts",
+      body: "y",
+      startLine: 5,
+      confirmed: true,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.toLowerCase()).toContain("multi-line");
+    expect(buffer.length).toBe(0);
+    expect(calls.length).toBe(0);
   });
 
   it("rejects when neither line nor startLine is provided", async () => {

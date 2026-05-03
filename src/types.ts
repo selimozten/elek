@@ -17,7 +17,6 @@ export interface ActionInputs {
   actorFilter: string;
   allowedBots: string;
   stickyComment: boolean;
-  signCommits: boolean;
   /** Mode: review (default), review+edit, or agent (legacy). */
   mode: string;
 }
