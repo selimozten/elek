@@ -1,23 +1,32 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
- * Templates match Claude Code Action: spinner HTML, job run links, clean structure.
+ * Deduplicates: searches for existing bot comment before creating new.
+ * Uses custom spinner GIF from repo assets.
  */
 import type { GitHubEntityContext } from "../types";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
-/** Spinner HTML used in Claude Code Action */
+/** Custom spinner — committed in repo assets. Raw URL works once merged to default branch. */
 const SPINNER =
-  '<img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />';
+  '<img src="https://raw.githubusercontent.com/selimozten/elek/main/assets/spinner.gif" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />';
+
+/** Fallback spinner in case raw URL isn't available yet (pre-merge) */
+const SPINNER_FALLBACK = "⏳";
+
+const BOT_LOGIN = "github-actions[bot]";
 
 interface GitHubApi {
   rest: {
     issues: {
       createComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
       updateComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
+      listComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string; type?: string }; body?: string }> }>;
     };
     pulls: {
       createReview(params: any): Promise<{ data: { id: number; html_url: string } }>;
+      listReviews(params: any): Promise<{ data: Array<{ id: number; body?: string; state?: string }> }>;
+      listReviewComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string }; body?: string; path?: string; line?: number }> }>;
     };
   };
 }
@@ -25,12 +34,52 @@ interface GitHubApi {
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const repo = context.repo.fullName;
-  const url = `${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId}`;
-  return `[View run](${url})`;
+  return `[View run](${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId})`;
+}
+
+function spinnerHtml(): string {
+  // Use fallback if we're on a PR branch (raw URL won't resolve until merged)
+  const ref = process.env.GITHUB_REF_NAME || "";
+  if (ref.includes("/merge") || ref.includes("feat/") || ref.includes("fix/")) {
+    return SPINNER_FALLBACK;
+  }
+  return SPINNER;
+}
+
+const COMMENT_SIGNATURE = "<!-- elek-bot -->";
+
+/**
+ * Find an existing elek bot comment on the issue/PR.
+ * Returns the comment ID if found, undefined otherwise.
+ */
+async function findExistingComment(
+  octokit: GitHubApi,
+  context: GitHubEntityContext,
+): Promise<number | undefined> {
+  try {
+    const { data: comments } = await octokit.rest.issues.listComments({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: context.entityNumber,
+      per_page: 50,
+    });
+
+    // Find the most recent bot comment that has our signature
+    const existing = comments.findLast(
+      (c) =>
+        c.user?.login === BOT_LOGIN &&
+        c.body?.includes(COMMENT_SIGNATURE),
+    );
+
+    return existing?.id;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * Create the initial tracking comment — styled like Claude's.
+ * Create or reuse a tracking comment.
+ * If an existing bot comment is found, updates it. Otherwise creates new.
  */
 export async function createTrackingComment(
   octokit: GitHubApi,
@@ -38,14 +87,29 @@ export async function createTrackingComment(
   modelLabel: string,
 ): Promise<{ id: number; htmlUrl: string }> {
   const runLink = jobRunLink(context);
+  const spin = spinnerHtml();
 
   const body = [
-    `${SPINNER} **${modelLabel}** analyzing…`,
+    `${spin} **${modelLabel}** analyzing…  ${COMMENT_SIGNATURE}`,
     "",
     `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
     "",
     runLink,
   ].join("\n");
+
+  // Check for existing comment to reuse
+  const existingId = await findExistingComment(octokit, context);
+
+  if (existingId) {
+    await octokit.rest.issues.updateComment({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      comment_id: existingId,
+      body,
+    });
+    console.log(`✓ Reused existing comment #${existingId}`);
+    return { id: existingId, htmlUrl: "" };
+  }
 
   const { data } = await octokit.rest.issues.createComment({
     owner: context.repo.owner,
@@ -71,7 +135,7 @@ export async function updateTrackingComment(
     owner: context.repo.owner,
     repo: context.repo.repo,
     comment_id: commentId,
-    body,
+    body: body + "\n\n" + COMMENT_SIGNATURE,
   });
 }
 
@@ -87,7 +151,7 @@ export async function postComment(
     owner: context.repo.owner,
     repo: context.repo.repo,
     issue_number: context.entityNumber,
-    body,
+    body: body + "\n\n" + COMMENT_SIGNATURE,
   });
   console.log("✓ Posted fallback comment");
 }
@@ -112,6 +176,49 @@ export async function createPRReview(
   });
 
   console.log(`✓ Posted PR review (${event})`);
+}
+
+/**
+ * Fetch PR review comments for context inclusion.
+ */
+export async function fetchReviewComments(
+  octokit: GitHubApi,
+  context: GitHubEntityContext,
+): Promise<string[]> {
+  if (!context.isPR) return [];
+
+  try {
+    const { data: reviews } = await octokit.rest.pulls.listReviews({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: context.entityNumber,
+    });
+
+    const { data: reviewComments } = await octokit.rest.pulls.listReviewComments({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: context.entityNumber,
+    });
+
+    const comments: string[] = [];
+
+    // Include review bodies
+    for (const review of reviews) {
+      if (review.body?.trim()) {
+        comments.push(`[Review: ${review.state}]: ${review.body.trim()}`);
+      }
+    }
+
+    // Include inline review comments
+    for (const rc of reviewComments) {
+      const loc = rc.path ? `${rc.path}:${rc.line || "?"}` : "";
+      comments.push(`[${loc}]: ${rc.body || ""}`);
+    }
+
+    return comments;
+  } catch {
+    return [];
+  }
 }
 
 function formatReviewBody(

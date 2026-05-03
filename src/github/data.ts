@@ -12,6 +12,7 @@ export interface GitHubData {
   author: string;
   diff?: string;
   comments: string[];
+  reviewComments: string[];
   labels: string[];
   assignees: string[];
   entityNumber: number;
@@ -121,6 +122,14 @@ export function buildPrompt(
     parts.push("<comments>");
     data.comments.forEach((c) => parts.push(`- ${c}`));
     parts.push("</comments>");
+    parts.push("");
+  }
+
+  // ── Review comments (PR only) ──
+  if (data.reviewComments.length > 0) {
+    parts.push("<review_comments>");
+    data.reviewComments.forEach((c) => parts.push(`- ${c}`));
+    parts.push("</review_comments>");
     parts.push("");
   }
 

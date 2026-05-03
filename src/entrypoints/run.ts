@@ -33,6 +33,7 @@ import {
   updateTrackingComment,
   createPRReview,
   postComment,
+  fetchReviewComments,
 } from "../github/comments.js";
 import { runPi } from "../pi.js";
 import type { PiRunResult } from "../types.js";
@@ -113,6 +114,16 @@ async function run(): Promise<void> {
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
   const data = await fetchGitHubData(context);
+
+  // Include PR review comments for context
+  if (context.isPR) {
+    try {
+      data.reviewComments = await fetchReviewComments(octokit, context);
+    } catch (err) {
+      console.warn("Could not fetch review comments:", err);
+    }
+  }
+
   const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId);
 
   // Write prompt to file
