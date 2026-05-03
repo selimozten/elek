@@ -194,6 +194,7 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
   // Z.AI
   if (process.env.ZAI_API_KEY) {
     env.ZAI_API_KEY = process.env.ZAI_API_KEY;
+    console.log(`ZAI_API_KEY present, length: ${process.env.ZAI_API_KEY.length}`);
   }
 
   // AWS Bedrock (pi checks these directly)
