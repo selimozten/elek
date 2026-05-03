@@ -28,7 +28,7 @@ jobs:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
           model: deepseek-v4-pro
-          thinking: off
+          thinking: high
           branch_prefix: pi/deepseek/
           prompt: |
             You are reviewing code on the elek repository — a model-agnostic
@@ -62,7 +62,7 @@ jobs:
           zai_api_key: ${{ secrets.ZAI_API_KEY }}
           provider: zai
           model: glm-5.1
-          thinking: off
+          thinking: high
           branch_prefix: pi/zai/
           prompt: |
             You are reviewing code on the elek repository — a model-agnostic
