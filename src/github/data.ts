@@ -20,8 +20,6 @@ export interface GitHubData {
   pr?: {
     headRef: string;
     baseRef: string;
-    additions?: number;
-    deletions?: number;
   };
 }
 
@@ -218,34 +216,3 @@ export function buildPrompt(
   return parts.join("\n");
 }
 
-/**
- * Format git diff lines as a summary of changed files.
- */
-export function formatChangedFilesSummary(diff: string): string {
-  const fileChanges = new Map<string, { adds: number; dels: number }>();
-  const lines = diff.split("\n");
-
-  let currentFile = "";
-  for (const line of lines) {
-    if (line.startsWith("diff --git")) {
-      const match = line.match(/b\/(.+)$/);
-      if (match) currentFile = match[1];
-    } else if (line.startsWith("+") && !line.startsWith("+++")) {
-      if (currentFile) {
-        const c = fileChanges.get(currentFile) || { adds: 0, dels: 0 };
-        c.adds++;
-        fileChanges.set(currentFile, c);
-      }
-    } else if (line.startsWith("-") && !line.startsWith("---")) {
-      if (currentFile) {
-        const c = fileChanges.get(currentFile) || { adds: 0, dels: 0 };
-        c.dels++;
-        fileChanges.set(currentFile, c);
-      }
-    }
-  }
-
-  return Array.from(fileChanges.entries())
-    .map(([file, changes]) => `- ${file} (+${changes.adds}/-${changes.dels})`)
-    .join("\n");
-}

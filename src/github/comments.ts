@@ -46,15 +46,19 @@ function spinnerHtml(): string {
   return SPINNER;
 }
 
-const COMMENT_SIGNATURE = "<!-- elek-bot -->";
+/** Model-specific signature so dual reviews don't collide */
+function commentSignature(modelLabel: string): string {
+  return `<!-- elek-bot:${modelLabel} -->`;
+}
 
 /**
- * Find an existing elek bot comment on the issue/PR.
+ * Find an existing elek bot comment for a specific model.
  * Returns the comment ID if found, undefined otherwise.
  */
 async function findExistingComment(
   octokit: GitHubApi,
   context: GitHubEntityContext,
+  modelLabel: string,
 ): Promise<number | undefined> {
   try {
     const { data: comments } = await octokit.rest.issues.listComments({
@@ -64,11 +68,11 @@ async function findExistingComment(
       per_page: 50,
     });
 
-    // Find the most recent bot comment that has our signature
+    const sig = commentSignature(modelLabel);
     const existing = comments.findLast(
       (c) =>
         c.user?.login === BOT_LOGIN &&
-        c.body?.includes(COMMENT_SIGNATURE),
+        c.body?.includes(sig),
     );
 
     return existing?.id;
@@ -89,16 +93,17 @@ export async function createTrackingComment(
   const runLink = jobRunLink(context);
   const spin = spinnerHtml();
 
+  const sig = commentSignature(modelLabel);
   const body = [
-    `${spin} **${modelLabel}** analyzing…  ${COMMENT_SIGNATURE}`,
+    `${spin} **${modelLabel}** analyzing…  ${sig}`,
     "",
     `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
     "",
     runLink,
   ].join("\n");
 
-  // Check for existing comment to reuse
-  const existingId = await findExistingComment(octokit, context);
+  // Check for existing comment to reuse (model-specific)
+  const existingId = await findExistingComment(octokit, context, modelLabel);
 
   if (existingId) {
     await octokit.rest.issues.updateComment({
@@ -130,12 +135,14 @@ export async function updateTrackingComment(
   context: GitHubEntityContext,
   commentId: number,
   body: string,
+  modelLabel: string,
 ): Promise<void> {
+  const sig = commentSignature(modelLabel);
   await octokit.rest.issues.updateComment({
     owner: context.repo.owner,
     repo: context.repo.repo,
     comment_id: commentId,
-    body: body + "\n\n" + COMMENT_SIGNATURE,
+    body: body + "\n\n" + sig,
   });
 }
 
@@ -146,12 +153,14 @@ export async function postComment(
   octokit: GitHubApi,
   context: GitHubEntityContext,
   body: string,
+  modelLabel: string,
 ): Promise<void> {
+  const sig = commentSignature(modelLabel);
   await octokit.rest.issues.createComment({
     owner: context.repo.owner,
     repo: context.repo.repo,
     issue_number: context.entityNumber,
-    body: body + "\n\n" + COMMENT_SIGNATURE,
+    body: body + "\n\n" + sig,
   });
   console.log("✓ Posted fallback comment");
 }

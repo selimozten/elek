@@ -155,11 +155,11 @@ async function run(): Promise<void> {
     ].join("\n");
 
     try {
-      await updateTrackingComment(octokit, context, commentId, reviewBody);
+      await updateTrackingComment(octokit, context, commentId, reviewBody, modelLabel);
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
-        await postComment(octokit, context, reviewBody);
+        await postComment(octokit, context, reviewBody, modelLabel);
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
@@ -178,7 +178,13 @@ async function run(): Promise<void> {
 
       const relevantChanges = status
         .split("\n")
-        .filter((line) => line && !line.includes("package-lock.json") && !line.includes("node_modules"))
+        .filter((line) => {
+          if (!line) return false;
+          // Filter out npm install artifacts by exact path prefix, not substring
+          const parts = line.trim().split(/\s+/);
+          const path = parts.length >= 2 ? parts.slice(1).join(" ") : line;
+          return !path.startsWith("package-lock.json") && !path.startsWith("node_modules/");
+        })
         .join("\n");
 
       if (relevantChanges.trim()) {
@@ -193,7 +199,7 @@ async function run(): Promise<void> {
         ].join("\n");
 
         try {
-          await postComment(octokit, context, changeNotice);
+          await postComment(octokit, context, changeNotice, modelLabel);
         } catch (err) {
           console.warn("Could not post change notice:", err);
         }
@@ -226,6 +232,7 @@ async function run(): Promise<void> {
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
+        modelLabel,
       );
     } catch (err) {
       console.warn("Could not post comment:", err);
