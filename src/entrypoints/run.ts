@@ -166,12 +166,18 @@ async function run(): Promise<void> {
   if (result.conclusion === "success" && piBranch) {
     try {
       // Only count non-lockfile changes as pi's work
-      const status = execSync(
-        "git status --porcelain | grep -v package-lock.json | grep -v node_modules",
-        { encoding: "utf-8", stdio: "pipe" },
-      );
+      // Filter in JS instead of grep -v to avoid exit code 1 when no matches
+      const status = execSync("git status --porcelain", {
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
 
-      if (status.trim()) {
+      const relevantChanges = status
+        .split("\n")
+        .filter((line) => line && !line.includes("package-lock.json") && !line.includes("node_modules"))
+        .join("\n");
+
+      if (relevantChanges.trim()) {
         commitChanges(`pi: automated changes for #${context.entityNumber}`);
         pushBranch(piBranch);
 
