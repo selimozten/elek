@@ -77,6 +77,8 @@ export async function runPi(
   prompt: string,
   inputs: ActionInputs,
   onProgress?: (event: ProgressEvent) => Promise<void>,
+  /** When true, pi loads extensions (needed for pi-mcp-adapter). */
+  loadExtensions?: boolean,
 ): Promise<PiRunResult> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
@@ -88,7 +90,7 @@ export async function runPi(
   writeFileSync(promptFile, prompt, "utf-8");
 
   const piBin = findPiBinary();
-  const args = buildPiArgs(inputs, promptFile);
+  const args = buildPiArgs(inputs, promptFile, !!loadExtensions);
   const env = buildPiEnv(inputs);
 
   console.log(`pi binary: ${piBin}`);
@@ -261,15 +263,21 @@ function extractAssistantText(msg?: PiAssistantMessage): string {
 /**
  * Build the CLI arguments for pi.
  */
-function buildPiArgs(inputs: ActionInputs, promptFile: string): string[] {
+function buildPiArgs(
+  inputs: ActionInputs,
+  promptFile: string,
+  loadExtensions: boolean,
+): string[] {
   const args: string[] = [
     "--no-session",
     "--provider", inputs.provider,
     "--thinking", inputs.thinking,
-    "--no-extensions",
     "--no-skills",
     "--no-context-files",
   ];
+  if (!loadExtensions) {
+    args.push("--no-extensions");
+  }
 
   if (inputs.model) {
     args.push("--model", inputs.model);

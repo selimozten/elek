@@ -11,7 +11,11 @@
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.0",
     "@mariozechner/pi-coding-agent": "latest",
-    "tsx": "^4.19.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@octokit/rest": "^21.0.0",
+    "pi-mcp-adapter": "^2.5.3",
+    "tsx": "^4.19.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -99,6 +99,19 @@ inputs:
     description: "Update a single tracking comment instead of new comments each turn"
     required: false
     default: "true"
+  mode:
+    description: >
+      Tool surface preset:
+        review (default) — model can only read code and post review feedback
+          via the elek MCP server (inline comments + tracking comment). No
+          bash, no write, no edit. Cannot approve, merge, or close.
+        review+edit — also allows write/edit so the model can push fixes to
+          its own pi/* branch. Still no bash. Cannot approve/merge/close.
+        agent — legacy: full tool surface (read,write,edit,bash,grep,find,ls)
+          and no MCP injection. Use only for trusted workflows where the
+          model needs shell access.
+    required: false
+    default: "review"
 
 outputs:
   conclusion:
@@ -132,6 +145,9 @@ runs:
         npm install
         # Make node_modules/.bin available on PATH (pi, tsx)
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
+        # Register pi-mcp-adapter so pi loads it on next run.
+        # Skipped silently if already registered (e.g. cached node_modules).
+        ./node_modules/.bin/pi install npm:pi-mcp-adapter || true
 
     - name: Run pi Action
       id: run
@@ -169,6 +185,7 @@ runs:
         INPUT_ACTOR_FILTER: ${{ inputs.actor_filter }}
         INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
+        INPUT_MODE: ${{ inputs.mode }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}

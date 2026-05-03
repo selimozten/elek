@@ -98,6 +98,7 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
+  options: { useMcp?: boolean; allowEdit?: boolean } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
@@ -177,6 +178,27 @@ export function buildPrompt(
   parts.push(userRequest || `Please review this ${entityLabel} and provide detailed feedback.`);
   parts.push("</user_request>");
   parts.push("");
+
+  // ── MCP tool guidance (review/review+edit modes) ──
+  if (options.useMcp) {
+    parts.push("## Available tools");
+    parts.push("");
+    parts.push("You have a single proxy tool `mcp` that gives you access to the elek review server. Two operations:");
+    parts.push("");
+    parts.push("- `mcp({tool: \"create_inline_comment\", args: {path, line, body}})`");
+    parts.push("  Post a finding on a specific line of the diff. For multi-line ranges, add `startLine`.");
+    parts.push("  Buffered by default — only sent at the end of the run. Set `confirmed: true` to post immediately.");
+    parts.push("  Use markdown suggestion blocks for actionable fixes:");
+    parts.push("    ```suggestion");
+    parts.push("    new code here");
+    parts.push("    ```");
+    parts.push("");
+    parts.push("- `mcp({tool: \"update_tracking_comment\", args: {body}})`");
+    parts.push("  Replace the body of your tracking comment. Use this to maintain a live todo checklist as you work.");
+    parts.push("");
+    parts.push("These are the ONLY ways your output is visible. Console output is discarded.");
+    parts.push("");
+  }
 
   // ── Workflow Instructions ──
   parts.push("## Instructions");

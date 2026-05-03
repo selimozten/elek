@@ -15,13 +15,15 @@
  */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
+import { resolveMode } from "../github/mode.js";
+import { postBuffered } from "./post-buffered.js";
 import {
   configureGitAuth,
   createPiBranch,
@@ -90,6 +92,14 @@ async function run(): Promise<void> {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
+  // Resolve mode → tool allowlist + MCP wiring
+  const resolvedMode = resolveMode(inputs.mode);
+  console.log(
+    `Mode: ${resolvedMode.mode} | tools: ${resolvedMode.piTools} | mcp: ${resolvedMode.useMcpServer}`,
+  );
+  // Override the tools input with the mode-resolved set so pi sees it.
+  inputs.tools = resolvedMode.piTools;
+
   // Configure git for potential code changes
   configureGitAuth(githubToken, context);
 
@@ -126,13 +136,45 @@ async function run(): Promise<void> {
     }
   }
 
-  const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId);
+  const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
+    useMcp: resolvedMode.useMcpServer,
+    allowEdit: resolvedMode.allowEdit,
+  });
 
   // Write prompt to file
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+
+  // ── MCP wiring: generate .mcp.json and set env so pi-mcp-adapter
+  //    can spawn our review server. Only for modes that use MCP.
+  const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
+  if (resolvedMode.useMcpServer && context.isPR) {
+    const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
+    const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
+    const mcpConfigPath = join(process.cwd(), ".mcp.json");
+    const mcpConfig = {
+      mcpServers: {
+        "elek-review": {
+          command: "tsx",
+          args: [serverPath],
+          env: {
+            REPO_OWNER: context.repo.owner,
+            REPO_NAME: context.repo.repo,
+            PR_NUMBER: String(context.entityNumber),
+            GITHUB_TOKEN: githubToken,
+            ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
+            ELEK_BUFFER_PATH: bufferPath,
+          },
+          // Always-on so the model has the tools available immediately
+          lifecycle: "eager",
+        },
+      },
+    };
+    writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
+    console.log(`Wrote ${mcpConfigPath} for pi-mcp-adapter`);
+  }
 
   // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
@@ -190,7 +232,12 @@ async function run(): Promise<void> {
     }
   };
 
-  const result: PiRunResult = await runPi(prompt, inputs, onProgress);
+  const result: PiRunResult = await runPi(
+    prompt,
+    inputs,
+    onProgress,
+    resolvedMode.useMcpServer,
+  );
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   if (result.output) {
@@ -292,6 +339,27 @@ async function run(): Promise<void> {
       );
     } catch (err) {
       console.warn("Could not post comment:", err);
+    }
+  }
+
+  // ── Phase 5b: Drain the inline-comment buffer ────────────────────────
+  if (resolvedMode.useMcpServer && context.isPR && existsSync(bufferPath)) {
+    try {
+      const summary = await postBuffered({
+        readBuffer: () => readFileSync(bufferPath, "utf-8"),
+        octokit: octokit as unknown as Parameters<typeof postBuffered>[0]["octokit"],
+        env: {
+          repoOwner: context.repo.owner,
+          repoName: context.repo.repo,
+          prNumber: String(context.entityNumber),
+        },
+        log: (m) => console.log(`[post-buffered] ${m}`),
+      });
+      console.log(
+        `[post-buffered] posted=${summary.posted} skipped=${summary.skipped} failed=${summary.failed}`,
+      );
+    } catch (err) {
+      console.warn("post-buffered failed:", (err as Error).message);
     }
   }
 

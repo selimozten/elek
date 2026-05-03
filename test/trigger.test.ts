@@ -20,6 +20,7 @@ const baseInputs: ActionInputs = {
   allowedBots: "",
   stickyComment: true,
   signCommits: false,
+  mode: "review",
 };
 
 const baseCtx: GitHubEntityContext = {
