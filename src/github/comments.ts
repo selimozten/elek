@@ -1,7 +1,14 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
+ * Templates match Claude Code Action: spinner HTML, job run links, clean structure.
  */
 import type { GitHubEntityContext } from "../types";
+
+const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
+
+/** Spinner HTML used in Claude Code Action */
+const SPINNER =
+  '<img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />';
 
 interface GitHubApi {
   rest: {
@@ -15,15 +22,30 @@ interface GitHubApi {
   };
 }
 
+function jobRunLink(context: GitHubEntityContext): string {
+  const runId = process.env.GITHUB_RUN_ID || "?";
+  const repo = context.repo.fullName;
+  const url = `${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId}`;
+  return `[View run](${url})`;
+}
+
 /**
- * Create an initial tracking comment on a PR or issue.
- * Returns the comment ID for later updates.
+ * Create the initial tracking comment — styled like Claude's.
  */
 export async function createTrackingComment(
   octokit: GitHubApi,
   context: GitHubEntityContext,
+  modelLabel: string,
 ): Promise<{ id: number; htmlUrl: string }> {
-  const body = buildInitialComment(context);
+  const runLink = jobRunLink(context);
+
+  const body = [
+    `${SPINNER} **${modelLabel}** analyzing…`,
+    "",
+    `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
+    "",
+    runLink,
+  ].join("\n");
 
   const { data } = await octokit.rest.issues.createComment({
     owner: context.repo.owner,
@@ -37,7 +59,7 @@ export async function createTrackingComment(
 }
 
 /**
- * Update an existing tracking comment with new content.
+ * Update an existing tracking comment.
  */
 export async function updateTrackingComment(
   octokit: GitHubApi,
@@ -54,7 +76,24 @@ export async function updateTrackingComment(
 }
 
 /**
- * Post a PR review with the pi output.
+ * Post a new standalone comment (fallback when update fails).
+ */
+export async function postComment(
+  octokit: GitHubApi,
+  context: GitHubEntityContext,
+  body: string,
+): Promise<void> {
+  await octokit.rest.issues.createComment({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: context.entityNumber,
+    body,
+  });
+  console.log("✓ Posted fallback comment");
+}
+
+/**
+ * Post a PR review.
  */
 export async function createPRReview(
   octokit: GitHubApi,
@@ -68,59 +107,27 @@ export async function createPRReview(
     owner: context.repo.owner,
     repo: context.repo.repo,
     pull_number: context.entityNumber,
-    body: formatReviewBody(output, conclusion),
+    body: formatReviewBody(output, conclusion, context),
     event,
   });
 
   console.log(`✓ Posted PR review (${event})`);
 }
 
-/**
- * Post a simple comment (non-tracking).
- */
-export async function postComment(
-  octokit: GitHubApi,
+function formatReviewBody(
+  output: string,
+  conclusion: "success" | "failure",
   context: GitHubEntityContext,
-  body: string,
-): Promise<void> {
-  await octokit.rest.issues.createComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    issue_number: context.entityNumber,
-    body,
-  });
-
-  console.log("✓ Posted comment");
-}
-
-function buildInitialComment(context: GitHubEntityContext): string {
-  const runId = process.env.GITHUB_RUN_ID || "?";
-  const runUrl = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
-
-  return [
-    "🤖 **pi is analyzing...**",
-    "",
-    `Triggered by @${context.actor} on this ${context.isPR ? "pull request" : "issue"}.`,
-    "",
-    "[View run](" + runUrl + ") · Waiting for analysis to complete...",
-    "",
-    "---",
-    "*This comment will update when analysis is complete.*",
-  ].join("\n");
-}
-
-function formatReviewBody(output: string, conclusion: "success" | "failure"): string {
+): string {
   const icon = conclusion === "success" ? "✅" : "⚠️";
-  const runId = process.env.GITHUB_RUN_ID || "?";
-  const repo = process.env.GITHUB_REPOSITORY || "?";
-  const runUrl = `https://github.com/${repo}/actions/runs/${runId}`;
+  const runLink = jobRunLink(context);
 
   return [
-    `${icon} **pi review ${conclusion === "success" ? "complete" : "completed with issues"}**`,
+    `${icon} **Review complete**`,
     "",
     output,
     "",
     "---",
-    `*Powered by [pi coding agent](https://github.com/badlogic/pi-mono) · [View run](${runUrl})*`,
+    `*${runLink}*`,
   ].join("\n");
 }

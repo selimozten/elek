@@ -81,6 +81,11 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
+  const modelLabel = inputs.model
+    ? `${inputs.provider}/${inputs.model}`
+    : inputs.provider;
+  const runId = process.env.GITHUB_RUN_ID || "?";
+  const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
   // Configure git for potential code changes
   configureGitAuth(githubToken, context);
@@ -95,11 +100,11 @@ async function run(): Promise<void> {
     piBranch = createPiBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment
+  // Create tracking comment (with spinner, Claude-style)
   let commentId: number | undefined;
   if (inputs.stickyComment) {
     try {
-      const comment = await createTrackingComment(octokit, context);
+      const comment = await createTrackingComment(octokit, context, modelLabel);
       commentId = comment.id;
     } catch (err) {
       console.warn("Could not create tracking comment:", err);
@@ -108,9 +113,9 @@ async function run(): Promise<void> {
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
   const data = await fetchGitHubData(context);
-  const prompt = buildPrompt(data, userRequest);
+  const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId);
 
-  // Write prompt to file for debugging
+  // Write prompt to file
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
@@ -118,16 +123,6 @@ async function run(): Promise<void> {
 
   // ── Phase 4: Run pi ──────────────────────────────────────────────────
   console.log("── Running pi ──");
-
-  if (commentId) {
-    await updateTrackingComment(
-      octokit,
-      context,
-      commentId,
-      "🤖 **pi is analyzing...**\n\nAnalyzing changes, this may take a minute...",
-    );
-  }
-
   const result: PiRunResult = runPi(prompt, inputs);
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
@@ -136,18 +131,16 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
-  const modelLabel = inputs.model
-    ? `**${inputs.provider}/${inputs.model}**`
-    : `**${inputs.provider}**`;
-
   // Always post the review comment first (before git ops, which can fail)
   if (commentId) {
     const reviewBody = [
       result.conclusion === "success"
-        ? `🤖 ${modelLabel} **analysis complete**`
-        : `⚠️ ${modelLabel} **encountered an issue**`,
+        ? `🤖 **${modelLabel}** analysis complete`
+        : `⚠️ **${modelLabel}** encountered an issue`,
       "",
       result.output.substring(0, 4000),
+      "",
+      `[View run](${jobRunLink})`,
     ].join("\n");
 
     try {
@@ -182,7 +175,7 @@ async function run(): Promise<void> {
         pushBranch(piBranch);
 
         const changeNotice = [
-          `🔨 ${modelLabel} also made code changes:`,
+          `🔨 **${modelLabel}** also made code changes:`,
           "",
           `Branch: \`${piBranch}\``,
           `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
@@ -216,9 +209,11 @@ async function run(): Promise<void> {
         context,
         [
           result.conclusion === "success" ? "🤖" : "⚠️",
-          ` ${modelLabel}`,
+          ` **${modelLabel}**`,
           "",
           result.output.substring(0, 4000),
+          "",
+          `[View run](${jobRunLink})`,
         ].join("\n"),
       );
     } catch (err) {
