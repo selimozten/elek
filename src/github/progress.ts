@@ -2,6 +2,8 @@
  * Progressive comment formatting — generates dynamic checklist bodies
  * for step-by-step tracking comment updates during pi execution.
  */
+import { spinnerHtml } from "./spinner";
+
 export interface ProgressState {
   readContext: boolean;
   analyzed: boolean;
@@ -15,9 +17,8 @@ export function formatProgressComment(
   jobRunLink: string,
 ): string {
   const lines: string[] = [];
-  const spin = "⏳";
 
-  lines.push(`${spin} **${modelLabel}** analyzing…`);
+  lines.push(`${spinnerHtml()} **${modelLabel}** analyzing…`);
   lines.push("");
 
   const check = (done: boolean) => (done ? "x" : " ");

@@ -5,19 +5,9 @@
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";
+import { spinnerHtml } from "./spinner";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
-
-/** Action's home repo — always exists, always has assets/spinner.svg on `main`. */
-const SPINNER_REPO = "selimozten/elek";
-const SPINNER_REF = "main";
-const SPINNER_URL = `https://raw.githubusercontent.com/${SPINNER_REPO}/${SPINNER_REF}/assets/spinner.svg`;
-
-function spinnerHtml(): string {
-  // SVG via <img>: GitHub serves it as a standalone image (animations preserved).
-  // We use a stable URL on the action's home repo so fork PRs don't 404.
-  return `<img src="${SPINNER_URL}" width="14" height="14" alt="⏳" style="vertical-align: middle; margin-left: 4px;" />`;
-}
 
 interface GitHubApi {
   rest: {
