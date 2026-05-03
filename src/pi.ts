@@ -106,13 +106,13 @@ export async function runPi(
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
 
-  // pi --mode json hangs in CI: zero stdout for 30 min until pi's own
-  // timeout fires. Confirmed across multiple runs (the last successful
-  // run used `pi -p` text mode; every JSON-mode run since hung).
-  // Reproducible only in GitHub Actions, not locally — likely a stdio
-  // buffering or stdin-handling difference. Default to text mode and
-  // expose JSON mode behind ELEK_PI_JSON_MODE=1 for debugging.
-  const useJsonMode = process.env.ELEK_PI_JSON_MODE === "1";
+  // pi --mode json hangs forever when spawned with stdio:["pipe",…] from
+  // Node — pi keeps the stdin pipe open waiting for input that never
+  // arrives. Reproduced locally (see /tmp/elek-debug/repro.mjs in dev
+  // history): hang with stdio:["pipe",…], works perfectly with
+  // stdio:["ignore",…] (stdin closed). The fix is in the spawn call below.
+  // Set ELEK_PI_TEXT_MODE=1 to fall back to `pi -p` if JSON mode regresses.
+  const useJsonMode = process.env.ELEK_PI_TEXT_MODE !== "1";
 
   return new Promise((resolve) => {
     const finalArgs = useJsonMode
