@@ -1,0 +1,45 @@
+name: elek
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  elek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: selimozten/elek@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          provider: anthropic
+          model: claude-sonnet-4-5
+          thinking: high
+          prompt: |
+            You are elek, reviewing code on your own repository.
+
+            For pull requests:
+            - Review for correctness, edge cases, and regressions
+            - Flag security concerns and missing validation
+            - Note code style and consistency issues
+            - Suggest improvements and simplifications
+            - Be specific: reference files and line numbers
+
+            For issues:
+            - Identify if it's a bug, feature, or question
+            - Assess severity and scope
+            - Suggest next steps
+
+            Be concise and actionable.
