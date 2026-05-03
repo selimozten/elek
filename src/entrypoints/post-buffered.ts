@@ -8,21 +8,16 @@
 import { buildReviewCommentParams } from "../mcp/handlers";
 
 /**
- * The narrow Octokit slice the post-step actually uses. Defined explicitly
- * (not `Pick<OctokitLike, …>` derived) so callers don't need an
- * `as unknown as` cast — both `@actions/github` and `@octokit/rest`
- * Octokits have method signatures permissive enough to satisfy this.
+ * Narrow Octokit slice the post-step uses. `any` for params + responses to
+ * accept either @actions/github (.rest) or @octokit/rest (.) variants;
+ * Octokit's full generic types don't structurally fit a hand-rolled subset.
  */
-export interface PostBufferedOctokit {
+export type PostBufferedOctokit = {
   pulls: {
-    createReviewComment(params: Record<string, unknown>): Promise<{
-      data: { id: number };
-    }>;
-    get(params: Record<string, unknown>): Promise<{
-      data: { head: { sha: string } };
-    }>;
+    createReviewComment: (params: any) => Promise<any>;
+    get: (params: any) => Promise<any>;
   };
-}
+};
 
 export interface PostBufferedDeps {
   /** Returns the full buffer file contents (or "" if missing). */
@@ -76,8 +71,9 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
         repo: deps.env.repoName,
         pull_number: parseInt(deps.env.prNumber, 10),
       });
-      headShaResolved = pr.data.head.sha;
-      return headShaResolved;
+      const sha = pr.data.head.sha as string;
+      headShaResolved = sha;
+      return sha;
     } catch (err) {
       headShaResolved = null;
       throw err;

@@ -9,20 +9,24 @@ import { spinnerHeader } from "./spinner";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
-interface GitHubApi {
+// Loose adapter type matching @actions/github's getOctokit return shape.
+// Octokit's full types are deeply specific and don't structurally fit a
+// hand-rolled minimal interface, so we accept `any` for params + responses
+// and access only the fields we actually use.
+type GitHubApi = {
   rest: {
     issues: {
-      createComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      updateComment(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      listComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string; type?: string }; body?: string }> }>;
+      createComment: (params: any) => Promise<any>;
+      updateComment: (params: any) => Promise<any>;
+      listComments: (params: any) => Promise<any>;
     };
     pulls: {
-      createReview(params: any): Promise<{ data: { id: number; html_url: string } }>;
-      listReviews(params: any): Promise<{ data: Array<{ id: number; body?: string; state?: string }> }>;
-      listReviewComments(params: any): Promise<{ data: Array<{ id: number; user?: { login?: string }; body?: string; path?: string; line?: number }> }>;
+      createReview: (params: any) => Promise<any>;
+      listReviews: (params: any) => Promise<any>;
+      listReviewComments: (params: any) => Promise<any>;
     };
   };
-}
+};
 
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";

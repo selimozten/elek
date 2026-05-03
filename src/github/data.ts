@@ -5,13 +5,13 @@
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
 
-interface MinimalOctokit {
+type MinimalOctokit = {
   rest: {
     issues: {
-      listComments(params: any): Promise<{ data: Array<{ body?: string; user?: { login: string }; created_at: string }> }>;
+      listComments: (params: any) => Promise<any>;
     };
   };
-}
+};
 
 export interface GitHubData {
   type: "pr" | "issue";
@@ -79,7 +79,7 @@ export async function fetchGitHubData(
       // (acknowledge what's been addressed, flag what's still outstanding).
       // Same pattern as claude-code-action: feed full context, let the model
       // reason about its own history rather than us pre-processing it.
-      base.comments = comments
+      base.comments = (comments as Array<{ body?: string; user?: { login?: string } }>)
         .filter((c) => !!c.body)
         .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
         .reverse();
