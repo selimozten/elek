@@ -145,9 +145,11 @@ runs:
         npm install
         # Make node_modules/.bin available on PATH (pi, tsx)
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
-        # Register pi-mcp-adapter so pi loads it on next run.
-        # Skipped silently if already registered (e.g. cached node_modules).
-        ./node_modules/.bin/pi install npm:pi-mcp-adapter || true
+        # When ELEK_ENABLE_MCP=1, register pi-mcp-adapter so pi loads it.
+        # Off by default — feature is gated until the eager-connect hang is fixed.
+        if [ "${ELEK_ENABLE_MCP:-}" = "1" ]; then
+          ./node_modules/.bin/pi install npm:pi-mcp-adapter || true
+        fi
 
     - name: Run pi Action
       id: run

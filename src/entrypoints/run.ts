@@ -137,7 +137,7 @@ async function run(): Promise<void> {
   }
 
   const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
-    useMcp: resolvedMode.useMcpServer,
+    useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
   });
 
@@ -147,32 +147,42 @@ async function run(): Promise<void> {
   mkdirSync(promptDir, { recursive: true });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
-  // ── MCP wiring: generate .mcp.json and set env so pi-mcp-adapter
-  //    can spawn our review server. Only for modes that use MCP.
+  // MCP wiring is feature-flagged. pi-mcp-adapter + --no-extensions removal
+  // hung pi in CI (zero stdout for 8 min) on first deploy. The handlers and
+  // post-step are tested and ready; this gate exists so the wiring can be
+  // re-enabled per-run via env var while we debug, without a code change.
+  const mcpEnabled = process.env.ELEK_ENABLE_MCP === "1" && resolvedMode.useMcpServer;
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
-  if (resolvedMode.useMcpServer && context.isPR) {
+
+  if (mcpEnabled && context.isPR) {
     const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
     const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
     const mcpConfigPath = join(process.cwd(), ".mcp.json");
-    const mcpConfig = {
-      mcpServers: {
-        "elek-review": {
-          command: "tsx",
-          args: [serverPath],
-          env: {
-            REPO_OWNER: context.repo.owner,
-            REPO_NAME: context.repo.repo,
-            PR_NUMBER: String(context.entityNumber),
-            GITHUB_TOKEN: githubToken,
-            ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
-            ELEK_BUFFER_PATH: bufferPath,
+    writeFileSync(
+      mcpConfigPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            "elek-review": {
+              command: "tsx",
+              args: [serverPath],
+              env: {
+                REPO_OWNER: context.repo.owner,
+                REPO_NAME: context.repo.repo,
+                PR_NUMBER: String(context.entityNumber),
+                GITHUB_TOKEN: githubToken,
+                ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
+                ELEK_BUFFER_PATH: bufferPath,
+              },
+              lifecycle: "eager",
+            },
           },
-          // Always-on so the model has the tools available immediately
-          lifecycle: "eager",
         },
-      },
-    };
-    writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
+        null,
+        2,
+      ),
+      "utf-8",
+    );
     console.log(`Wrote ${mcpConfigPath} for pi-mcp-adapter`);
   }
 
@@ -232,12 +242,7 @@ async function run(): Promise<void> {
     }
   };
 
-  const result: PiRunResult = await runPi(
-    prompt,
-    inputs,
-    onProgress,
-    resolvedMode.useMcpServer,
-  );
+  const result: PiRunResult = await runPi(prompt, inputs, onProgress, mcpEnabled);
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   if (result.output) {
@@ -342,8 +347,8 @@ async function run(): Promise<void> {
     }
   }
 
-  // ── Phase 5b: Drain the inline-comment buffer ────────────────────────
-  if (resolvedMode.useMcpServer && context.isPR && existsSync(bufferPath)) {
+  // ── Phase 5b: Drain the inline-comment buffer (MCP-only) ─────────────
+  if (mcpEnabled && context.isPR && existsSync(bufferPath)) {
     try {
       const summary = await postBuffered({
         readBuffer: () => readFileSync(bufferPath, "utf-8"),
