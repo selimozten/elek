@@ -191,6 +191,10 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
   if (process.env.OPENROUTER_API_KEY) {
     env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
   }
+  // Z.AI
+  if (process.env.ZAI_API_KEY) {
+    env.ZAI_API_KEY = process.env.ZAI_API_KEY;
+  }
 
   // AWS Bedrock (pi checks these directly)
   if (process.env.AWS_REGION) env.AWS_REGION = process.env.AWS_REGION;

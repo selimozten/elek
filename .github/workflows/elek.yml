@@ -14,7 +14,9 @@ permissions:
   issues: write
 
 jobs:
-  elek:
+  # ── DeepSeek v4 Pro ───────────────────────────────────────────────────
+  deepseek:
+    name: "deepseek-v4-pro"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +29,10 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: off
+          branch_prefix: pi/deepseek/
           prompt: |
-            You are elek, reviewing code on your own repository.
+            You are reviewing code on the elek repository — a model-agnostic
+            GitHub Actions code review bot powered by pi coding agent.
 
             For pull requests:
             - Review for correctness, edge cases, and regressions
@@ -42,4 +46,38 @@ jobs:
             - Assess severity and scope
             - Suggest next steps
 
-            Be concise and actionable.
+            Be concise and actionable. Think step by step.
+
+  # ── Z.AI GLM-5.1 ──────────────────────────────────────────────────────
+  zai:
+    name: "glm-5.1 (Z.AI)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: selimozten/elek@main
+        with:
+          zai_api_key: ${{ secrets.ZAI_API_KEY }}
+          provider: zai
+          model: glm-5.1
+          thinking: off
+          branch_prefix: pi/zai/
+          prompt: |
+            You are reviewing code on the elek repository — a model-agnostic
+            GitHub Actions code review bot powered by pi coding agent.
+
+            For pull requests:
+            - Review for correctness, edge cases, and regressions
+            - Flag security concerns and missing validation
+            - Note code style and consistency issues
+            - Suggest improvements and simplifications
+            - Be specific: reference files and line numbers
+
+            For issues:
+            - Identify if it's a bug, feature, or question
+            - Assess severity and scope
+            - Suggest next steps
+
+            Be concise and actionable. Think step by step.

@@ -136,6 +136,10 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
+  const modelLabel = inputs.model
+    ? `**${inputs.provider}/${inputs.model}**`
+    : `**${inputs.provider}**`;
+
   if (result.conclusion === "success" && piBranch) {
     // Check if pi made changes
     try {
@@ -153,7 +157,7 @@ async function run(): Promise<void> {
           context,
           commentId!,
           [
-            "🤖 **pi made changes**",
+            `🤖 ${modelLabel} **made changes**`,
             "",
             `Branch: \`${piBranch}\``,
             "",
@@ -171,7 +175,7 @@ async function run(): Promise<void> {
           context,
           commentId!,
           [
-            "🤖 **pi analysis complete**",
+            `🤖 ${modelLabel} **analysis complete**`,
             "",
             result.output.substring(0, 4000),
           ].join("\n"),
@@ -187,8 +191,8 @@ async function run(): Promise<void> {
       commentId,
       [
         result.conclusion === "success"
-          ? "🤖 **pi analysis complete**"
-          : "⚠️ **pi encountered an issue**",
+          ? `🤖 ${modelLabel} **analysis complete**`
+          : `⚠️ ${modelLabel} **encountered an issue**`,
         "",
         result.output.substring(0, 4000),
       ].join("\n"),
@@ -212,7 +216,7 @@ async function run(): Promise<void> {
         context,
         [
           result.conclusion === "success" ? "🤖" : "⚠️",
-          " **pi response**",
+          ` ${modelLabel}`,
           "",
           result.output.substring(0, 4000),
         ].join("\n"),
