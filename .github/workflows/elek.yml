@@ -25,7 +25,7 @@ jobs:
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
-          model: deepseek-chat
+          model: deepseek-v4-pro
           thinking: off
           prompt: |
             You are elek, reviewing code on your own repository.
