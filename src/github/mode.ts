@@ -32,7 +32,9 @@ export function resolveMode(raw: string | undefined): ResolvedMode {
     case "review+edit":
       return {
         mode: "review+edit",
-        piTools: "read,write,edit,grep,find,ls",
+        // `mcp` is the proxy tool exposed by pi-mcp-adapter — without it
+        // in the allowlist, the model has no way to reach our MCP server.
+        piTools: "read,write,edit,grep,find,ls,mcp",
         useMcpServer: true,
         allowEdit: true,
       };
@@ -40,7 +42,7 @@ export function resolveMode(raw: string | undefined): ResolvedMode {
     default:
       return {
         mode: "review",
-        piTools: "read,grep,find,ls",
+        piTools: "read,grep,find,ls,mcp",
         useMcpServer: true,
         allowEdit: false,
       };

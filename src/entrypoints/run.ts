@@ -95,9 +95,11 @@ async function run(): Promise<void> {
 
   // Resolve mode → tool allowlist + MCP wiring
   const resolvedMode = resolveMode(inputs.mode);
-  // MCP is feature-flagged off by default; eager-connect was hanging pi
-  // in CI. Set ELEK_ENABLE_MCP=1 in workflow env to re-enable while we debug.
-  const mcpEnabled = process.env.ELEK_ENABLE_MCP === "1" && resolvedMode.useMcpServer;
+  // MCP is on by default for review/review+edit modes (off only for `agent`
+  // legacy mode). The earlier CI hang was caused by pi keeping stdin open;
+  // fixed via stdio:["ignore",…] in pi.ts. ELEK_DISABLE_MCP=1 escape hatch
+  // remains for emergency rollback.
+  const mcpEnabled = resolvedMode.useMcpServer && process.env.ELEK_DISABLE_MCP !== "1";
   console.log(
     `Mode: ${resolvedMode.mode} | tools: ${resolvedMode.piTools} | mcp: ${mcpEnabled}`,
   );

@@ -143,11 +143,12 @@ runs:
       run: |
         cd "$GITHUB_ACTION_PATH"
         npm install
-        # Make node_modules/.bin available on PATH (pi, tsx)
+        # Make node_modules/.bin available on PATH (pi, tsx) so pi-mcp-adapter
+        # can find tsx when it spawns the MCP server child process.
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
-        # When ELEK_ENABLE_MCP=1, register pi-mcp-adapter so pi loads it.
-        # Off by default — feature is gated until the eager-connect hang is fixed.
-        if [ "${ELEK_ENABLE_MCP:-}" = "1" ]; then
+        # Register pi-mcp-adapter so the model gets the `mcp` proxy tool.
+        # Skip via ELEK_DISABLE_MCP=1 if you need a clean fallback.
+        if [ "${ELEK_DISABLE_MCP:-}" != "1" ]; then
           ./node_modules/.bin/pi install npm:pi-mcp-adapter || true
         fi
 
