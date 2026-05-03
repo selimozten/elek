@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    # Skip the tests workflow on docs-only churn so the dual-model review
+    # in elek.yml stays the primary signal.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+
+# Cancel a running CI job when a newer commit lands on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests + types
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile=false
+
+      - name: Run tests
+        run: bun test test/
+
+      - name: Type check
+        run: bunx tsc --noEmit

@@ -7,6 +7,7 @@ import { describe, it, expect } from "bun:test";
 import {
   buildReviewCommentParams,
   createInlineComment,
+  sanitize,
   updateTrackingComment,
   type Deps,
 } from "../src/mcp/handlers";
@@ -43,7 +44,6 @@ function makeDeps(overrides: Partial<Deps> = {}): {
       repoOwner: "octo",
       repoName: "repo",
       prNumber: "42",
-      githubToken: "ghs_test",
     },
     now: () => new Date("2026-05-03T12:00:00Z"),
     ...overrides,
@@ -58,7 +58,6 @@ describe("updateTrackingComment", () => {
         repoOwner: "octo",
         repoName: "repo",
         prNumber: "42",
-        githubToken: "t",
         trackingCommentId: "555",
       },
     });
@@ -94,7 +93,6 @@ describe("updateTrackingComment", () => {
         repoOwner: "octo",
         repoName: "repo",
         prNumber: "42",
-        githubToken: "t",
         trackingCommentId: "555",
       },
     });
@@ -111,6 +109,38 @@ describe("updateTrackingComment", () => {
       comment_id: 555,
       body: "## working on it\n- [x] read",
     });
+  });
+});
+
+describe("sanitize", () => {
+  it("redacts every classic GitHub token prefix (ghp/ghs/gho/ghu/ghr)", () => {
+    const tokens = ["ghp_", "ghs_", "gho_", "ghu_", "ghr_"]
+      .map((p) => `leak: ${p}AbCd1234567890123456EfGh`);
+    for (const sample of tokens) {
+      const out = sanitize(sample);
+      expect(out).not.toContain("AbCd1234");
+      expect(out).toContain("[REDACTED]");
+    }
+  });
+
+  it("redacts fine-grained github_pat_ tokens with underscores", () => {
+    const sample =
+      "token: github_pat_11AAAAAAAA0aaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const out = sanitize(sample);
+    expect(out).not.toContain("github_pat_");
+    expect(out).toContain("[REDACTED]");
+  });
+
+  it("leaves normal text untouched (no false positives)", () => {
+    const text = "fix typo in README, see PR #42 for context";
+    expect(sanitize(text)).toBe(text);
+  });
+
+  it("redacts a token embedded in a longer comment, preserving surrounding text", () => {
+    const out = sanitize("Bug: token ghp_AbCd1234567890123456 found in logs");
+    expect(out).toContain("Bug:");
+    expect(out).toContain("found in logs");
+    expect(out).not.toContain("ghp_AbCd");
   });
 });
 
@@ -217,6 +247,22 @@ describe("createInlineComment", () => {
     });
   });
 
+  it("skips pulls.get() when commit_id is provided (saves an API call)", async () => {
+    const { deps, calls } = makeDeps();
+
+    await createInlineComment(deps, {
+      path: "src/x.ts",
+      body: "comment",
+      line: 5,
+      commit_id: "cafef00d",
+      confirmed: true,
+    });
+
+    // Only the createReviewComment call should fire — pulls.get is unnecessary.
+    expect(calls.length).toBe(1);
+    expect(calls[0].method).toBe("pulls.createReviewComment");
+  });
+
   it("uses an explicit commit_id over the PR head SHA", async () => {
     const { deps, calls } = makeDeps();
 
@@ -311,6 +357,21 @@ describe("createInlineComment", () => {
       commit_id: "abc1234",
       body: "extract this into a helper",
     });
+  });
+
+  it("preserves the confirmed flag in the buffered entry", async () => {
+    // The post-step skips entries with confirmed:false. If the flag isn't
+    // written here, that opt-out is dead in production.
+    const { deps, buffer } = makeDeps();
+    await createInlineComment(deps, {
+      path: "p",
+      body: "b",
+      line: 1,
+      confirmed: false,
+    });
+    expect(buffer.length).toBe(1);
+    const entry = JSON.parse(buffer[0]);
+    expect(entry.confirmed).toBe(false);
   });
 
   it("rejects when startLine is set but line is missing (multi-line needs both)", async () => {

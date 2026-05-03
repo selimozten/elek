@@ -23,7 +23,6 @@ export interface Deps {
     repoName: string;
     prNumber: string;
     trackingCommentId?: string;
-    githubToken: string;
   };
   now?: () => Date;
 }
@@ -44,11 +43,15 @@ export async function updateTrackingComment(
   if (!id) {
     return { ok: false, error: "trackingCommentId is not set in env" };
   }
+  const numericId = parseInt(id, 10);
+  if (!Number.isFinite(numericId)) {
+    return { ok: false, error: `trackingCommentId "${id}" is not a valid number` };
+  }
   try {
     const result = await deps.octokit.issues.updateComment({
       owner: deps.env.repoOwner,
       repo: deps.env.repoName,
-      comment_id: parseInt(id, 10),
+      comment_id: numericId,
       body: args.body,
     });
     return { ok: true, data: result.data };
@@ -151,6 +154,7 @@ export async function createInlineComment(
         side: args.side,
         commit_id: args.commit_id,
         body: safeBody,
+        confirmed: args.confirmed,
       }) + "\n",
     );
     return { ok: true, data: { buffered: true } };
@@ -158,16 +162,23 @@ export async function createInlineComment(
 
   // confirmed === true → post directly via the GitHub API
   try {
-    const pr = await deps.octokit.pulls.get({
-      owner: deps.env.repoOwner,
-      repo: deps.env.repoName,
-      pull_number: parseInt(deps.env.prNumber, 10),
-    });
+    // Skip the pulls.get() round trip when the model already supplied a
+    // commit_id — saves one API call (and one possible rate-limit hit) per
+    // confirmed inline comment.
+    let fallbackSha = "";
+    if (!args.commit_id) {
+      const pr = await deps.octokit.pulls.get({
+        owner: deps.env.repoOwner,
+        repo: deps.env.repoName,
+        pull_number: parseInt(deps.env.prNumber, 10),
+      });
+      fallbackSha = pr.data.head.sha;
+    }
 
     const params = buildReviewCommentParams(
       { ...args, body: safeBody },
       deps.env,
-      pr.data.head.sha,
+      fallbackSha,
     );
 
     const result = await deps.octokit.pulls.createReviewComment(params);

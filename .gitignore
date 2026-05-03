@@ -2,3 +2,18 @@ node_modules/
 dist/
 *.tsbuildinfo
 .turbo/
+
+# package-lock.json — composite Action installs fresh in CI; lockfile only
+# helps local development and adds 5K+ lines of churn to PRs.
+package-lock.json
+
+# Local env / debug artifacts
+.env
+.env.local
+/tmp/
+*.log
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

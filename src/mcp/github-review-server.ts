@@ -53,7 +53,6 @@ const deps: Deps = {
     repoOwner: REPO_OWNER,
     repoName: REPO_NAME,
     prNumber: PR_NUMBER,
-    githubToken: GITHUB_TOKEN,
     trackingCommentId: TRACKING_COMMENT_ID,
   },
 };

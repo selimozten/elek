@@ -63,17 +63,25 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
   const log = deps.log ?? (() => {});
 
   // We need the PR head SHA when an entry didn't store its own commit_id.
-  // Fetch once, lazily — only if any entry lacks commit_id.
-  let headSha: string | undefined;
-  const ensureHeadSha = async () => {
-    if (headSha) return headSha;
-    const pr = await deps.octokit.pulls.get({
-      owner: deps.env.repoOwner,
-      repo: deps.env.repoName,
-      pull_number: parseInt(deps.env.prNumber, 10),
-    });
-    headSha = pr.data.head.sha;
-    return headSha;
+  // Fetch once, lazily — and cache failures too: if pulls.get fails on the
+  // first call (bad token, rate limit), retrying for every subsequent
+  // entry just amplifies the API spam.
+  let headShaResolved: string | null | undefined; // undefined=not yet, null=failed
+  const ensureHeadSha = async (): Promise<string> => {
+    if (typeof headShaResolved === "string") return headShaResolved;
+    if (headShaResolved === null) throw new Error("PR head SHA unavailable (prior fetch failed)");
+    try {
+      const pr = await deps.octokit.pulls.get({
+        owner: deps.env.repoOwner,
+        repo: deps.env.repoName,
+        pull_number: parseInt(deps.env.prNumber, 10),
+      });
+      headShaResolved = pr.data.head.sha;
+      return headShaResolved;
+    } catch (err) {
+      headShaResolved = null;
+      throw err;
+    }
   };
 
   for (const entry of entries) {
