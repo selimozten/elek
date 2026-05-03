@@ -23,10 +23,10 @@ jobs:
 
       - uses: selimozten/elek@main
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
-          thinking: high
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-chat
+          thinking: off
           prompt: |
             You are elek, reviewing code on your own repository.
 
