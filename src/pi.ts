@@ -106,29 +106,48 @@ export async function runPi(
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
 
+  // pi --mode json hangs in CI: zero stdout for 30 min until pi's own
+  // timeout fires. Confirmed across multiple runs (the last successful
+  // run used `pi -p` text mode; every JSON-mode run since hung).
+  // Reproducible only in GitHub Actions, not locally — likely a stdio
+  // buffering or stdin-handling difference. Default to text mode and
+  // expose JSON mode behind ELEK_PI_JSON_MODE=1 for debugging.
+  const useJsonMode = process.env.ELEK_PI_JSON_MODE === "1";
+
   return new Promise((resolve) => {
-    // Use --mode json for streaming events (JSONL format)
-    const jsonArgs = [...args, "--mode", "json"];
+    const finalArgs = useJsonMode
+      ? [...args.filter((a) => a !== "-p"), "--mode", "json"]
+      : ["-p", ...args];
 
-    // Remove -p since --mode json already implies non-interactive
-    const filteredArgs = jsonArgs.filter((a) => a !== "-p");
+    console.log(
+      `Command: ${piBin} ${finalArgs.map((a) => (a.startsWith("@") ? "@<prompt>" : a)).join(" ")}`,
+    );
 
-    console.log(`Command: ${piBin} ${filteredArgs.map((a) => (a.startsWith("@") ? "@<prompt>" : a)).join(" ")}`);
-
-    const child = spawn(piBin, filteredArgs, {
+    const child = spawn(piBin, finalArgs, {
       env,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"], // close stdin (pi -p doesn't read it)
       timeout: 30 * 60 * 1000,
     });
 
-    const rl = createInterface({ input: child.stdout! });
     let stderr = "";
+    let stdoutRaw = "";
 
     child.stderr!.on("data", (data) => {
       stderr += data.toString();
     });
 
-    rl.on("line", (line: string) => {
+    if (!useJsonMode) {
+      // Text mode: just collect stdout as the assistant's review text.
+      child.stdout!.on("data", (chunk) => {
+        stdoutRaw += chunk.toString();
+      });
+    }
+
+    const rl = useJsonMode
+      ? createInterface({ input: child.stdout! })
+      : null;
+
+    rl?.on("line", (line: string) => {
       let event: any;
       try {
         event = JSON.parse(line);
@@ -208,7 +227,9 @@ export async function runPi(
 
       onProgress?.({ type: "done" });
 
-      const output = extractAssistantText(finalAssistant) || streamingText.trim();
+      const output = useJsonMode
+        ? (extractAssistantText(finalAssistant) || streamingText.trim())
+        : stdoutRaw.trim();
       const stopReason = finalAssistant?.stopReason;
       const isErrorStop = stopReason === "error" || stopReason === "aborted";
 
