@@ -7,14 +7,15 @@ import type { GitHubEntityContext } from "../types";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
-/** Custom spinner — committed in repo assets. Raw URL works once merged to default branch. */
-const SPINNER =
-  '<img src="https://raw.githubusercontent.com/selimozten/elek/main/assets/spinner.gif" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />';
-
-/** Fallback spinner in case raw URL isn't available yet (pre-merge) */
-const SPINNER_FALLBACK = "⏳";
-
 const BOT_LOGIN = "github-actions[bot]";
+
+/** Dynamic spinner URL using current branch so it works on PRs too */
+function spinnerHtml(): string {
+  const repo = process.env.GITHUB_REPOSITORY || "selimozten/elek";
+  const ref = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "main";
+  const url = `https://raw.githubusercontent.com/${repo}/${ref}/assets/spinner.gif`;
+  return `<img src="${url}" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />`;
+}
 
 interface GitHubApi {
   rest: {
@@ -35,15 +36,6 @@ function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const repo = context.repo.fullName;
   return `[View run](${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId})`;
-}
-
-function spinnerHtml(): string {
-  // Use fallback if we're on a PR branch (raw URL won't resolve until merged)
-  const ref = process.env.GITHUB_REF_NAME || "";
-  if (ref.includes("/merge") || ref.includes("feat/") || ref.includes("fix/")) {
-    return SPINNER_FALLBACK;
-  }
-  return SPINNER;
 }
 
 /** Model-specific signature so dual reviews don't collide */
