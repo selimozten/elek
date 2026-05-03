@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: selimozten/elek@main
+      - uses: ./
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
@@ -57,7 +57,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: selimozten/elek@main
+      - uses: ./
         with:
           zai_api_key: ${{ secrets.ZAI_API_KEY }}
           provider: zai
