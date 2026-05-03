@@ -5,6 +5,14 @@
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
 
+interface MinimalOctokit {
+  rest: {
+    issues: {
+      listComments(params: any): Promise<{ data: Array<{ body?: string; user?: { login: string }; created_at: string }> }>;
+    };
+  };
+}
+
 export interface GitHubData {
   type: "pr" | "issue";
   title: string;
@@ -28,6 +36,7 @@ export interface GitHubData {
  */
 export async function fetchGitHubData(
   context: GitHubEntityContext,
+  octokit?: MinimalOctokit,
 ): Promise<GitHubData> {
   const base: GitHubData = {
     type: context.isPR ? "pr" : "issue",
@@ -35,6 +44,7 @@ export async function fetchGitHubData(
     body: context.pr?.body || context.issue?.body || "",
     author: context.actor,
     comments: [],
+    reviewComments: [],
     labels: context.issue?.labels || [],
     assignees: context.issue?.assignees || [],
     entityNumber: context.entityNumber,
@@ -49,6 +59,27 @@ export async function fetchGitHubData(
       base.diff = getGitDiff(context.pr.baseRef, context.pr.headRef);
     } catch (err) {
       console.warn("Could not fetch PR diff:", err);
+    }
+  }
+
+  // Fetch recent comments via GitHub API for additional context
+  if (octokit) {
+    try {
+      const { data: comments } = await octokit.rest.issues.listComments({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.entityNumber,
+        per_page: 20,
+        sort: "created",
+        direction: "desc",
+      });
+
+      base.comments = comments
+        .filter((c) => c.body && !c.body.includes("<!-- elek-bot:"))
+        .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
+        .reverse();
+    } catch (err) {
+      console.warn("Could not fetch comments:", err);
     }
   }
 

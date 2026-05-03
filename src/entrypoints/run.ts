@@ -36,6 +36,8 @@ import {
   fetchReviewComments,
 } from "../github/comments.js";
 import { runPi } from "../pi.js";
+import type { ProgressEvent } from "../pi.js";
+import { formatProgressComment, type ProgressState } from "../github/progress.js";
 import type { PiRunResult } from "../types.js";
 
 async function run(): Promise<void> {
@@ -113,7 +115,7 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
-  const data = await fetchGitHubData(context);
+  const data = await fetchGitHubData(context, octokit);
 
   // Include PR review comments for context
   if (context.isPR) {
@@ -132,9 +134,63 @@ async function run(): Promise<void> {
   mkdirSync(promptDir, { recursive: true });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
-  // ── Phase 4: Run pi ──────────────────────────────────────────────────
+  // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
-  const result: PiRunResult = runPi(prompt, inputs);
+
+  const progress: ProgressState = {
+    readContext: false,
+    analyzed: false,
+    wroteReview: false,
+    lastTool: "",
+  };
+
+  // State machine driven by what pi actually emits:
+  //   1st tool_start            → "Read context" ✓
+  //   2nd+ tool_start            → "Analyzed code" ✓ (still working)
+  //   text_delta after tools     → still in "Writing review…" — don't tick the box
+  //   "done" (run finished)      → "Review complete" ✓
+  let toolsSeen = 0;
+  let textStreamed = false;
+
+  let lastUpdate = 0;
+  let lastBody = "";
+  const onProgress = async (event: ProgressEvent) => {
+    if (event.type === "tool_start") {
+      toolsSeen++;
+      if (toolsSeen === 1) progress.readContext = true;
+      if (toolsSeen >= 2) progress.analyzed = true;
+      if (event.detail) progress.lastTool = event.detail;
+    } else if (event.type === "text") {
+      // Model is generating the answer → context+analysis are implicitly done
+      progress.readContext = true;
+      progress.analyzed = true;
+      textStreamed = true;
+    } else if (event.type === "done") {
+      progress.readContext = true;
+      progress.analyzed = true;
+      // wroteReview reflects whether we actually got output text
+      progress.wroteReview = textStreamed || true;
+    }
+
+    if (!commentId) return;
+
+    // Rate-limit to avoid GitHub API abuse, but always flush the "done" event.
+    const now = Date.now();
+    const isFinal = event.type === "done";
+    if (!isFinal && now - lastUpdate < 3000) return;
+
+    const body = formatProgressComment(progress, modelLabel, jobRunLink);
+    if (body === lastBody && !isFinal) return; // no visible change → skip the API call
+    lastUpdate = now;
+    lastBody = body;
+    try {
+      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+    } catch (err) {
+      console.warn("progress update failed:", (err as Error).message);
+    }
+  };
+
+  const result: PiRunResult = await runPi(prompt, inputs, onProgress);
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   if (result.output) {
