@@ -1,191 +1,161 @@
-# Setup Guide
+# Setup guide
 
 ## Requirements
 
 - A GitHub repository
-- An API key for at least one AI provider (Anthropic, OpenAI, Google, etc.)
-- Repository admin access (to add secrets)
+- One provider API key (DeepSeek, Z.AI, OpenAI, Anthropic, …)
+- Repo admin access (to add secrets)
 
-## Step 1: Add API key as secret
+## 1. Add the API key
 
-Go to your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+`Settings → Secrets and variables → Actions → New repository secret`. Use the secret name that matches the input on the action:
 
-Add your API key:
+| Provider | Secret name |
+|---|---|
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| Z.AI | `ZAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| xAI | `XAI_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
 
-| Provider | Secret name | Example value |
-|----------|------------|---------------|
-| Anthropic | `ANTHROPIC_API_KEY` | `sk-ant-...` |
-| OpenAI | `OPENAI_API_KEY` | `sk-...` |
-| Google | `GOOGLE_API_KEY` | `AIza...` |
-| DeepSeek | `DEEPSEEK_API_KEY` | `sk-...` |
-| Groq | `GROQ_API_KEY` | `gsk_...` |
-| Mistral | `MISTRAL_API_KEY` | `...` |
-| xAI | `XAI_API_KEY` | `...` |
-| OpenRouter | `OPENROUTER_API_KEY` | `sk-or-...` |
+For Bedrock: set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as job-level env. For Vertex: `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_VERTEX_PROJECT_ID`.
 
-## Step 2: Create workflow file
+## 2. Add the workflow
 
-Create `.github/workflows/elek.yml`:
+`.github/workflows/elek.yml`:
 
 ```yaml
 name: elek
 
 on:
-  issue_comment:
-    types: [created]
-  issues:
-    types: [opened]
-  pull_request:
-    types: [opened, synchronize]
+  pull_request: { types: [opened, synchronize, reopened] }
+  issue_comment: { types: [created] }
+  issues: { types: [opened] }
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read           # blocks merge entirely
+  pull-requests: write     # post review comments
+  issues: write            # post tracking comment
+
+concurrency:
+  group: elek-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  elek:
+  review:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Recommended for accurate git diffs
+        with: { fetch-depth: 0 }   # required for accurate PR diffs
       - uses: selimozten/elek@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
+          thinking: high
 ```
 
-## Step 3: Test
+## 3. Test it
 
-1. Open a PR or create an issue
-2. Comment `@pi hello` on the PR/issue
-3. elek will respond with a comment
+1. Open a PR or push a commit. The review should appear within ~3 minutes.
+2. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
 
-## Trigger methods
+## Triggers
 
-### 1. @pi mention (interactive)
+| Trigger | Behavior |
+|---|---|
+| `pull_request.opened` / `synchronize` | Auto-review every push |
+| `issue_comment` containing `@pi …` | Acts on the comment after the trigger phrase |
+| `issues.opened` | Optional triage when paired with a `prompt:` |
+| Labels (configured separately) | `@pi` label on an issue triggers a run |
 
-Comment `@pi` followed by your request on any PR or issue:
+Customize the trigger phrase via `trigger_phrase: "@bot"`.
 
-```
-@pi review this code for security vulnerabilities
-@pi explain how the auth module works
-@pi fix the bug in the payment handler
-```
-
-### 2. Automatic on PR open/sync
-
-Add a `prompt` input and the action runs automatically:
+## Modes
 
 ```yaml
 - uses: selimozten/elek@v1
   with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    prompt: |
-      Review this PR thoroughly. Check for:
-      - Correctness and logic errors
-      - Security issues
-      - Performance problems
-      - Missing tests
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    mode: review        # or review+edit, or agent
 ```
 
-### 3. Automatic on issue open
+| `mode` | Tools | Inline comments | Edits | When to use |
+|---|---|---|---|---|
+| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | All review-only workflows |
+| `review+edit` | + `write,edit` | ✓ | pushes to `pi/*` branch | "Review and propose fixes" |
+| `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
+
+## Permissions
 
 ```yaml
-- uses: selimozten/elek@v1
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    prompt: |
-      Analyze this issue and suggest:
-      - Root cause (if a bug)
-      - Affected components
-      - Recommended approach
+permissions:
+  contents: read           # blocks merge — model can't push to base
+  pull-requests: write
+  issues: write
 ```
 
-### 4. Scheduled runs
+For `mode: review+edit` (pushing to `pi/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
+
+## Actor filtering
+
+By default, only humans trigger (any actor matching `*[bot]` is excluded):
+
+```yaml
+allowed_bots: "renovate[bot],dependabot[bot]"   # specific bots
+allowed_bots: "*"                                 # all bots
+actor_filter: "alice,bob"                         # specific humans only
+```
+
+## Concurrency
+
+Cancel stale runs when a new push lands:
+
+```yaml
+concurrency:
+  group: elek-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+```
+
+## Path filters (skip docs-only churn)
 
 ```yaml
 on:
-  schedule:
-    - cron: "0 9 * * 1-5"
-```
-
-## Git configuration
-
-For PR reviews that include diffs, use `fetch-depth: 0`:
-
-```yaml
-- uses: actions/checkout@v4
-  with:
-    fetch-depth: 0
-```
-
-## Permissions explained
-
-```yaml
-permissions:
-  contents: write       # Create branches, commit changes
-  pull-requests: write  # Post PR reviews and comments
-  issues: write         # Post issue comments
-```
-
-Read-only mode:
-
-```yaml
-permissions:
-  pull-requests: write
-  issues: write
-```
-
-## Security notes
-
-### API key isolation
-
-Each provider key is a separate input. Only the key for the provider you're using needs to be set. pi never sees keys for other providers.
-
-### Actor filtering
-
-By default, only human users can trigger (accounts ending in `[bot]` are excluded). To allow bots:
-
-```yaml
-with:
-  allowed_bots: "dependabot[bot],renovate[bot]"
-```
-
-To restrict to specific users:
-
-```yaml
-with:
-  actor_filter: "alice,bob,charlie"
-```
-
-### Tool restrictions
-
-Use `tools` to restrict what pi can do:
-
-```yaml
-with:
-  tools: "read,grep,find,ls"  # Read-only
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
 ```
 
 ## Troubleshooting
 
-### pi binary not found
+### Comment stuck on "analyzing…" with no progress
 
-The action adds `node_modules/.bin` to PATH. If pi isn't found, check the action logs.
-
-### API key not recognized
-
-- Verify the secret name matches the input name
-- Verify the secret is added to the repository
-- Check workflow references correct secret: `${{ secrets.ANTHROPIC_API_KEY }}`
+The most common cause: `pi --mode json` was hanging on stdin. Make sure you're on `selimozten/elek@v1` or later — older revs had this bug. If on latest and still stuck, check the run logs for the `Command:` line and confirm it doesn't mention `--no-extensions` (it shouldn't in MCP modes).
 
 ### Empty PR diff
 
-Make sure `actions/checkout` uses `fetch-depth: 0`.
+`actions/checkout@v4` defaults to a shallow clone. Use `fetch-depth: 0`.
 
-### Trigger not firing
+### "Tool not found" errors in the review
 
-- Comment must contain `@pi` (or custom `trigger_phrase`)
-- Automatic triggers need non-empty `prompt` input
-- Check actor is allowed (not a bot, or in `allowed_bots`)
+The model called `mcp({tool: "update_tracking_comment", …})` without the server prefix. Pi-mcp-adapter exposes ours as `elek_review_update_tracking_comment`. The prompt explains this; if you see this often, the model may need a stronger prompt or higher thinking level.
+
+### `403` on inline comments for fork PRs
+
+`pull_request` from a fork only gets a read-only `GITHUB_TOKEN`. Use `pull_request_target` cautiously (it has the base repo's secrets) or accept that reviews on fork PRs need the comment author to be a member.
+
+### Review never posts
+
+Check `permissions:` in your workflow. `pull-requests: write` is required for the inline comments and `issues: write` for the tracking comment. With both omitted, the action's API calls 403 silently.
+
+### Multiple comments instead of one
+
+The dedup key is the model signature (`<!-- elek-bot:provider/model -->`). If you change `provider` or `model` mid-PR, the bot creates a new comment for the new identity. That's intentional — different models, different tracking.

@@ -1,263 +1,267 @@
-# Workflow Examples
+# Workflow examples
 
-## Basic PR Review (Comment Trigger)
+## Auto-review on every push (recommended starting point)
 
 ```yaml
-# .github/workflows/elek-review.yml
-name: elek-review
-
+# .github/workflows/elek.yml
+name: elek
 on:
-  issue_comment:
-    types: [created]
+  pull_request: { types: [opened, synchronize, reopened] }
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   issues: write
+
+concurrency:
+  group: elek-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
+        with:
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
+          thinking: high
+```
+
+## Comment-triggered review
+
+```yaml
+on:
+  issue_comment: { types: [created] }
 
 jobs:
   review:
     if: github.event.issue.pull_request
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
-          thinking: high
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
 ```
 
-Usage: Comment `@pi review this PR for bugs` on a pull request.
+Trigger by commenting `@pi review the auth flow` on a PR. The text after `@pi` becomes the prompt.
 
----
+## Dual-model review (cross-validation)
 
-## Automatic PR Review
+Run two cheap models in parallel; each addresses the other's findings on the next push.
 
 ```yaml
-# .github/workflows/elek-auto-review.yml
-name: elek-auto-review
-
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  pull_request: { types: [opened, synchronize, reopened] }
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+permissions: { contents: read, pull-requests: write, issues: write }
+
+concurrency:
+  group: elek-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deepseek:
+    name: deepseek-v4-pro
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
+        with:
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
+          thinking: high
+          branch_prefix: pi/deepseek/
+
+  zai:
+    name: glm-5.1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
+        with:
+          zai_api_key: ${{ secrets.ZAI_API_KEY }}
+          provider: zai
+          model: glm-5.1
+          thinking: high
+          branch_prefix: pi/zai/
+```
+
+## Review + propose fixes
+
+The model can push fixes to a `pi/*` branch when something is mechanical (rename, add missing test, simple refactor).
+
+```yaml
+permissions: { contents: write, pull-requests: write, issues: write }
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
-          thinking: high
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
+          mode: review+edit
           prompt: |
-            Review this PR. Provide:
-            1. Summary of changes
-            2. Bugs, logic errors, or edge cases
-            3. Security concerns
-            4. Performance implications
-            5. Style violations
-            Be specific. Reference files and line numbers.
+            Review this PR. For mechanical issues (typos, obvious bugs,
+            missing imports), push a fix to the pi/* branch and link it
+            in your review. For design questions, just review.
 ```
 
----
-
-## Issue Triage (OpenAI GPT-4o)
+## Issue triage
 
 ```yaml
-# .github/workflows/elek-triage.yml
-name: elek-triage
-
 on:
-  issues:
-    types: [opened]
+  issues: { types: [opened] }
 
-permissions:
-  issues: write
+permissions: { issues: write }
 
 jobs:
   triage:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: selimozten/elek@v1
         with:
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          provider: openai
-          model: gpt-4o
-          thinking: low
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          provider: deepseek
           prompt: |
-            Triage this issue concisely:
-            Type: bug | feature | question | docs
-            Priority: critical | high | medium | low
-            Component: which part of the codebase?
-            Assessment: one sentence
-            Action: label, assign, close, or investigate
+            Triage this issue:
+            - Bug, feature request, or question?
+            - Severity: critical / major / minor
+            - Affected component (if a bug)
+            - Repro steps clear? If not, ask.
+            - Suggested next step.
 ```
 
----
-
-## Multi-Model Pipeline
+## Skip docs-only changes
 
 ```yaml
-# .github/workflows/elek-multi.yml
-name: elek-multi
-
 on:
   pull_request:
     types: [opened, synchronize]
-
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Fast scan with Haiku
-      - name: Quick scan
-        uses: selimozten/elek@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-haiku-4-5
-          thinking: off
-          prompt: "Quick scan: any obvious issues? One sentence summary."
-
-      # Deep review with Sonnet
-      - name: Deep review
-        uses: selimozten/elek@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
-          thinking: high
-          prompt: |
-            Deep review. Check: logic, edge cases, security, performance, test gaps.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
 ```
 
----
-
-## Read-Only Code Analysis
-
-```yaml
-# .github/workflows/elek-analyze.yml
-name: elek-analyze
-
-on:
-  pull_request:
-    types: [opened]
-
-permissions:
-  pull-requests: write
-  # No contents: write — prevent code changes
-
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: selimozten/elek@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          tools: read,grep,find,ls
-          prompt: "Analyze this PR. Read-only access. Focus on quality and security."
-```
-
----
-
-## Custom Trigger Phrase
+## Restrict to specific reviewers
 
 ```yaml
 - uses: selimozten/elek@v1
   with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    trigger_phrase: "@bot"
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    actor_filter: "alice,bob,charlie"
 ```
 
----
-
-## Cross-Provider Fallback
+Or allow specific bots:
 
 ```yaml
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    allowed_bots: "renovate[bot],dependabot[bot]"
+```
+
+## Custom prompt
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    prompt: |
+      Review this PR with a focus on Postgres query performance:
+      1. Look for N+1 patterns
+      2. Check for missing indexes implied by new WHERE clauses
+      3. Flag transactions that hold locks across HTTP calls
+      4. Note any new SELECT * queries
+      Reference exact file paths and line numbers.
+```
+
+## Per-language review
+
+Different paths, different prompts:
+
+```yaml
+on:
+  pull_request: { types: [opened, synchronize] }
+
 jobs:
-  review:
+  ts-review:
+    if: contains(github.event.pull_request.changed_files, '.ts')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
         with:
-          fetch-depth: 0
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          prompt: "TypeScript-focused review: types, null handling, async correctness, exhaustiveness."
 
-      # Primary: Claude
-      - name: Review with Claude
-        id: claude
-        continue-on-error: true
-        uses: selimozten/elek@v1
+  go-review:
+    if: contains(github.event.pull_request.changed_files, '.go')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
-
-      # Fallback: GPT-4o
-      - name: Review with GPT-4o
-        if: steps.claude.outcome == 'failure'
-        uses: selimozten/elek@v1
-        with:
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          provider: openai
-          model: gpt-4o
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          prompt: "Go review: error handling, goroutine leaks, context propagation, defer order."
 ```
 
----
-
-## Scheduled Maintenance
+## Scheduled repo health check
 
 ```yaml
-name: elek-maintenance
-
 on:
   schedule:
-    - cron: "0 9 * * 1"  # Every Monday 9am UTC
+    - cron: "0 9 * * 1"   # Monday 09:00 UTC
 
-permissions:
-  issues: write
-  pull-requests: write
+permissions: { issues: write }
 
 jobs:
-  maintain:
+  health:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: selimozten/elek@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: anthropic
-          model: claude-sonnet-4-5
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           prompt: |
-            Review the repo and report:
-            1. Stale issues (>30 days, no activity)
-            2. PRs ready to merge (approved, CI passing)
-            3. Documentation gaps from recent code changes
-            4. Dependency updates needed
+            Weekly health check. Open a single tracking issue summarizing:
+            - Stale issues (no activity 30d+)
+            - PRs blocked on review > 7d
+            - Doc gaps you spotted while reading the diff history
+            - Top 3 dependency-update candidates
 ```
+
+## Pin the action
+
+For production, pin to a specific commit SHA rather than `@v1`:
+
+```yaml
+- uses: selimozten/elek@a1b2c3d4e5f6...   # specific SHA
+```
+
+Renovate / Dependabot can keep this updated.
