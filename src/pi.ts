@@ -219,13 +219,20 @@ export async function runPi(
       }
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(
         `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount}`,
       );
 
-      onProgress?.({ type: "done" });
+      // AWAIT the final progress update — otherwise it races with run.ts's
+      // post-pi `updateTrackingComment(reviewBody)` and the progress checklist
+      // can land *after* the review, overwriting it.
+      try {
+        await onProgress?.({ type: "done" });
+      } catch {
+        // already logged inside onProgress
+      }
 
       const output = useJsonMode
         ? (extractAssistantText(finalAssistant) || streamingText.trim())

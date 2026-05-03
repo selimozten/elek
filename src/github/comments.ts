@@ -5,7 +5,7 @@
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";
-import { spinnerHtml } from "./spinner";
+import { spinnerHeader } from "./spinner";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
@@ -84,11 +84,9 @@ export async function createTrackingComment(
   modelLabel: string,
 ): Promise<{ id: number; htmlUrl: string }> {
   const runLink = jobRunLink(context);
-  const spin = spinnerHtml();
-
   const sig = commentSignature(modelLabel);
   const body = [
-    `${spin} **${modelLabel}** analyzing…  ${sig}`,
+    `${spinnerHeader(modelLabel)} ${sig}`,
     "",
     `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
     "",
