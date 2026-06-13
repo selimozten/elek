@@ -21,7 +21,13 @@ import { join } from "path";
 import { execSync } from "child_process";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
-import { applyConfigDefaults, formatConfigAuditLog, loadElekConfig } from "../config.js";
+import {
+  applyConfigDefaults,
+  formatConfigAuditLog,
+  loadBaseBranchElekConfig,
+  loadElekConfig,
+  mergeBasePolicyWithWorkspaceGuidance,
+} from "../config.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
@@ -95,11 +101,26 @@ async function run(): Promise<void> {
     return;
   }
 
-  const repoConfig = loadElekConfig(parsedInputs.configPath, (message) => {
+  const workspaceConfig = loadElekConfig(parsedInputs.configPath, (message) => {
     console.warn(`[config] ${message}`);
   });
+  const repoConfig = context.isPR
+    ? mergeBasePolicyWithWorkspaceGuidance(
+        loadBaseBranchElekConfig(
+          parsedInputs.configPath,
+          context.pr?.baseRef || context.repo.defaultBranch,
+          (message) => console.warn(`[config] ${message}`),
+        ),
+        workspaceConfig,
+      )
+    : workspaceConfig;
   const inputs = applyConfigDefaults(parsedInputs, repoConfig);
-  console.log(formatConfigAuditLog(parsedInputs.configPath, repoConfig, inputs));
+  console.log(formatConfigAuditLog(
+    parsedInputs.configPath,
+    repoConfig,
+    inputs,
+    context.isPR ? "base-branch-policy+checked-out-guidance" : undefined,
+  ));
 
   console.log(
     `Triggered: "${userRequest.substring(0, 120)}${userRequest.length > 120 ? "..." : ""}"`,

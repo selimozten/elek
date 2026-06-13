@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from "fs";
 import { resolve, sep } from "path";
+import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types";
 
@@ -207,6 +208,54 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
   }
 }
 
+export function loadBaseBranchElekConfig(
+  path: string,
+  baseRef: string | undefined,
+  warn: (message: string) => void = () => {},
+): ElekConfig {
+  const trimmed = path.trim();
+  if (!baseRef || !trimmed || ["none", "off", "false"].includes(trimmed.toLowerCase())) {
+    return emptyConfig();
+  }
+  if (trimmed.startsWith("/") || trimmed.split(/[\\/]+/).includes("..")) {
+    warn(`Config path is not repo-local: ${trimmed}`);
+    return emptyConfig();
+  }
+
+  try {
+    execFileSync("git", ["fetch", "origin", baseRef, "--depth=1"], { stdio: "ignore" });
+  } catch {
+    warn(`Could not fetch base branch config source: ${baseRef}`);
+    return emptyConfig();
+  }
+
+  try {
+    const text = execFileSync("git", ["show", `origin/${baseRef}:${trimmed}`], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return parseElekConfig(text, warn, { throwOnParseError: true });
+  } catch (err) {
+    if (err instanceof ElekConfigParseError) throw err;
+    return emptyConfig();
+  }
+}
+
+export function mergeBasePolicyWithWorkspaceGuidance(
+  basePolicy: ElekConfig,
+  workspaceGuidance: ElekConfig,
+): ElekConfig {
+  return {
+    reviewStrategy: basePolicy.reviewStrategy,
+    reviewModels: basePolicy.reviewModels,
+    validatorModel: basePolicy.validatorModel,
+    costRates: basePolicy.costRates,
+    severityThreshold: basePolicy.severityThreshold,
+    ignorePaths: workspaceGuidance.ignorePaths,
+    instructions: workspaceGuidance.instructions,
+  };
+}
+
 export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): ActionInputs {
   return {
     ...inputs,
@@ -220,11 +269,16 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
   };
 }
 
-export function formatConfigAuditLog(path: string, config: ElekConfig, effective?: ActionInputs): string {
+export function formatConfigAuditLog(
+  path: string,
+  config: ElekConfig,
+  effective?: ActionInputs,
+  sourceOverride?: string,
+): string {
   const disabled = !path.trim() || ["none", "off", "false"].includes(path.trim().toLowerCase());
-  const source = process.env.GITHUB_EVENT_NAME === "pull_request"
+  const source = sourceOverride || (process.env.GITHUB_EVENT_NAME === "pull_request"
     ? "checked-out-pr-branch"
-    : "checked-out-workspace";
+    : "checked-out-workspace");
   const fields = [
     "[config] loaded",
     `path=${disabled ? "(disabled)" : path}`,

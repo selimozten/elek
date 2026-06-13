@@ -178,15 +178,16 @@ Supported keys:
 
 Workflow inputs override `.elek.yml` when explicitly set. To disable config
 loading, set `config_path: none`, `off`, or `false`. Severity thresholds and
-ignore paths are review instructions, not a server-side comment filter.
+ignore paths are review instructions, not a server-side comment filter. If an
+existing config file has malformed YAML, elek fails the run instead of silently
+dropping repo policy.
 
-Security note: elek reads `.elek.yml` from the checked-out workspace. On pull
-requests, that is the PR branch, so repo policy owners should protect this file
-with CODEOWNERS/branch protection or set policy-critical values in workflow
-inputs instead. This lets contributors propose config changes while keeping
-merge authority with maintainers. Each run logs the loaded config path,
-strategy, models, severity threshold, cost rates, ignore paths, and instruction
-count.
+Security note: on pull requests, elek loads policy fields (`review_strategy`,
+`review_models`, `validator_model`, `cost_rates`, and `severity_threshold`)
+from the base branch when available. Guidance fields (`ignore_paths` and
+`instructions`) come from the checked-out branch, so contributors can propose
+review guidance changes without controlling cost or severity policy. Each run
+logs the loaded config source plus effective strategy/model choices.
 
 ## Cost visibility
 

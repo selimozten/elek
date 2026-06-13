@@ -7,6 +7,7 @@ import {
   formatConfigAuditLog,
   formatConfigPromptBlock,
   loadElekConfig,
+  mergeBasePolicyWithWorkspaceGuidance,
   parseElekConfig,
   type ElekConfig,
 } from "../src/config";
@@ -171,6 +172,34 @@ instructions:
       reviewModels: "explicit/model",
       validatorModel: "explicit/validator",
       costRates: "explicit/model=3:4",
+    });
+  });
+
+  it("merges base-branch policy with checked-out guidance for PRs", () => {
+    expect(mergeBasePolicyWithWorkspaceGuidance({
+      reviewStrategy: "council",
+      reviewModels: "openrouter/base-reviewer",
+      validatorModel: "deepseek/base-validator",
+      costRates: "openrouter/base-reviewer=1:2",
+      severityThreshold: "important",
+      ignorePaths: ["base-only/**"],
+      instructions: ["Base instruction."],
+    }, {
+      reviewStrategy: "solo",
+      reviewModels: "openrouter/pr-reviewer",
+      validatorModel: "deepseek/pr-validator",
+      costRates: "openrouter/pr-reviewer=10:20",
+      severityThreshold: "critical",
+      ignorePaths: ["docs/**"],
+      instructions: ["PR guidance."],
+    })).toEqual({
+      reviewStrategy: "council",
+      reviewModels: "openrouter/base-reviewer",
+      validatorModel: "deepseek/base-validator",
+      costRates: "openrouter/base-reviewer=1:2",
+      severityThreshold: "important",
+      ignorePaths: ["docs/**"],
+      instructions: ["PR guidance."],
     });
   });
 

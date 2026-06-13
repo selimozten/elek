@@ -264,12 +264,15 @@ Supported keys: `review_strategy`, `review_models`, `validator_model`,
 `cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
 `severity_threshold` accepts `critical`, `important`, or `minor`. Severity
 and ignore-path policy are prompt instructions for the reviewer, not a
-server-side filter.
+server-side filter. If an existing config file has malformed YAML, elek fails
+the run instead of silently dropping repo policy.
 
-On pull requests, `.elek.yml` is read from the checked-out PR branch. Protect
-policy-critical config with CODEOWNERS/branch protection, or set those values
-directly in the workflow. Each run logs the loaded config path, strategy,
-models, severity threshold, cost rates, ignore paths, and instruction count.
+On pull requests, policy fields (`review_strategy`, `review_models`,
+`validator_model`, `cost_rates`, and `severity_threshold`) are loaded from the
+base branch when available. Guidance fields (`ignore_paths` and `instructions`)
+come from the checked-out branch so contributors can propose review guidance
+changes without controlling cost or severity policy. Each run logs the loaded
+config source plus effective strategy/model choices.
 
 ### API keys
 
