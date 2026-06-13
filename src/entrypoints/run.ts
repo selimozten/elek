@@ -23,7 +23,7 @@ import { execSync } from "child_process";
 import { parseInputs, parseEntityContext } from "../github/context.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
-import { resolveMode, resolvePiTools } from "../github/mode.js";
+import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
 import {
   configureGitAuth,
@@ -102,12 +102,12 @@ async function run(): Promise<void> {
 
   // Resolve mode → tool allowlist + MCP wiring
   const resolvedMode = resolveMode(inputs.mode);
-  const piTools = resolvePiTools(resolvedMode, inputs.tools);
   // MCP is on by default for review/review+edit modes (off only for `agent`
   // legacy mode). The earlier CI hang was caused by pi keeping stdin open;
   // fixed via stdio:["ignore",…] in pi.ts. ELEK_DISABLE_MCP=1 escape hatch
   // remains for emergency rollback.
   const mcpEnabled = resolvedMode.useMcpServer && process.env.ELEK_DISABLE_MCP !== "1";
+  const piTools = resolveEffectivePiTools(resolvedMode, inputs.tools, { mcpEnabled });
   console.log(
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
