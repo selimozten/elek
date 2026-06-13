@@ -19,6 +19,9 @@ const ENV_KEYS = [
   "GITHUB_REPOSITORY",
   "GITHUB_REPOSITORY_OWNER",
   "INPUT_BRANCH_PREFIX",
+  "INPUT_STICKY_COMMENT",
+  "INPUT_SHOW_COST",
+  "INPUT_COST_RATES",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -180,5 +183,28 @@ describe("parseInputs", () => {
   it("does not default tools to the legacy full-power allowlist", () => {
     delete process.env.INPUT_TOOLS;
     expect(parseInputs().tools).toBe("");
+  });
+
+  it("enables cost reporting by default", () => {
+    delete process.env.INPUT_SHOW_COST;
+    expect(parseInputs().showCost).toBe(true);
+  });
+
+  it("can disable cost reporting and parse rate overrides", () => {
+    process.env.INPUT_SHOW_COST = "false";
+    process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
+
+    const inputs = parseInputs();
+    expect(inputs.showCost).toBe(false);
+    expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
+  });
+
+  it("normalizes boolean-like action inputs", () => {
+    process.env.INPUT_SHOW_COST = "OFF";
+    process.env.INPUT_STICKY_COMMENT = "0";
+
+    const inputs = parseInputs();
+    expect(inputs.showCost).toBe(false);
+    expect(inputs.stickyComment).toBe(false);
   });
 });

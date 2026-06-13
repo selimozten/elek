@@ -6,6 +6,12 @@ import * as core from "@actions/core";
 import { readFileSync } from "fs";
 import type { GitHubEntityContext, ActionInputs } from "../types";
 
+function parseBooleanInput(value: string, defaultValue: boolean): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  return !["false", "0", "off", "no"].includes(normalized);
+}
+
 export function parseInputs(): ActionInputs {
   return {
     triggerPhrase: core.getInput("trigger_phrase") || "@pi",
@@ -20,11 +26,13 @@ export function parseInputs(): ActionInputs {
     branchPrefix: core.getInput("branch_prefix") || "elek/",
     actorFilter: core.getInput("actor_filter") || "",
     allowedBots: core.getInput("allowed_bots") || "",
-    stickyComment: core.getInput("sticky_comment") !== "false",
+    stickyComment: parseBooleanInput(core.getInput("sticky_comment"), true),
     mode: core.getInput("mode") || "review",
     reviewStrategy: core.getInput("review_strategy") || "solo",
     reviewModels: core.getInput("review_models") || "",
     validatorModel: core.getInput("validator_model") || "",
+    showCost: parseBooleanInput(core.getInput("show_cost"), true),
+    costRates: core.getInput("cost_rates") || "",
   };
 }
 

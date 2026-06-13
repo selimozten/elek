@@ -25,6 +25,7 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
 import type { ActionInputs, PiRunResult } from "./types";
+import { estimateRunCost, modelLabelFor } from "./review/cost";
 
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
@@ -100,6 +101,7 @@ export async function runPi(
 
   console.log(`pi binary: ${piBin}`);
   console.log(`Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`);
+  const runModelLabel = modelLabelFor(inputs);
 
   const startTime = Date.now();
   let sessionId: string | undefined;
@@ -242,6 +244,12 @@ export async function runPi(
       const output = useJsonMode
         ? (extractAssistantText(finalAssistant) || streamingText.trim())
         : stdoutRaw.trim();
+      const usage = estimateRunCost({
+        modelLabel: runModelLabel,
+        prompt,
+        output,
+        costRates: inputs.costRates,
+      });
       const stopReason = finalAssistant?.stopReason;
       const isErrorStop = stopReason === "error" || stopReason === "aborted";
 
@@ -251,7 +259,14 @@ export async function runPi(
           output,
           sessionId,
           turnsUsed: turnCount,
-          costUsd: 0,
+          costUsd: usage.costUsd,
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            estimated: usage.estimated,
+            modelLabel: usage.modelLabel,
+            source: usage.source,
+          },
         });
       } else {
         const errMsg =
@@ -265,7 +280,14 @@ export async function runPi(
           output: errMsg,
           sessionId,
           turnsUsed: turnCount,
-          costUsd: 0,
+          costUsd: usage.costUsd,
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            estimated: usage.estimated,
+            modelLabel: usage.modelLabel,
+            source: usage.source,
+          },
         });
       }
     });
@@ -278,6 +300,13 @@ export async function runPi(
         output: err.message,
         turnsUsed: 0,
         costUsd: 0,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          estimated: true,
+          modelLabel: runModelLabel,
+          source: "unknown",
+        },
       });
     });
   });
