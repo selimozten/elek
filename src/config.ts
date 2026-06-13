@@ -230,6 +230,10 @@ export function loadBaseBranchElekConfig(
     warn(`Config path is not repo-local: ${trimmed}`);
     return emptyConfig();
   }
+  if (baseRef.startsWith("-") || !/^[A-Za-z0-9_./-]+$/.test(baseRef)) {
+    warn(`Base ref is not safe for config loading: ${baseRef}`);
+    return emptyConfig();
+  }
 
   try {
     execFileSync("git", ["fetch", "origin", baseRef, "--depth=1"], { stdio: "ignore" });

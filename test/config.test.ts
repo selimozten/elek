@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { execFileSync } from "child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
@@ -6,12 +7,17 @@ import {
   ElekConfigParseError,
   formatConfigAuditLog,
   formatConfigPromptBlock,
+  loadBaseBranchElekConfig,
   loadElekConfig,
   mergeBasePolicyWithWorkspaceGuidance,
   parseElekConfig,
   type ElekConfig,
 } from "../src/config";
 import type { ActionInputs } from "../src/types";
+
+function git(cwd: string, args: string[]): void {
+  execFileSync("git", args, { cwd, stdio: "ignore" });
+}
 
 const baseInputs: ActionInputs = {
   triggerPhrase: "@pi",
@@ -288,6 +294,94 @@ instructions:
       expect(warnings[0]).toContain("Could not parse config YAML");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("loads policy config from a git base branch", () => {
+    const root = mkdtempSync(join(process.cwd(), ".elek-config-git-test-"));
+    const origin = join(root, "origin.git");
+    const work = join(root, "work");
+    const previousCwd = process.cwd();
+    try {
+      git(root, ["init", "--bare", origin]);
+      git(root, ["init", work]);
+      git(work, ["config", "user.email", "elek@example.com"]);
+      git(work, ["config", "user.name", "elek tests"]);
+      writeFileSync(join(work, ".elek.yml"), [
+        "review_strategy: council",
+        "review_models: openrouter/base-reviewer",
+        "validator_model: deepseek/base-validator",
+        "cost_rates: openrouter/base-reviewer=1:2",
+        "severity_threshold: important",
+        "ignore_paths:",
+        "  - base-only/**",
+        "instructions:",
+        "  - Base instruction.",
+        "",
+      ].join("\n"));
+      git(work, ["add", ".elek.yml"]);
+      git(work, ["commit", "-m", "add config"]);
+      git(work, ["branch", "-M", "main"]);
+      git(work, ["remote", "add", "origin", origin]);
+      git(work, ["push", "origin", "main"]);
+
+      process.chdir(work);
+      expect(loadBaseBranchElekConfig(".elek.yml", "main")).toEqual({
+        reviewStrategy: "council",
+        reviewModels: "openrouter/base-reviewer",
+        validatorModel: "deepseek/base-validator",
+        costRates: "openrouter/base-reviewer=1:2",
+        severityThreshold: "important",
+        ignorePaths: ["base-only/**"],
+        instructions: ["Base instruction."],
+      });
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("handles missing, malformed, and unsafe base branch config", () => {
+    const root = mkdtempSync(join(process.cwd(), ".elek-config-git-test-"));
+    const origin = join(root, "origin.git");
+    const work = join(root, "work");
+    const previousCwd = process.cwd();
+    try {
+      git(root, ["init", "--bare", origin]);
+      git(root, ["init", work]);
+      git(work, ["config", "user.email", "elek@example.com"]);
+      git(work, ["config", "user.name", "elek tests"]);
+      writeFileSync(join(work, ".elek.yml"), "instructions:\n  - good\n    bad: [unterminated\n");
+      git(work, ["add", ".elek.yml"]);
+      git(work, ["commit", "-m", "add malformed config"]);
+      git(work, ["branch", "-M", "main"]);
+      git(work, ["remote", "add", "origin", origin]);
+      git(work, ["push", "origin", "main"]);
+
+      process.chdir(work);
+      const warnings: string[] = [];
+      expect(loadBaseBranchElekConfig("missing.yml", "main", (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings.at(-1)).toContain("No base branch config found");
+
+      expect(() => loadBaseBranchElekConfig(".elek.yml", "main")).toThrow(ElekConfigParseError);
+
+      expect(loadBaseBranchElekConfig("../.elek.yml", "main", (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings.at(-1)).toContain("Config path is not repo-local");
+
+      expect(loadBaseBranchElekConfig(".elek.yml", "-bad", (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings.at(-1)).toContain("Base ref is not safe");
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
