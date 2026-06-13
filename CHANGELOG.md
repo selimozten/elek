@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and how to use a GitHub App or bot token for a custom avatar.
 - Correct agent docs to distinguish GitHub Actions workflows from Dependabot
   configuration.
-- Normalize the CodeQL analysis category name.
 
 ### Removed
 
