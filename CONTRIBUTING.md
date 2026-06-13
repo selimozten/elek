@@ -56,6 +56,35 @@ dump.
 - Refactors that don't fix a problem. If you want to restructure something,
   open an issue first to align on the goal.
 
+## Branch names and PR titles
+
+Use product/work names, not agent or tool names. Branches created by humans
+or coding agents should describe the change:
+
+```text
+feature/cross-model-review-strategies
+fix/mcp-token-cleanup
+docs/review-strategy-setup
+ci/self-review-workflow
+```
+
+Allowed branch prefixes: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`,
+`ci/`, `chore/`, `security/`, and `release/`. Keep the slug lowercase
+kebab-case. Do not use tool, vendor, or person prefixes such as `codex/`,
+`cursor/`, `claude/`, or a contributor handle.
+
+PR titles should use Conventional Commit style and describe the product
+outcome:
+
+```text
+feat(review): add cross-model validation
+fix(mcp): delay token config until final review
+docs: document review strategy setup
+```
+
+Avoid titles like "Codex changes", "AI cleanup", or "misc fixes"; they do
+not explain what shipped.
+
 ## PR checklist
 
 - [ ] `bun test test/` passes
@@ -67,9 +96,11 @@ dump.
 
 ## Commit messages
 
-Conventional-ish: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`.
-First line ≤ 72 chars; body wrapping at 72 if you have one. The body is the
-PR description in miniature — explain *why* the change exists.
+Use the same Conventional Commit style as PR titles: `feat:`, `fix:`,
+`docs:`, `chore:`, `refactor:`, `test:`, `ci:`, or `security:` with an
+optional scope. First line ≤ 72 chars; body wrapping at 72 if you have one.
+The body is the PR description in miniature — explain *why* the change
+exists.
 
 ## Reporting bugs
 

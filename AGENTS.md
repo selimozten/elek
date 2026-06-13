@@ -45,7 +45,7 @@ src/github/trigger.ts                 @pi mention detection, actor filtering.
 src/github/data.ts                    PR/issue data fetch + buildPrompt().
 src/github/comments.ts                Tracking-comment lifecycle.
 src/github/progress.ts                Live checklist body (claude-style).
-src/github/spinner.ts                 Animated pi-logo SVG header.
+src/github/spinner.ts                 Animated elek SVG header.
 src/github/mode.ts                    review / review+edit / agent presets.
 src/github/git.ts                     git auth + branch ops.
 src/mcp/handlers.ts                   Pure handler logic (testable, deps-injected).
@@ -70,6 +70,13 @@ object with the methods the code calls.
 a non-obvious constraint (e.g., `stdio:["ignore",…]` in `pi.ts` — pi hangs
 without it because it waits for stdin EOF), leave a comment. Don't write
 prose narration.
+
+**Professional branch and PR names.** Branches use product/work prefixes
+such as `feature/`, `fix/`, `docs/`, `refactor/`, `test/`, `ci/`, `chore/`,
+`security/`, or `release/`, followed by a lowercase kebab-case summary.
+Do not use agent, tool, vendor, or person prefixes such as `codex/`,
+`cursor/`, `claude/`, or a contributor handle. PR titles use Conventional
+Commit style, e.g. `feat(review): add cross-model validation`.
 
 **Structural safety > runtime checks.** The MCP server exposes exactly two
 tools: `create_inline_comment` and `update_tracking_comment`. There is no
@@ -112,7 +119,7 @@ This is the backstop layer if anyone ever adds the wrong code path.
 
 ```bash
 bun install
-bun test test/        # unit tests, ~64 of them
+bun test test/        # unit tests, ~75 of them
 bunx tsc --noEmit     # type check
 ```
 
@@ -140,8 +147,9 @@ Both must pass before merging.
 1. Read `src/entrypoints/run.ts` to understand the surrounding flow.
 2. If it's behavioral, write a failing test in `test/` first.
 3. Keep the change minimal — no speculative refactors.
-4. Run `bun test test/` and `bunx tsc --noEmit` before pushing.
-5. The PR will get reviewed by the bot itself; respond by addressing each
+4. Use a product/work branch name and a Conventional Commit style PR title.
+5. Run `bun test test/` and `bunx tsc --noEmit` before pushing.
+6. The PR will get reviewed by the bot itself; respond by addressing each
    prior finding (see `<comments>` / prior bot reviews in PR thread).
 
 ## What NOT to do
