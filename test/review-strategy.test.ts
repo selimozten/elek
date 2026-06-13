@@ -162,9 +162,11 @@ describe("review strategy", () => {
       "+++ b/src/a.ts",
       "-old",
       "+new",
+      "----",
+      "++++",
       " context",
       "+another",
-    ].join("\n"))).toBe(3);
+    ].join("\n"))).toBe(5);
     expect(countChangedDiffLines(undefined)).toBeUndefined();
   });
 

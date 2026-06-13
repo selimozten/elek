@@ -226,7 +226,7 @@ export function countChangedDiffLines(diff: string | undefined): number | undefi
   let changed = 0;
   for (const line of diff.split("\n")) {
     if (!line) continue;
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
     // Unified diffs represent a modified line as one deletion plus one addition.
     if (line.startsWith("+") || line.startsWith("-")) changed++;
   }
