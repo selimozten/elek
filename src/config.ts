@@ -369,6 +369,7 @@ export function formatConfigAuditLog(
     fields.push(`effective_review_models=${effective.reviewModels || "(primary model)"}`);
     fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
+    fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
   }
   return fields.join(" | ");
 }

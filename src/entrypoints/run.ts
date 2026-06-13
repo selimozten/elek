@@ -344,6 +344,7 @@ async function run(): Promise<void> {
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
   const useReviewPlan = reviewPlanSupport.enabled;
+  console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
   const runCosts: ReviewCost[] = [];
 
   let finalInputs = piInputs;

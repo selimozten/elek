@@ -34,7 +34,7 @@ jobs:
     name: "deepseek-v4-pro"
     if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6.0.3
         with:

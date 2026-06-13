@@ -495,9 +495,11 @@ instructions:
         reviewModels: "openrouter/model-a",
         validatorModel: "deepseek/model-b",
         severityThreshold: "critical",
+        costRates: "deepseek/model-b=1:2",
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
-          "effective_validator_model=deepseek/model-b | effective_severity_threshold=critical",
+          "effective_validator_model=deepseek/model-b | effective_severity_threshold=critical | " +
+          "effective_cost_rates=deepseek/model-b=1:2",
       );
     } finally {
       if (previousEvent === undefined) {
