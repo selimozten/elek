@@ -34,8 +34,9 @@ export function formatProgressComment(
 
   // Phase 2: Analyzing (unlocked after read)
   if (state.readContext) {
+    const lastTool = state.lastTool.replace(/`/g, "\\`");
     lines.push(
-      `- [${check(state.analyzed)}] ${state.analyzed ? "Analyzed code" : `Analyzing (${state.lastTool})…`}`,
+      `- [${check(state.analyzed)}] ${state.analyzed ? "Analyzed code" : `Analyzing (${lastTool})…`}`,
     );
   } else {
     lines.push(`- [ ] Analyzing`);

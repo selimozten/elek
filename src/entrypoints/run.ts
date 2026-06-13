@@ -290,6 +290,7 @@ async function run(): Promise<void> {
     }
 
     if (commentId) {
+      const code = (value: string) => `\`${value.replace(/`/g, "\\`")}\``;
       try {
         await updateTrackingComment(
           octokit,
@@ -298,9 +299,9 @@ async function run(): Promise<void> {
           [
             spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
-            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: \`${j.model.label}\``),
+            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: ${code(j.model.label)}`),
             "",
-            `Final validation: \`${reviewPlan.validator.label}\``,
+            `Final validation: ${code(reviewPlan.validator.label)}`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
           modelLabel,
