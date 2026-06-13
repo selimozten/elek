@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROVIDERS = {
@@ -130,6 +130,8 @@ export function finalizeOptions(options) {
   if (options.maxCostUsd && (!Number.isFinite(Number(options.maxCostUsd)) || Number(options.maxCostUsd) <= 0)) {
     throw new Error("--max-cost-usd must be a positive number");
   }
+  assertSafeOutputPath(options.workflowPath, "--workflow");
+  assertSafeOutputPath(options.configPath, "--config-path");
   return {
     ...options,
     model: options.model ?? providerDefaults.model,
@@ -137,6 +139,21 @@ export function finalizeOptions(options) {
     thinking: options.thinking ?? providerDefaults.thinking,
     keyInput: providerDefaults.keyInput,
   };
+}
+
+export function assertSafeOutputPath(value, flag) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${flag} must be a non-empty relative path`);
+  }
+  if (value.includes("\0") || /[\r\n]/.test(value)) {
+    throw new Error(`${flag} must not contain control characters`);
+  }
+  if (isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value)) {
+    throw new Error(`${flag} must be relative to the repository root`);
+  }
+  if (value.split(/[\\/]+/).includes("..")) {
+    throw new Error(`${flag} must stay inside the repository root`);
+  }
 }
 
 export function renderWorkflow(options) {
@@ -212,11 +229,15 @@ export function writePlannedFiles(options, cwd = process.cwd()) {
   const written = [];
   for (const file of planFiles(options)) {
     const target = join(cwd, file.path);
-    if (existsSync(target) && !options.force) {
-      throw new Error(`${file.path} already exists. Re-run with --force to overwrite.`);
-    }
     mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, file.body, "utf8");
+    try {
+      writeFileSync(target, file.body, { encoding: "utf8", flag: options.force ? "w" : "wx" });
+    } catch (error) {
+      if (error?.code === "EEXIST" && !options.force) {
+        throw new Error(`${file.path} already exists. Re-run with --force to overwrite.`);
+      }
+      throw error;
+    }
     written.push(file.path);
   }
   return written;

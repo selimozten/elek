@@ -77,9 +77,11 @@ describe("elek-init", () => {
   });
 
   it("can write only the workflow when config is disabled", () => {
-    const files = planFiles(parseArgs(["--no-config"]));
+    const options = parseArgs(["--no-config"]);
+    const files = planFiles(options);
 
     expect(files.map((file) => file.path)).toEqual([".github/workflows/elek.yml"]);
+    expect(renderWorkflow(options)).not.toContain("config_path:");
   });
 
   it("writes planned files and refuses to overwrite without --force", () => {
@@ -105,6 +107,13 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--provider", "unknown"])).toThrow("Unsupported provider");
     expect(() => parseArgs(["--strategy", "many"])).toThrow("Unsupported strategy");
     expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
+  });
+
+  it("rejects output paths outside the repository", () => {
+    expect(() => parseArgs(["--workflow", "../elek.yml"])).toThrow("inside the repository root");
+    expect(() => parseArgs(["--config-path", ".github/../elek.yml"])).toThrow("inside the repository root");
+    expect(() => parseArgs(["--workflow", "/tmp/elek.yml"])).toThrow("relative to the repository root");
+    expect(() => parseArgs(["--config-path", "bad\npath.yml"])).toThrow("control characters");
   });
 
   it("documents config file controls", () => {
