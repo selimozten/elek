@@ -21,9 +21,9 @@
     "@earendil-works/pi-coding-agent": "0.79.2",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@octokit/rest": "22.0.1",
-    "pi-mcp-adapter": "2.9.0",
+    "pi-mcp-adapter": "2.10.0",
     "tsx": "4.22.4",
-    "zod": "3.25.76"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.13.2",
