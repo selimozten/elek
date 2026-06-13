@@ -163,6 +163,10 @@ describe("buildPrompt", () => {
 
     expect(out).toContain("### Review finding contract");
     expect(out).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
+    expect(out).toContain("### Finding acceptance gates");
+    expect(out).toContain("A finding must identify a concrete failure path from changed code");
+    expect(out).toContain("Reject findings that contradict the diff, surrounding repo context, or already-visible comments.");
+    expect(out).toContain("drop it instead of posting a caveat.");
     expect(out).toContain("Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
     expect(out).toContain("- Severity: critical|important|minor");
     expect(out).toContain("- Confidence: high|medium");

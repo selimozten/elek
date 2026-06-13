@@ -9,6 +9,17 @@ export function reviewContractBullets(): string[] {
   ];
 }
 
+export function findingValidationBullets(): string[] {
+  return [
+    "- A finding must identify a concrete failure path from changed code to user-visible, security, correctness, operational, or maintainability impact.",
+    "- Reject findings that contradict the diff, surrounding repo context, or already-visible comments.",
+    "- Reject findings that depend on unverified external facts, guessed package behavior, or assumptions about code not inspected.",
+    "- Reject findings whose fix would add unused abstraction, defensive bloat for impossible states, or comments that merely restate code.",
+    "- If evidence is body-only, explain why the issue cannot be anchored to a changed line and why it is still caused by this change.",
+    "- If a candidate finding cannot pass these gates, drop it instead of posting a caveat.",
+  ];
+}
+
 export function reviewFindingTemplate(): string[] {
   return [
     "### Short title",

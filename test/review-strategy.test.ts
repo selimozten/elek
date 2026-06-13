@@ -319,6 +319,9 @@ describe("review strategy", () => {
     expect(prompt).toContain("Do not paste raw diff blocks into your candidate report");
     expect(prompt).toContain("Do not claim external packages, GitHub Actions");
     expect(prompt).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
+    expect(prompt).toContain("Finding acceptance gates:");
+    expect(prompt).toContain("A finding must identify a concrete failure path from changed code");
+    expect(prompt).toContain("Reject findings that contradict the diff, surrounding repo context, or already-visible comments.");
     expect(prompt).toContain("- Confidence: high|medium");
     expect(prompt).toContain("Review this pull request.");
     expect(prompt).toContain("diff --git a/src/a.ts b/src/a.ts");
@@ -375,6 +378,9 @@ describe("review strategy", () => {
     expect(prompt).toContain("ignore_paths:");
     expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
     expect(prompt).toContain("Do not surface low-confidence findings.");
+    expect(prompt).toContain("Finding acceptance gates:");
+    expect(prompt).toContain("Reject findings that depend on unverified external facts");
+    expect(prompt).toContain("drop it instead of posting a caveat.");
     expect(prompt).toContain("Fix: the smallest concrete change required");
     expect(prompt).toContain("Do not surface claims that external packages");
     expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
