@@ -275,11 +275,6 @@ export function buildPrompt(
   parts.push("");
   parts.push(...reviewFindingTemplate());
   parts.push("");
-  parts.push("**Fix:**");
-  parts.push("```suggestion");
-  parts.push("// code suggestion here");
-  parts.push("```");
-  parts.push("");
   parts.push("## Recommendations");
   parts.push("(broader suggestions, architecture notes, etc.)");
   parts.push("```");

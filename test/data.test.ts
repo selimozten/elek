@@ -169,5 +169,6 @@ describe("buildPrompt", () => {
     expect(out).toContain("- Evidence: quote or summarize the concrete code path");
     expect(out).toContain("- Fix: the smallest concrete change required");
     expect(out).toContain("Do not surface low-confidence findings.");
+    expect(out).not.toContain("**Fix:**");
   });
 });
