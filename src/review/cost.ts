@@ -59,7 +59,12 @@ export function parseCostRateOverrides(
     }
 
     const label = entry.slice(0, eq).trim().toLowerCase();
-    const [inputRaw, outputRaw] = entry.slice(eq + 1).split(":");
+    const priceParts = entry.slice(eq + 1).split(":");
+    if (priceParts.length !== 2) {
+      onInvalid?.(entry, "prices must be exactly input:output");
+      continue;
+    }
+    const [inputRaw, outputRaw] = priceParts;
     if (!inputRaw?.trim() || !outputRaw?.trim()) {
       onInvalid?.(entry, "prices must include both input and output values");
       continue;

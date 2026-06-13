@@ -19,6 +19,7 @@ const ENV_KEYS = [
   "GITHUB_REPOSITORY",
   "GITHUB_REPOSITORY_OWNER",
   "INPUT_BRANCH_PREFIX",
+  "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
 ];
@@ -196,5 +197,14 @@ describe("parseInputs", () => {
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
+  });
+
+  it("normalizes boolean-like action inputs", () => {
+    process.env.INPUT_SHOW_COST = "OFF";
+    process.env.INPUT_STICKY_COMMENT = "0";
+
+    const inputs = parseInputs();
+    expect(inputs.showCost).toBe(false);
+    expect(inputs.stickyComment).toBe(false);
   });
 });

@@ -376,7 +376,19 @@ async function run(): Promise<void> {
     writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
   }
 
-  let result: PiRunResult;
+  let result: PiRunResult = {
+    conclusion: "failure",
+    output: "MCP configuration failed",
+    turnsUsed: 0,
+    costUsd: 0,
+    usage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      estimated: true,
+      modelLabel: activeModelLabel,
+      source: "unknown",
+    },
+  };
   try {
     writeMcpConfig();
     result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });

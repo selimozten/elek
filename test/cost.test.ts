@@ -34,7 +34,7 @@ describe("review cost estimates", () => {
 
   it("reports invalid pricing override entries to the caller", () => {
     const invalid: string[] = [];
-    parseCostRateOverrides("bad,=1:2,nope=a:2,neg=-1:2,missing=1:", (entry, reason) => {
+    parseCostRateOverrides("bad,=1:2,nope=a:2,neg=-1:2,missing=1:,extra=1:2:3", (entry, reason) => {
       invalid.push(`${entry}: ${reason}`);
     });
 
@@ -44,6 +44,7 @@ describe("review cost estimates", () => {
       "nope=a:2: prices must be numeric input:output values",
       "neg=-1:2: prices must be zero or positive",
       "missing=1:: prices must include both input and output values",
+      "extra=1:2:3: prices must be exactly input:output",
     ]);
   });
 
