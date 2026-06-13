@@ -114,6 +114,34 @@ describe("elek-analytics", () => {
     }
   });
 
+  it("groups saved summaries by repository", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-repo-test-"));
+    try {
+      const first = writeSummary(dir, "first.json");
+      const second = writeSummary(dir, "second.json", {
+        repository: "othercorp/lib",
+      });
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--group-by",
+        "repository",
+        "--json",
+        first,
+        second,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.groupBy).toBe("repository");
+      expect(report.groups.map((group) => group.key)).toEqual(["acme/app", "othercorp/lib"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("prints a readable analytics table", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-table-test-"));
     try {

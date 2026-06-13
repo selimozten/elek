@@ -59,7 +59,7 @@ function clean(value) {
 
 function normalizeNumber(value) {
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : 0;
+  return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
 function findingCount(summary) {
