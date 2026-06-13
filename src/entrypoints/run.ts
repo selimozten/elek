@@ -127,7 +127,7 @@ async function run(): Promise<void> {
     workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment (with spinner, Claude-style)
+  // Create tracking comment with the elek spinner.
   let commentId: number | undefined;
   if (inputs.stickyComment) {
     try {

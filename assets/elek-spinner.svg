@@ -31,7 +31,7 @@
 
     .node { fill: #c76d50; }
   </style>
-  <rect class="back" x="8" y="8" width="112" height="112" rx="28"/>
+  <rect class="back" x="4" y="4" width="120" height="120" rx="30"/>
   <circle class="ring" cx="64" cy="64" r="53">
     <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 64 64" to="360 64 64" dur="1.25s" repeatCount="indefinite"/>
   </circle>
