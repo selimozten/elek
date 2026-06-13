@@ -244,24 +244,39 @@ instructions:
   });
 
   it("formats an audit log for loaded config values", () => {
-    expect(formatConfigAuditLog(".elek.yml", {
-      reviewStrategy: "crosscheck",
-      reviewModels: "openrouter/model-a,deepseek/model-b",
-      validatorModel: "deepseek/model-b",
-      severityThreshold: "important",
-      costRates: "deepseek/model-b=1:2",
-      ignorePaths: ["docs/**"],
-      instructions: ["Treat migrations as operational risk."],
-    })).toBe(
-      "[config] loaded | path=.elek.yml | source=checked-out-workspace | " +
-        "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
-        "validator_model=deepseek/model-b | " +
-        "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
-        "ignore_paths=docs/** | instructions=1",
-    );
+    const previousEvent = process.env.GITHUB_EVENT_NAME;
+    delete process.env.GITHUB_EVENT_NAME;
+    try {
+      expect(formatConfigAuditLog(".elek.yml", {
+        reviewStrategy: "crosscheck",
+        reviewModels: "openrouter/model-a,deepseek/model-b",
+        validatorModel: "deepseek/model-b",
+        severityThreshold: "important",
+        costRates: "deepseek/model-b=1:2",
+        ignorePaths: ["docs/**"],
+        instructions: ["Treat migrations as operational risk."],
+      })).toBe(
+        "[config] loaded | path=.elek.yml | source=checked-out-workspace | " +
+          "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
+          "validator_model=deepseek/model-b | " +
+          "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
+          "ignore_paths=docs/** | instructions=1",
+      );
 
-    expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
-      "path=(disabled)",
-    );
+      process.env.GITHUB_EVENT_NAME = "pull_request";
+      expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] })).toContain(
+        "source=checked-out-pr-branch",
+      );
+
+      expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
+        "path=(disabled)",
+      );
+    } finally {
+      if (previousEvent === undefined) {
+        delete process.env.GITHUB_EVENT_NAME;
+      } else {
+        process.env.GITHUB_EVENT_NAME = previousEvent;
+      }
+    }
   });
 });
