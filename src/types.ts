@@ -19,6 +19,17 @@ export interface ActionInputs {
   stickyComment: boolean;
   /** Mode: review (default), review+edit, or agent (legacy). */
   mode: string;
+  /**
+   * Review orchestration strategy:
+   * - solo: one reviewer, current behavior
+   * - crosscheck: two independent read-only lenses, then synthesis
+   * - council: four independent read-only lenses, then synthesis
+   */
+  reviewStrategy: string;
+  /** Optional comma-separated model specs for reviewer lenses. */
+  reviewModels: string;
+  /** Optional model spec for final validation/synthesis. */
+  validatorModel: string;
 }
 
 export interface GitHubEntityContext {

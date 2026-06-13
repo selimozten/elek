@@ -42,6 +42,12 @@ import { runPi } from "../pi.js";
 import type { ProgressEvent } from "../pi.js";
 import { formatProgressComment, type ProgressState } from "../github/progress.js";
 import type { PiRunResult } from "../types.js";
+import {
+  buildLensPrompt,
+  buildSynthesisPrompt,
+  resolveReviewPlan,
+} from "../review/strategy.js";
+import { sanitize } from "../mcp/handlers.js";
 
 async function run(): Promise<void> {
   // ── Phase 0: Parse inputs & context ──────────────────────────────────
@@ -142,7 +148,7 @@ async function run(): Promise<void> {
     }
   }
 
-  const prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
+  let prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
   });
@@ -165,7 +171,8 @@ async function run(): Promise<void> {
     ? join(homedir(), ".config", "mcp", "mcp.json")
     : null;
 
-  if (mcpConfigPath) {
+  const writeMcpConfig = () => {
+    if (!mcpConfigPath) return;
     const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
     const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
     mkdirSync(join(homedir(), ".config", "mcp"), { recursive: true });
@@ -195,7 +202,7 @@ async function run(): Promise<void> {
       "utf-8",
     );
     console.log(`Wrote ${mcpConfigPath} for pi-mcp-adapter`);
-  }
+  };
 
   // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
@@ -253,9 +260,97 @@ async function run(): Promise<void> {
     }
   };
 
+  const reviewPlan = resolveReviewPlan(inputs);
+  const useReviewPlan =
+    reviewPlan.strategy !== "solo" &&
+    context.isPR &&
+    resolvedMode.mode === "review";
+
+  let finalInputs = inputs;
+  if (useReviewPlan) {
+    console.log(
+      `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
+        .map((j) => `${j.lens.id}:${j.model.label}`)
+        .join(", ")} | validator: ${reviewPlan.validator.label}`,
+    );
+
+    if (commentId) {
+      try {
+        await updateTrackingComment(
+          octokit,
+          context,
+          commentId,
+          [
+            `🔎 **${modelLabel}** running ${reviewPlan.strategy} review`,
+            "",
+            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: \`${j.model.label}\``),
+            "",
+            `Final validation: \`${reviewPlan.validator.label}\``,
+            `[View run](${jobRunLink})`,
+          ].join("\n"),
+          modelLabel,
+        );
+      } catch (err) {
+        console.warn("Could not update strategy status:", err);
+      }
+    }
+
+    const reports = await Promise.all(
+      reviewPlan.jobs.map(async (job) => {
+        const lensPrompt = buildLensPrompt({
+          data,
+          userRequest,
+          lens: job.lens,
+          modelLabel: job.model.label,
+        });
+        const lensInputs = {
+          ...inputs,
+          provider: job.model.provider,
+          model: job.model.model,
+          tools: "read,grep,find,ls",
+          mode: "review",
+        };
+        const lensResult = await runPi(
+          lensPrompt,
+          lensInputs,
+          undefined,
+          false,
+          { promptName: `lens-${job.lens.id}` },
+        );
+        const lensOutput = sanitize(lensResult.output);
+        console.log(
+          `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
+        );
+        return {
+          lens: job.lens,
+          modelLabel: job.model.label,
+          output: lensOutput,
+          conclusion: lensResult.conclusion,
+        };
+      }),
+    );
+
+    finalInputs = {
+      ...inputs,
+      provider: reviewPlan.validator.provider,
+      model: reviewPlan.validator.model,
+      tools: resolvedMode.piTools,
+    };
+    prompt = buildSynthesisPrompt({
+      data,
+      userRequest,
+      modelLabel: reviewPlan.validator.label,
+      jobRunLink,
+      commentId,
+      reports,
+    });
+    writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+  }
+
   let result: PiRunResult;
   try {
-    result = await runPi(prompt, inputs, onProgress, mcpEnabled);
+    writeMcpConfig();
+    result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });
   } finally {
     // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
     if (mcpConfigPath) {
@@ -264,8 +359,9 @@ async function run(): Promise<void> {
   }
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
+  const safeOutput = sanitize(result.output);
   if (result.output) {
-    console.log(result.output.substring(0, 500) + (result.output.length > 500 ? "..." : ""));
+    console.log(safeOutput.substring(0, 500) + (safeOutput.length > 500 ? "..." : ""));
   }
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
@@ -284,7 +380,7 @@ async function run(): Promise<void> {
         ? `🤖 **${modelLabel}** analysis complete`
         : `⚠️ **${modelLabel}** encountered an issue`,
       "",
-      truncate(result.output),
+      truncate(safeOutput),
       "",
       `[View run](${jobRunLink})`,
     ].join("\n");
@@ -347,7 +443,7 @@ async function run(): Promise<void> {
   // Post PR review if no tracking comment
   if (context.isPR && !commentId) {
     try {
-      await createPRReview(octokit, context, result.output, result.conclusion);
+      await createPRReview(octokit, context, safeOutput, result.conclusion);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -363,7 +459,7 @@ async function run(): Promise<void> {
           result.conclusion === "success" ? "🤖" : "⚠️",
           ` **${modelLabel}**`,
           "",
-          truncate(result.output),
+          truncate(safeOutput),
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
@@ -402,7 +498,7 @@ async function run(): Promise<void> {
   core.setOutput("branch_name", piBranch || "");
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
-  core.setOutput("summary", result.output.substring(0, 1000));
+  core.setOutput("summary", safeOutput.substring(0, 1000));
 
   if (result.conclusion === "failure") {
     core.setFailed("pi execution failed");

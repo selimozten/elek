@@ -22,6 +22,9 @@ export function parseInputs(): ActionInputs {
     allowedBots: core.getInput("allowed_bots") || "",
     stickyComment: core.getInput("sticky_comment") !== "false",
     mode: core.getInput("mode") || "review",
+    reviewStrategy: core.getInput("review_strategy") || "solo",
+    reviewModels: core.getInput("review_models") || "",
+    validatorModel: core.getInput("validator_model") || "",
   };
 }
 

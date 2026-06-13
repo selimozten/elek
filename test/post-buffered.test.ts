@@ -3,7 +3,11 @@
  * Uses an in-memory file double so we never touch /tmp.
  */
 import { describe, it, expect } from "bun:test";
-import { postBuffered, type PostBufferedDeps } from "../src/entrypoints/post-buffered";
+import {
+  commentableLinesForPatch,
+  postBuffered,
+  type PostBufferedDeps,
+} from "../src/entrypoints/post-buffered";
 
 function makeDeps(overrides: Partial<PostBufferedDeps> = {}): {
   deps: PostBufferedDeps;
@@ -31,6 +35,22 @@ function makeDeps(overrides: Partial<PostBufferedDeps> = {}): {
 }
 
 describe("postBuffered", () => {
+  it("parses commentable LEFT and RIGHT diff lines from a patch", () => {
+    const lines = commentableLinesForPatch(
+      [
+        "@@ -10,3 +10,4 @@",
+        " context",
+        "-old",
+        "+new",
+        "+extra",
+        " tail",
+      ].join("\n"),
+    );
+
+    expect([...lines.LEFT].sort((a, b) => a - b)).toEqual([10, 11, 12]);
+    expect([...lines.RIGHT].sort((a, b) => a - b)).toEqual([10, 11, 12, 13]);
+  });
+
   it("does nothing when the buffer is empty", async () => {
     const { deps, calls } = makeDeps();
     const summary = await postBuffered(deps);
@@ -116,5 +136,33 @@ describe("postBuffered", () => {
       line: 8,
       side: "LEFT",
     });
+  });
+
+  it("skips buffered entries that do not anchor to PR diff lines when file data is available", async () => {
+    const buffer = [
+      JSON.stringify({ path: "src/a.ts", line: 11, body: "valid" }),
+      JSON.stringify({ path: "src/a.ts", line: 50, body: "invalid" }),
+      JSON.stringify({ path: "src/missing.ts", line: 1, body: "missing" }),
+    ].join("\n") + "\n";
+
+    const { deps, calls } = makeDeps({
+      readBuffer: () => buffer,
+    });
+    deps.octokit.pulls.listFiles = async () => ({
+      data: [
+        {
+          filename: "src/a.ts",
+          patch: ["@@ -10,2 +10,2 @@", " context", "+added"].join("\n"),
+        },
+      ],
+    });
+
+    const summary = await postBuffered(deps);
+
+    expect(summary.posted).toBe(1);
+    expect(summary.skipped).toBe(2);
+    expect(summary.failed).toBe(0);
+    expect(calls.length).toBe(1);
+    expect((calls[0].args as Record<string, unknown>).body).toBe("valid");
   });
 });

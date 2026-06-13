@@ -1,11 +1,12 @@
 name: "elek — AI Code Review"
 description: >
-  Model-agnostic AI code review for GitHub. Sieve through PRs and issues
-  with pi coding agent. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq,
-  Mistral, xAI, OpenRouter — bring your own key.
+  Model-agnostic AI code review for GitHub. Cross-check pull requests with
+  independent review lenses while preserving a narrow review-only tool surface.
+  Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral, xAI,
+  OpenRouter — bring your own key.
 branding:
   icon: "filter"
-  color: "purple"
+  color: "green"
 
 inputs:
   # ── Trigger ──
@@ -112,6 +113,29 @@ inputs:
           model needs shell access.
     required: false
     default: "review"
+  review_strategy:
+    description: >
+      Review orchestration strategy:
+        solo (default) — one model reviews and posts.
+        crosscheck — two independent read-only review lenses, then a final
+          validator/synthesizer posts only high-confidence findings.
+        council — four independent read-only lenses for larger/high-risk PRs,
+          then final validation/synthesis.
+    required: false
+    default: "solo"
+  review_models:
+    description: >
+      Optional comma-separated model specs for crosscheck/council reviewer
+      lenses. Examples: deepseek/deepseek-v4-pro,zai/glm-5.1. If omitted,
+      the primary provider/model is reused for every lens.
+    required: false
+    default: ""
+  validator_model:
+    description: >
+      Optional model spec for final validation/synthesis. Example:
+      deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -189,6 +213,9 @@ runs:
         INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
         INPUT_MODE: ${{ inputs.mode }}
+        INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
+        INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
+        INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}

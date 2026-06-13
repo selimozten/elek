@@ -91,6 +91,32 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 | `review+edit` | + `write,edit` | ✓ | pushes to `pi/*` branch | "Review and propose fixes" |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
+## Review strategies
+
+`review_strategy` controls how many independent review passes run before the
+visible review is posted:
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    zai_api_key: ${{ secrets.ZAI_API_KEY }}
+    provider: deepseek
+    model: deepseek-v4-pro
+    review_strategy: crosscheck
+    review_models: deepseek/deepseek-v4-pro,zai/glm-5.1
+    validator_model: deepseek/deepseek-v4-pro
+```
+
+| `review_strategy` | Behavior |
+|---|---|
+| `solo` | One model reviews and posts. |
+| `crosscheck` | Risk + design lenses run read-only, then a final validator posts. |
+| `council` | Risk + design + tests + operations lenses run read-only, then a final validator posts. |
+
+Candidate reviewers cannot post comments. They run without MCP access; only the
+final validator can call elek's review tools.
+
 ## Permissions
 
 ```yaml

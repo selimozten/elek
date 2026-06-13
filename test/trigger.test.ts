@@ -20,6 +20,9 @@ const baseInputs: ActionInputs = {
   allowedBots: "",
   stickyComment: true,
   mode: "review",
+  reviewStrategy: "solo",
+  reviewModels: "",
+  validatorModel: "",
 };
 
 const baseCtx: GitHubEntityContext = {

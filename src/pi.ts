@@ -79,6 +79,7 @@ export async function runPi(
   onProgress?: (event: ProgressEvent) => Promise<void>,
   /** When true, pi loads extensions (needed for pi-mcp-adapter). */
   loadExtensions?: boolean,
+  options: { promptName?: string } = {},
 ): Promise<PiRunResult> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
@@ -86,7 +87,11 @@ export async function runPi(
     mkdirSync(promptDir, { recursive: true });
   }
 
-  const promptFile = join(promptDir, "prompt.md");
+  const promptStem = (options.promptName || "prompt")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "prompt";
+  const promptFile = join(promptDir, `${promptStem}.md`);
   writeFileSync(promptFile, prompt, "utf-8");
 
   const piBin = findPiBinary();
@@ -298,11 +303,16 @@ function buildPiArgs(
 ): string[] {
   const args: string[] = [
     "--no-session",
-    "--provider", inputs.provider,
     "--thinking", inputs.thinking,
     "--no-skills",
     "--no-context-files",
   ];
+  // `pi --model provider/model` is legal, but pairing that with a separate
+  // `--provider` can make multi-provider review strategies ambiguous. When
+  // the model is provider-qualified, let the model spec route itself.
+  if (!inputs.model.includes("/")) {
+    args.push("--provider", inputs.provider);
+  }
   if (!loadExtensions) {
     args.push("--no-extensions");
   }
@@ -327,13 +337,26 @@ function buildPiArgs(
 /**
  * Build the environment variables for pi.
  */
-function buildPiEnv(_inputs: ActionInputs): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
+function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = inputs.mode === "agent"
+    ? { ...process.env }
+    : {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME || "/root",
+        LANG: process.env.LANG,
+        LC_ALL: process.env.LC_ALL,
+        TMPDIR: process.env.TMPDIR,
+        RUNNER_TEMP: process.env.RUNNER_TEMP,
+        GITHUB_ACTION_PATH: process.env.GITHUB_ACTION_PATH,
+        PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+        PI_PACKAGE_DIR: process.env.PI_PACKAGE_DIR,
+      };
+
+  Object.assign(env, {
     HOME: process.env.HOME || "/root",
     PI_OFFLINE: "1",
     PI_SKIP_VERSION_CHECK: "1",
-  };
+  });
 
   // Pass through all API key env vars that pi's AuthStorage checks
   const keyVars = [

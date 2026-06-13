@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="elek mark">
+  <style>
+    :root { color: #0f172a; }
+    @media (prefers-color-scheme: dark) { :root { color: #f8fafc; } }
+    .mark { fill: none; stroke: currentColor; stroke-width: 42; stroke-linecap: round; stroke-linejoin: round; }
+    .accent { fill: #14b8a6; }
+  </style>
+  <path class="mark" d="M112 136h288M112 256h218M112 376h146"/>
+  <path class="mark" d="M400 136 258 376"/>
+  <circle class="accent" cx="392" cy="376" r="30"/>
+</svg>
