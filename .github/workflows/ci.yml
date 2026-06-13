@@ -36,6 +36,9 @@ jobs:
         # let bun resolve from package.json each run.
         run: bun install --no-save
 
+      - name: Audit runtime dependencies
+        run: npm audit --audit-level=high --omit=dev --no-package-lock
+
       - name: Run tests
         run: bun test test/
 
