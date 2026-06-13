@@ -285,10 +285,10 @@ describe("elek-analytics", () => {
           regressions: [
             "success rate down 100 pts",
             "inline issue rate up 33 pts",
-            "average latency up +20s",
-            "average cost up +$0.003000",
-            "finding volume up 2/run",
+            "average latency up 20s",
+            "average cost up $0.003000",
           ],
+          changes: ["finding volume up 2/run"],
         }),
       ]);
     } finally {
@@ -317,7 +317,7 @@ describe("elek-analytics", () => {
 
       expect(output).toContain("findings/run");
       expect(output).toContain("inline issues");
-      expect(output).toContain("regressions");
+      expect(output).toContain("changes");
       expect(output).toContain("$0.002000 (+$0.001000)");
       expect(output).toContain("solo");
     } finally {
@@ -354,13 +354,67 @@ describe("elek-analytics", () => {
           baseline: expect.objectContaining({ runs: 0, avgCostUsd: 0, avgDurationSeconds: 0 }),
           current: expect.objectContaining({ runs: 1, avgCostUsd: 0.004, avgDurationSeconds: 30 }),
           regressions: [],
+          changes: [],
         }),
         expect.objectContaining({
           key: "solo",
           baseline: expect.objectContaining({ runs: 1, avgCostUsd: 0.001, avgDurationSeconds: 10 }),
           current: expect.objectContaining({ runs: 0, avgCostUsd: 0, avgDurationSeconds: 0 }),
           regressions: [],
+          changes: [],
         }),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("triggers trend regressions at exact threshold boundaries", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-boundary-trend-test-"));
+    try {
+      const baseline = [];
+      const current = [];
+      for (let index = 0; index < 20; index++) {
+        baseline.push(writeSummary(dir, `baseline-${index}.json`, {
+          run: { conclusion: "success", durationSeconds: 25 },
+          inlineComments: { posted: 1, skipped: 0, failed: 0 },
+          findings: [{ title: "A" }],
+          cost: { usd: 0.005, inputTokens: 1000, outputTokens: 100 },
+        }));
+        current.push(writeSummary(dir, `current-${index}.json`, {
+          run: { conclusion: index === 0 ? "failure" : "success", durationSeconds: 30 },
+          inlineComments: index === 0
+            ? { posted: 0, skipped: 1, failed: 0 }
+            : { posted: 1, skipped: 0, failed: 0 },
+          findings: [{ title: "A" }],
+          cost: { usd: 0.006, inputTokens: 1200, outputTokens: 120 },
+        }));
+      }
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--json",
+        "--baseline",
+        ...baseline,
+        "--current",
+        ...current,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.comparisons[0].delta).toMatchObject({
+        successRate: -0.05,
+        inlineIssueRate: 0.05,
+        avgCostUsd: 0.001,
+        avgDurationSeconds: 5,
+      });
+      expect(report.comparisons[0].regressions).toEqual([
+        "success rate down 5 pts",
+        "inline issue rate up 5 pts",
+        "average latency up 5s",
+        "average cost up $0.001000",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

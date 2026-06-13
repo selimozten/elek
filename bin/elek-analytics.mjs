@@ -149,6 +149,7 @@ function compareReports(baseline, current) {
         current: after,
         delta,
         regressions: describeRegressions(delta, before, after),
+        changes: describeNotableChanges(delta, before, after),
       };
     }),
   };
@@ -168,15 +169,21 @@ function describeRegressions(delta, before, after) {
     regressions.push(`inline issue rate up ${formatPercent(delta.inlineIssueRate)}`);
   }
   if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
-    regressions.push(`average latency up ${formatSeconds(delta.avgDurationSeconds)}`);
+    regressions.push(`average latency up ${formatPlainSeconds(delta.avgDurationSeconds)}`);
   }
   if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgCostUsd, after.avgCostUsd, 0.001, 0.2)) {
-    regressions.push(`average cost up ${formatSignedUsd(delta.avgCostUsd)}`);
-  }
-  if (before.runs > 0 && after.runs > 0 && delta.findingsPerRun >= 1) {
-    regressions.push(`finding volume up ${delta.findingsPerRun}/run`);
+    regressions.push(`average cost up ${formatUsd(Math.abs(delta.avgCostUsd))}`);
   }
   return regressions;
+}
+
+function describeNotableChanges(delta, before, after) {
+  const changes = [];
+  if (before.runs > 0 && after.runs > 0 && Math.abs(delta.findingsPerRun) >= 1) {
+    const direction = delta.findingsPerRun > 0 ? "up" : "down";
+    changes.push(`finding volume ${direction} ${Math.abs(delta.findingsPerRun)}/run`);
+  }
+  return changes;
 }
 
 function meaningfulIncrease(before, after, absoluteFloor, ratioFloor) {
@@ -257,6 +264,10 @@ function formatSeconds(value) {
   return `${sign}${round(value, 1)}s`;
 }
 
+function formatPlainSeconds(value) {
+  return `${round(Math.abs(value), 1)}s`;
+}
+
 function formatUsd(value) {
   return `$${round(value, 6).toFixed(6)}`;
 }
@@ -298,7 +309,7 @@ function printTable(report) {
 
 function printComparisonTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings/run", "inline issues", "avg cost", "avg secs", "regressions"],
+    ["group", "runs", "success", "findings/run", "inline issues", "avg cost", "avg secs", "changes"],
     ...report.comparisons.map((item) => [
       item.key,
       `${item.baseline.runs}->${item.current.runs}`,
@@ -307,13 +318,18 @@ function printComparisonTable(report) {
       `${Math.round(inlineIssueRate(item.current) * 100)}% (${formatSignedPercent(item.delta.inlineIssueRate)})`,
       `${formatUsd(item.current.avgCostUsd)} (${formatSignedUsd(item.delta.avgCostUsd)})`,
       `${item.current.avgDurationSeconds}s (${formatSeconds(item.delta.avgDurationSeconds)})`,
-      item.regressions.length === 0 ? "-" : item.regressions.join("; "),
+      comparisonNotes(item),
     ]),
   ];
   const widths = rows[0].map((_, column) => Math.max(...rows.map((row) => row[column].length)));
   for (const row of rows) {
     process.stdout.write(row.map((cell, column) => cell.padEnd(widths[column])).join("  ") + "\n");
   }
+}
+
+function comparisonNotes(item) {
+  const notes = [...item.regressions, ...item.changes];
+  return notes.length === 0 ? "-" : notes.join("; ");
 }
 
 function signedNumber(value) {
