@@ -36,7 +36,11 @@ function jobRunLink(context: GitHubEntityContext): string {
 
 /** Model-specific signature so dual reviews don't collide */
 function commentSignature(modelLabel: string): string {
-  const safeLabel = modelLabel.replace(/--/g, "- -").replace(/>/g, "&gt;");
+  const safeLabel = modelLabel
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/--/g, "- -");
   return `<!-- elek-bot:${safeLabel} -->`;
 }
 

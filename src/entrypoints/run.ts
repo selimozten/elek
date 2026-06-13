@@ -296,7 +296,7 @@ async function run(): Promise<void> {
           context,
           commentId,
           [
-            `🔎 **${modelLabel}** running ${reviewPlan.strategy} review`,
+            spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
             ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: \`${j.model.label}\``),
             "",

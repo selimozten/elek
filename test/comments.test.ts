@@ -46,9 +46,9 @@ describe("comment branding", () => {
       },
     };
 
-    await createTrackingComment(octokit, context, "openrouter/foo-->bar");
+    await createTrackingComment(octokit, context, "openrouter/<foo&bar-->baz");
 
-    expect(postedBody).toContain("<!-- elek-bot:openrouter/foo- -&gt;bar -->");
-    expect(postedBody).not.toContain("<!-- elek-bot:openrouter/foo-->bar -->");
+    expect(postedBody).toContain("<!-- elek-bot:openrouter/&lt;foo&amp;bar- -&gt;baz -->");
+    expect(postedBody).not.toContain("<!-- elek-bot:openrouter/<foo&bar-->baz -->");
   });
 });

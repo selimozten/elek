@@ -31,6 +31,8 @@ extra review symbols around it. The logo should stay recognizable at 16px.
 |---|---|---|
 | Ink | `#171412` | Primary text and mark strokes |
 | Bone | `#f7f2ea` | Warm light backgrounds |
+| Warm | `#fbf7ef` | Social-card gradient start |
+| Sand | `#eaded2` | Social-card gradient end |
 | Clay | `#c76d50` | Validation stroke, active states, small accents |
 | Stone | `#6f6760` | Secondary text |
 | Line | `#e1d5ca` | Borders and subtle separators |

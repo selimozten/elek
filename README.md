@@ -298,6 +298,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system overview
 - [`docs/setup.md`](docs/setup.md) — step-by-step setup
 - [`docs/examples.md`](docs/examples.md) — workflow recipes
+- [`docs/BRAND.md`](docs/BRAND.md) — brand assets, palette, voice, and usage rules
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents working on elek
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
 
