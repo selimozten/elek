@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="elek reviewing">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">elek reviewing</title>
+  <desc id="desc">Animated elek review mark used while a model is reviewing.</desc>
   <style>
     .back { fill: #f7f2ea; }
 

@@ -12,6 +12,14 @@ export function spinnerHtml(): string {
   return `<img src="${SPINNER_URL}" width="18" height="18" alt="elek" style="vertical-align: middle; margin-left: 4px;" />`;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /**
  * Header line for tracking/progress comments. Wrapped in a single HTML
  * paragraph so GitHub's markdown renderer keeps the spinner inline with
@@ -19,5 +27,5 @@ export function spinnerHtml(): string {
  * gets promoted to its own line by GitHub's media handling.
  */
 export function spinnerHeader(modelLabel: string, status = "analyzing…"): string {
-  return `<p>${spinnerHtml()} <strong>elek</strong> review: <strong>${modelLabel}</strong> ${status}</p>`;
+  return `<p>${spinnerHtml()} <strong>elek</strong> review: <strong>${escapeHtml(modelLabel)}</strong> ${escapeHtml(status)}</p>`;
 }

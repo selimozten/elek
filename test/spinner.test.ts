@@ -17,4 +17,12 @@ describe("spinner branding", () => {
     expect(html).toContain("<strong>deepseek/deepseek-v4-pro</strong>");
     expect(html).toContain("analysis complete");
   });
+
+  it("escapes model labels before rendering GitHub HTML", () => {
+    const html = spinnerHeader('openrouter/<bad>"model', "done > now");
+
+    expect(html).toContain("openrouter/&lt;bad&gt;&quot;model");
+    expect(html).toContain("done &gt; now");
+    expect(html).not.toContain('<bad>"model');
+  });
 });
