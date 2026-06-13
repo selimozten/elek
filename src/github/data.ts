@@ -104,13 +104,19 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
-  options: { useMcp?: boolean; allowEdit?: boolean } = {},
+  options: { useMcp?: boolean; allowEdit?: boolean; tools?: string } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
   const baseBranch = data.pr?.baseRef || "main";
   const canEdit = options.allowEdit === true;
-  const canRunShell = canEdit && !options.useMcp;
+  const toolSet = new Set(
+    (options.tools || "")
+      .split(",")
+      .map((tool) => tool.trim())
+      .filter(Boolean),
+  );
+  const canRunShell = canEdit && toolSet.has("bash");
 
   const parts: string[] = [];
 

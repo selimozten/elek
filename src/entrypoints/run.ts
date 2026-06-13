@@ -110,8 +110,7 @@ async function run(): Promise<void> {
   console.log(
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
-  // Override the tools input with the mode-resolved set so pi sees it.
-  inputs.tools = piTools;
+  const piInputs = { ...inputs, tools: piTools };
 
   // Configure git for potential code changes
   configureGitAuth(githubToken, context);
@@ -152,6 +151,7 @@ async function run(): Promise<void> {
   let prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
+    tools: piTools,
   });
 
   // Write prompt to file
@@ -267,7 +267,7 @@ async function run(): Promise<void> {
     context.isPR &&
     resolvedMode.mode === "review";
 
-  let finalInputs = inputs;
+  let finalInputs = piInputs;
   if (useReviewPlan) {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
@@ -310,7 +310,7 @@ async function run(): Promise<void> {
           modelLabel: job.model.label,
         });
         const lensInputs = {
-          ...inputs,
+          ...piInputs,
           provider: job.model.provider,
           model: job.model.model,
           tools: "read,grep,find,ls",
@@ -337,10 +337,10 @@ async function run(): Promise<void> {
     );
 
     finalInputs = {
-      ...inputs,
+      ...piInputs,
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
-      tools: inputs.tools,
+      tools: piTools,
     };
     prompt = buildSynthesisPrompt({
       data,

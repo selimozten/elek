@@ -112,6 +112,7 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: true,
       allowEdit: false,
+      tools: "read,grep,find,ls,mcp",
     });
 
     expect(out).toContain("Use the read, grep, find, and ls tools");
@@ -125,6 +126,7 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: true,
       allowEdit: true,
+      tools: "read,write,edit,grep,find,ls,mcp",
     });
 
     expect(out).toContain("Make focused edits using write/edit tools");
@@ -136,9 +138,23 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: false,
       allowEdit: true,
+      tools: "read,write,edit,bash,grep,find,ls",
     });
 
     expect(out).toContain("Run relevant tests when the tool surface allows it");
     expect(out).toContain("Stage changes: `git add <files>`");
+  });
+
+  it("does not infer shell access from disabled MCP alone", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      useMcp: false,
+      allowEdit: true,
+      tools: "read,write,edit,grep,find,ls,mcp",
+    });
+
+    expect(out).toContain("Make focused edits using write/edit tools");
+    expect(out).toContain("elek will stage, commit, and push");
+    expect(out).not.toContain("git add");
+    expect(out).not.toContain("Run relevant tests");
   });
 });
