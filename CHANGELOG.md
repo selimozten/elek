@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-13
+
+### Added
+
+- Elek branding assets and updated action, package, and README branding.
+- `solo`, `crosscheck`, and `council` review strategies for single-model,
+  multi-model, and review-council runs.
+- Read-only candidate review lenses and final validator synthesis for
+  cross-model review flows.
+
+### Changed
+
+- Default generated work branches now use the `elek/` prefix, and contributor
+  docs now describe professional branch and PR naming conventions.
+- Self-review workflow is advisory while the regular CI workflow remains the
+  hard merge gate.
+- Action/runtime dependencies moved to the maintained pi package and current
+  GitHub Actions runtime packages.
+
+### Fixed
+
+- Inline review posting now validates diff anchors before posting.
+- Buffered review comments are grouped into one GitHub review where possible,
+  with a fallback issue comment when inline anchors are invalid.
+- Advisory self-review prompts now tell models to verify external version
+  claims before treating them as findings.
+
+## [1.0.0] - 2026-06-13
+
 ### Added
 
 - **Mode system** (`mode` input): `review` (default), `review+edit`, `agent`.
@@ -15,14 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Review-only MCP server** (`src/mcp/github-review-server.ts`) exposing
   exactly two tools: `create_inline_comment` and `update_tracking_comment`.
   The model can post line-specific review threads but cannot approve, merge,
-  or close — that's structural, not a runtime check.
+  or close; that is structural, not a runtime check.
 - **Iterate-on-prior-reviews**: `<comments>` block in the prompt now includes
   the bot's own previous reviews. Prompt instructs the model to open with a
   status update for each prior finding before listing new ones.
 - **Animated pi-logo spinner** (SVG) for the tracking comment header,
   replacing the previous GIF. Works on fork PRs because the URL points to
   `selimozten/elek@main` rather than `${GITHUB_HEAD_REF}`.
-- **CI workflow** (`.github/workflows/ci.yml`) — `bun test` + `tsc --noEmit`
+- **CI workflow** (`.github/workflows/ci.yml`): `bun test` + `tsc --noEmit`
   on every PR.
 - **AGENTS.md** + **docs/ARCHITECTURE.md** for coding agents and contributors.
 
@@ -41,8 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Pi child-process hang in CI (8-minute zero-output stall before the 30-min
-  timeout). Root cause: stdin left open with `stdio: ["pipe", …]`. Fixed by
-  switching to `stdio: ["ignore", …]`.
+  timeout). Root cause: stdin left open with `stdio: ["pipe", ...]`. Fixed by
+  switching to `stdio: ["ignore", ...]`.
 - `mcp` proxy tool was filtered by the `--tools` allowlist, leaving the
   model with no path to the MCP server. Now included in `review` and
   `review+edit` modes.
@@ -56,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   limits. Now caches the failure.
 - `parseInt` of a non-numeric `trackingCommentId` produced `NaN`. Now
   validated with `Number.isFinite`.
-- `package-lock.json` no longer committed (gitignored — composite Action
+- `package-lock.json` no longer committed (gitignored; composite Action
   installs fresh in CI).
 - Type-check (`bunx tsc --noEmit`) passes; previously had latent Octokit
   adapter mismatches.
