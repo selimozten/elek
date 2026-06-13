@@ -70,6 +70,19 @@ function findPiBinary(): string {
   return "pi";
 }
 
+function killPiProcess(pid: number | undefined, signal: NodeJS.Signals): void {
+  if (!pid) return;
+  try {
+    if (process.platform === "win32") {
+      process.kill(pid, signal);
+    } else {
+      process.kill(-pid, signal);
+    }
+  } catch {
+    // Process already exited.
+  }
+}
+
 /**
  * Run pi with streaming JSON mode output.
  * Calls onProgress for each event so the caller can update the tracking comment.
@@ -109,6 +122,9 @@ export async function runPi(
   let turnCount = 0;
   let finalAssistant: PiAssistantMessage | undefined;
   let lastErrorMessage: string | undefined;
+  let timedOut = false;
+  let timeoutMessage: string | undefined;
+  let settled = false;
   // Streaming text deltas — used as a fallback if agent_end is missing.
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
@@ -133,8 +149,20 @@ export async function runPi(
     const child = spawn(piBin, finalArgs, {
       env,
       stdio: ["ignore", "pipe", "pipe"], // close stdin (pi -p doesn't read it)
-      timeout: 30 * 60 * 1000,
+      detached: process.platform !== "win32",
     });
+    const timeoutMs = inputs.runTimeoutSeconds * 1000;
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      timeoutMessage = `pi timed out after ${inputs.runTimeoutSeconds}s`;
+      console.error(timeoutMessage);
+      killPiProcess(child.pid, "SIGTERM");
+    }, timeoutMs);
+    const forceKillTimer = setTimeout(() => {
+      if (timedOut && child.exitCode === null) {
+        killPiProcess(child.pid, "SIGKILL");
+      }
+    }, timeoutMs + 1000);
 
     let stderr = "";
     let stdoutRaw = "";
@@ -227,6 +255,10 @@ export async function runPi(
     });
 
     child.on("close", async (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      clearTimeout(forceKillTimer);
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(
         `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount}`,
@@ -271,6 +303,7 @@ export async function runPi(
         });
       } else {
         const errMsg =
+          timeoutMessage ||
           lastErrorMessage ||
           output ||
           stderr.trim().slice(-500) ||
@@ -294,10 +327,18 @@ export async function runPi(
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", async (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      clearTimeout(forceKillTimer);
       const elapsed = (Date.now() - startTime) / 1000;
       console.error(`pi spawn error:`, err.message);
-      onProgress?.({ type: "done" });
+      try {
+        await onProgress?.({ type: "done" });
+      } catch {
+        // already logged inside onProgress
+      }
       resolve({
         conclusion: "failure",
         output: err.message,

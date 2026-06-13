@@ -85,6 +85,7 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
+          run_timeout_seconds: 600
 ```
 
 ## 3. Test it

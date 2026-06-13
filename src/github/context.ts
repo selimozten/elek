@@ -33,6 +33,17 @@ function parseMaxCostInput(value: string): number | undefined {
   return parsed;
 }
 
+function parsePositiveIntegerInput(name: string, value: string, defaultValue: number): number {
+  const normalized = value.trim();
+  if (!normalized) return defaultValue;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    core.warning(`Ignoring invalid ${name} input: ${normalized}`);
+    return defaultValue;
+  }
+  return parsed;
+}
+
 export function parseInputs(): ActionInputs {
   return {
     triggerPhrase: core.getInput("trigger_phrase") || "@pi",
@@ -42,6 +53,7 @@ export function parseInputs(): ActionInputs {
     prompt: core.getInput("prompt") || "",
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseInt(core.getInput("max_turns") || "20", 10),
+    runTimeoutSeconds: parsePositiveIntegerInput("run_timeout_seconds", core.getInput("run_timeout_seconds"), 600),
     tools: core.getInput("tools") || "",
     configPath: core.getInput("config_path") || ".elek.yml",
     baseBranch: core.getInput("base_branch") || undefined,
