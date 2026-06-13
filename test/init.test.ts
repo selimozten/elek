@@ -91,6 +91,12 @@ describe("elek-init", () => {
     expect(renderWorkflow(options)).not.toContain("config_path:");
   });
 
+  it("rejects workflow and config path collisions", () => {
+    expect(() => planFiles(parseArgs(["--workflow", ".elek.yml", "--config-path", ".elek.yml"]))).toThrow(
+      "must be different files",
+    );
+  });
+
   it("writes planned files and refuses to overwrite without --force", () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-init-test-"));
     try {
@@ -139,5 +145,8 @@ describe("elek-init", () => {
     expect(helpText()).toContain("--config");
     expect(helpText()).toContain("--no-config");
     expect(helpText()).toContain("--thinking");
+    expect(helpText()).toContain("--help, -h");
+    expect(parseArgs(["--help"]).help).toBe(true);
+    expect(parseArgs(["-h"]).help).toBe(true);
   });
 });

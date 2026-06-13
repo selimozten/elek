@@ -248,7 +248,12 @@ export function renderConfig(options) {
 
 export function planFiles(options) {
   const files = [{ path: options.workflowPath, body: renderWorkflow(options) }];
-  if (options.writeConfig) files.push({ path: options.configPath, body: renderConfig(options) });
+  if (options.writeConfig) {
+    if (options.configPath === options.workflowPath) {
+      throw new Error("--workflow and --config-path must be different files");
+    }
+    files.push({ path: options.configPath, body: renderConfig(options) });
+  }
   return files;
 }
 
@@ -291,6 +296,7 @@ Options:
   --action-ref <ref>      action ref to use, default selimozten/elek@v1
   --workflow <path>       workflow path, default .github/workflows/elek.yml
   --config-path <path>    config path, default .elek.yml
+  --help, -h              show this help message
 `;
 }
 
