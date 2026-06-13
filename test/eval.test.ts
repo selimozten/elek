@@ -235,6 +235,7 @@ describe("elek-benchmark", () => {
         cwd: process.cwd(),
         encoding: "utf8",
       });
+      expect(output.endsWith("\n")).toBe(true);
       const suite = parseYaml(output);
 
       expect(suite).toEqual({
@@ -285,6 +286,86 @@ describe("elek-benchmark", () => {
     }
   });
 
+  it("omits severity floors that would not match the source summary", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-severity-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: "9" },
+        review: {
+          findings: [{
+            title: "Unranked issue",
+            severity: "advisory",
+            evidence: "x y",
+          }],
+        },
+      }));
+
+      const output = execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite.cases[0].expected_findings[0]).toEqual({
+        id: "unranked-issue",
+        keywords: ["unranked", "issue"],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects summaries with invalid entity numbers", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-number-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: "42abc" },
+        findings: [],
+      }));
+
+      expect(() => execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: "pipe",
+      })).toThrow("summary.entity.number must be a non-negative integer");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to a placeholder keyword when finding text has no useful words", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-keyword-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: 10 },
+        findings: [{ title: "!!!", severity: "minor" }],
+      }));
+
+      const output = execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite.cases[0].expected_findings[0]).toEqual({
+        id: "finding-1",
+        min_severity: "minor",
+        keywords: ["replace-me"],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("reports invalid benchmark generator options clearly", () => {
     expect(() => execFileSync("node", [
       "bin/elek-benchmark.mjs",
@@ -296,5 +377,14 @@ describe("elek-benchmark", () => {
       encoding: "utf8",
       stdio: "pipe",
     })).toThrow("--max-false-positives requires a non-negative integer");
+
+    expect(() => execFileSync("node", [
+      "bin/elek-benchmark.mjs",
+      "--id",
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "pipe",
+    })).toThrow("--id requires a case id");
   });
 });

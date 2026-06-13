@@ -4,26 +4,38 @@ import { stringify as stringifyYaml } from "yaml";
 
 class UsageError extends Error {}
 
+// Keep suggested keywords specific enough that generated cases are useful drafts.
 const STOP_WORDS = new Set([
   "about",
   "after",
   "again",
   "also",
+  "and",
+  "are",
   "because",
   "before",
   "being",
+  "but",
+  "can",
   "cannot",
   "could",
+  "for",
   "from",
+  "has",
   "have",
   "into",
+  "not",
   "only",
   "that",
+  "the",
   "their",
   "there",
   "this",
+  "was",
+  "will",
   "with",
   "would",
+  "you",
 ]);
 
 function usage(exitCode = 0) {
@@ -83,7 +95,9 @@ function readSummary(path) {
 }
 
 function normalizeFindings(summary) {
-  return Array.isArray(summary.findings) ? summary.findings : [];
+  if (Array.isArray(summary.findings)) return summary.findings;
+  if (Array.isArray(summary.review?.findings)) return summary.review.findings;
+  return [];
 }
 
 function buildCase(summary, args) {
@@ -93,11 +107,15 @@ function buildCase(summary, args) {
   if (number === undefined || number === null || number === "") {
     throw new Error("summary is missing entity.number");
   }
+  const numericNumber = Number(number);
+  if (!Number.isInteger(numericNumber) || numericNumber < 0) {
+    throw new Error("summary.entity.number must be a non-negative integer");
+  }
 
   const testCase = {
     id: args.id || slug(`${repository}-${number}`),
     repository,
-    number: Number(number),
+    number: numericNumber,
     expected_findings: args.clean
       ? []
       : normalizeFindings(summary).map((finding, index) => expectedFinding(finding, index)),
@@ -112,16 +130,18 @@ function buildCase(summary, args) {
 
 function expectedFinding(finding, index) {
   const title = String(finding.title ?? `finding-${index + 1}`);
-  return {
+  const expected = {
     id: slug(title) || `finding-${index + 1}`,
-    min_severity: normalizeSeverity(finding.severity),
     keywords: suggestKeywords(finding),
   };
+  const minSeverity = normalizeSeverity(finding.severity);
+  if (minSeverity) expected.min_severity = minSeverity;
+  return expected;
 }
 
 function normalizeSeverity(value) {
-  const severity = String(value ?? "minor").toLowerCase();
-  return ["minor", "important", "critical"].includes(severity) ? severity : "minor";
+  const severity = String(value ?? "").toLowerCase();
+  return ["minor", "important", "critical"].includes(severity) ? severity : undefined;
 }
 
 function suggestKeywords(finding) {
@@ -156,7 +176,7 @@ function slug(value) {
 try {
   const args = parseArgs(process.argv.slice(2));
   const suite = buildCase(readSummary(args.summaryPath), args);
-  process.stdout.write(stringifyYaml(suite));
+  process.stdout.write(stringifyYaml(suite) + "\n");
 } catch (err) {
   process.stderr.write(`elek-benchmark: ${err.message}\n`);
   if (err instanceof UsageError) usage(1);
