@@ -19,6 +19,8 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  showCost: true,
+  costRates: "",
 };
 
 describe("buildPiArgs", () => {

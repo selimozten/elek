@@ -91,6 +91,15 @@ jobs:
 
 3. Open a PR. Within ~3 minutes you'll see a tracking comment with a live progress checklist, then the final review (top-level summary + inline threads on changed lines).
 
+The final comment includes an estimated token/cost line by default:
+
+```text
+Estimated review cost: $0.0012 (3,420 in / 810 out tokens)
+```
+
+For models without built-in price hints, elek still reports token estimates and
+returns `$0.0000` until you provide `cost_rates`.
+
 To trigger from a comment, set `trigger_phrase` (default `@pi`) and write `@pi review the auth flow`.
 
 ## Modes
@@ -207,6 +216,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
+| `show_cost` | `true` | Show estimated token usage and review cost in comments + outputs |
+| `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -250,6 +261,9 @@ For AWS Bedrock: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as j
 | `comment_id` | The tracking comment ID |
 | `session_id` | Pi session ID for resumption |
 | `summary` | First 1000 chars of the review |
+| `cost_usd` | Estimated review cost in USD |
+| `input_tokens` | Estimated input tokens across all review runs |
+| `output_tokens` | Estimated output tokens across all review runs |
 
 ## Permissions
 
@@ -270,19 +284,31 @@ For `mode: review+edit` (model pushes fixes to an `elek/*` branch), upgrade `con
 - `pull_request_review` — submitted
 - `pull_request_review_comment` — created
 
-## Cost expectations
+## Cost visibility
 
-Rough numbers for a typical mid-sized PR (~500 lines diff, 7-turn review):
+elek shows estimated review cost in the final comment and exposes the same data
+as action outputs. This is intentionally transparent rather than billing-grade:
+when pi exposes exact usage, elek can use it; today it estimates tokens from
+prompt/output text and applies model price hints.
 
-| Model | Cost | Notes |
+Built-in price hints cover the recommended low-cost defaults:
+
+| Model | Price source | Notes |
 |---|---|---|
-| deepseek-v4-pro (thinking: high) | low | Strong low-cost reviewer |
-| moonshotai/kimi-k2.7-code via OpenRouter | provider pricing | Independent reviewer through OpenRouter |
-| gpt-5.5 (thinking: medium/high/xhigh) | OpenAI pricing | Strong reasoning reviewer or validator |
-| claude-sonnet-4-6 (thinking: high) | Anthropic pricing | Balanced premium validator |
-| claude-opus-4-8 (thinking: xhigh, native Claude max) | Anthropic pricing | Highest-capability validator for critical PRs |
+| `deepseek/deepseek-v4-pro` | built in | Strong low-cost reviewer |
+| `openrouter/moonshotai/kimi-k2.7-code` | built in | Independent reviewer through OpenRouter |
 
-Running two cheap models in parallel for cross-validation costs less than one Claude review.
+For premium or newer models, pass your provider's current prices in USD per 1M
+tokens:
+
+```yaml
+with:
+  show_cost: true
+  cost_rates: openai/gpt-5.5=1.25:10,anthropic/claude-sonnet-4-6=3:15
+```
+
+Running two cheap models in crosscheck mode often costs less than one premium
+validator while surfacing disagreements that a single pass misses.
 
 ## Security
 
@@ -298,6 +324,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system overview
 - [`docs/setup.md`](docs/setup.md) — step-by-step setup
 - [`docs/examples.md`](docs/examples.md) — workflow recipes
+- [`docs/PRODUCT_RESEARCH.md`](docs/PRODUCT_RESEARCH.md) — market gaps and product roadmap
 - [`docs/BRAND.md`](docs/BRAND.md) — brand assets, palette, voice, and usage rules
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents working on elek
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute

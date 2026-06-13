@@ -25,6 +25,8 @@ export function parseInputs(): ActionInputs {
     reviewStrategy: core.getInput("review_strategy") || "solo",
     reviewModels: core.getInput("review_models") || "",
     validatorModel: core.getInput("validator_model") || "",
+    showCost: core.getInput("show_cost") !== "false",
+    costRates: core.getInput("cost_rates") || "",
   };
 }
 

@@ -1,0 +1,136 @@
+import type { ActionInputs, PiRunResult } from "../types";
+
+export interface ModelRates {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  source: "builtin" | "override" | "unknown";
+}
+
+export interface ReviewCost {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  estimated: boolean;
+  modelLabel: string;
+  source: ModelRates["source"];
+}
+
+export interface ReviewCostTotal {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  estimated: boolean;
+  runs: ReviewCost[];
+}
+
+const BUILTIN_RATES: Record<string, Omit<ModelRates, "source">> = {
+  "deepseek/deepseek-v4-pro": { inputPerMillion: 0.435, outputPerMillion: 0.87 },
+  "openrouter/deepseek/deepseek-v4-pro": { inputPerMillion: 0.435, outputPerMillion: 0.87 },
+  "openrouter/moonshotai/kimi-k2.7-code": { inputPerMillion: 0.95, outputPerMillion: 4 },
+};
+
+export function modelLabelFor(inputs: Pick<ActionInputs, "provider" | "model">): string {
+  if (!inputs.model) return inputs.provider;
+  if (inputs.model === inputs.provider || inputs.model.startsWith(`${inputs.provider}/`)) {
+    return inputs.model;
+  }
+  return `${inputs.provider}/${inputs.model}`;
+}
+
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+export function parseCostRateOverrides(value: string): Record<string, Omit<ModelRates, "source">> {
+  const rates: Record<string, Omit<ModelRates, "source">> = {};
+  for (const rawEntry of value.split(",")) {
+    const entry = rawEntry.trim();
+    if (!entry) continue;
+
+    const eq = entry.indexOf("=");
+    if (eq <= 0) continue;
+
+    const label = entry.slice(0, eq).trim().toLowerCase();
+    const [inputRaw, outputRaw] = entry.slice(eq + 1).split(":");
+    const inputPerMillion = Number(inputRaw);
+    const outputPerMillion = Number(outputRaw);
+    if (!label || !Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion)) continue;
+
+    rates[label] = { inputPerMillion, outputPerMillion };
+  }
+  return rates;
+}
+
+export function resolveRates(modelLabel: string, overrides: string): ModelRates {
+  const normalized = modelLabel.toLowerCase();
+  const override = parseCostRateOverrides(overrides)[normalized];
+  if (override) return { ...override, source: "override" };
+
+  const builtin = BUILTIN_RATES[normalized];
+  if (builtin) return { ...builtin, source: "builtin" };
+
+  return { inputPerMillion: 0, outputPerMillion: 0, source: "unknown" };
+}
+
+export function estimateRunCost(args: {
+  modelLabel: string;
+  prompt: string;
+  output: string;
+  costRates: string;
+}): ReviewCost {
+  const inputTokens = estimateTokens(args.prompt);
+  const outputTokens = estimateTokens(args.output);
+  const rates = resolveRates(args.modelLabel, args.costRates);
+  const costUsd =
+    (inputTokens / 1_000_000) * rates.inputPerMillion +
+    (outputTokens / 1_000_000) * rates.outputPerMillion;
+
+  return {
+    inputTokens,
+    outputTokens,
+    costUsd,
+    estimated: true,
+    modelLabel: args.modelLabel,
+    source: rates.source,
+  };
+}
+
+export function aggregateCosts(runs: ReviewCost[]): ReviewCostTotal {
+  return runs.reduce<ReviewCostTotal>(
+    (total, run) => ({
+      inputTokens: total.inputTokens + run.inputTokens,
+      outputTokens: total.outputTokens + run.outputTokens,
+      costUsd: total.costUsd + run.costUsd,
+      estimated: total.estimated || run.estimated || run.source === "unknown",
+      runs: [...total.runs, run],
+    }),
+    { inputTokens: 0, outputTokens: 0, costUsd: 0, estimated: false, runs: [] },
+  );
+}
+
+export function costFromPiResult(result: PiRunResult): ReviewCost {
+  return {
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    costUsd: result.costUsd,
+    estimated: result.usage.estimated,
+    modelLabel: result.usage.modelLabel,
+    source: result.costUsd > 0 ? "builtin" : "unknown",
+  };
+}
+
+export function formatUsd(costUsd: number): string {
+  if (costUsd === 0) return "$0.0000";
+  if (costUsd < 0.0001) return "<$0.0001";
+  return `$${costUsd.toFixed(4)}`;
+}
+
+export function formatTokenCount(tokens: number): string {
+  return tokens.toLocaleString("en-US");
+}
+
+export function formatCostLine(total: ReviewCostTotal): string {
+  const prefix = total.estimated ? "Estimated review cost" : "Review cost";
+  return `${prefix}: ${formatUsd(total.costUsd)} (${formatTokenCount(total.inputTokens)} in / ${formatTokenCount(total.outputTokens)} out tokens)`;
+}

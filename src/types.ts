@@ -30,6 +30,13 @@ export interface ActionInputs {
   reviewModels: string;
   /** Optional model spec for final validation/synthesis. */
   validatorModel: string;
+  /** Show estimated review cost in logs, outputs, and comments. */
+  showCost: boolean;
+  /**
+   * Optional pricing overrides:
+   * model=inputPerMillion:outputPerMillion,...
+   */
+  costRates: string;
 }
 
 export interface GitHubEntityContext {
@@ -65,6 +72,12 @@ export interface PiRunResult {
   sessionId?: string;
   turnsUsed: number;
   costUsd: number;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    estimated: boolean;
+    modelLabel: string;
+  };
 }
 
 export interface PrepareResult {

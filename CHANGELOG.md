@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Brand guide documenting logo assets, palette, voice, and usage rules.
 - Minimal social/brand card asset for repository and launch materials.
+- Estimated token usage and review cost reporting in final comments and
+  action outputs.
+- `show_cost` and `cost_rates` inputs for transparent BYOK pricing.
+- Product research and roadmap notes comparing elek's direction with current
+  AI review tools.
 
 ### Changed
 

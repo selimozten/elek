@@ -23,6 +23,8 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  showCost: true,
+  costRates: "",
 };
 
 const baseCtx: GitHubEntityContext = {

@@ -101,6 +101,37 @@ jobs:
           branch_prefix: elek/kimi/
 ```
 
+## Cost-aware council review
+
+Run cheap independent lenses, then use a validator once. The final comment
+shows the aggregate estimated cost across all runs.
+
+```yaml
+on:
+  pull_request: { types: [opened, synchronize, reopened] }
+
+permissions: { contents: read, pull-requests: write, issues: write }
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with: { fetch-depth: 0 }
+      - uses: selimozten/elek@v1
+        with:
+          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: deepseek
+          model: deepseek-v4-pro
+          review_strategy: council
+          review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+          validator_model: deepseek/deepseek-v4-pro
+          show_cost: true
+          cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
+```
+
 ## Review + propose fixes
 
 The model can push fixes to an `elek/*` branch when something is mechanical (rename, add missing test, simple refactor).

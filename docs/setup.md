@@ -63,7 +63,8 @@ jobs:
 ## 3. Test it
 
 1. Open a PR or push a commit. The review should appear within ~3 minutes.
-2. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
+2. The final comment includes an estimated token/cost line.
+3. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
 
 ## Model and reasoning levels
 
@@ -141,6 +142,35 @@ final validator can call elek's review tools.
 Non-solo strategies currently require `mode: review`. If `crosscheck` or
 `council` is configured with `review+edit` or `agent`, elek runs a solo review
 and logs a warning.
+
+## Cost visibility
+
+Cost reporting is on by default. elek estimates tokens from prompt/output text
+and applies known model price hints where available. The final review comment
+and action outputs include:
+
+- `cost_usd`
+- `input_tokens`
+- `output_tokens`
+
+For models without built-in price hints, pass your provider's current USD price
+per 1M input/output tokens:
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    provider: openrouter
+    model: moonshotai/kimi-k2.7-code
+    show_cost: true
+    cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
+```
+
+Disable the comment line while keeping outputs available:
+
+```yaml
+show_cost: false
+```
 
 ## Permissions
 

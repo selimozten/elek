@@ -49,6 +49,12 @@ import {
   resolveReviewPlan,
   resolveReviewPlanSupport,
 } from "../review/strategy.js";
+import {
+  aggregateCosts,
+  costFromPiResult,
+  formatCostLine,
+  type ReviewCost,
+} from "../review/cost.js";
 import { sanitize } from "../mcp/handlers.js";
 
 async function run(): Promise<void> {
@@ -270,6 +276,7 @@ async function run(): Promise<void> {
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
   const useReviewPlan = reviewPlanSupport.enabled;
+  const runCosts: ReviewCost[] = [];
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
@@ -333,6 +340,7 @@ async function run(): Promise<void> {
           false,
           { promptName: `lens-${job.lens.id}` },
         );
+        runCosts.push(costFromPiResult(lensResult));
         const lensOutput = sanitize(lensResult.output);
         console.log(
           `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
@@ -369,6 +377,7 @@ async function run(): Promise<void> {
   try {
     writeMcpConfig();
     result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });
+    runCosts.push(costFromPiResult(result));
   } finally {
     // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
     if (mcpConfigPath) {
@@ -378,9 +387,12 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
+  const costTotal = aggregateCosts(runCosts);
+  const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
   if (result.output) {
     console.log(safeOutput.substring(0, 500) + (safeOutput.length > 500 ? "..." : ""));
   }
+  if (inputs.showCost) console.log(costLine);
 
   // ── Phase 5: Handle results ──────────────────────────────────────────
   // GitHub's hard limit on issue/PR comments is 65,536 chars; leave
@@ -399,6 +411,7 @@ async function run(): Promise<void> {
         : spinnerHeader(activeModelLabel, "encountered an issue"),
       "",
       truncate(safeOutput),
+      ...(inputs.showCost ? ["", `_${costLine}_`] : []),
       "",
       `[View run](${jobRunLink})`,
     ].join("\n");
@@ -461,7 +474,10 @@ async function run(): Promise<void> {
   // Post PR review if no tracking comment
   if (context.isPR && !commentId) {
     try {
-      await createPRReview(octokit, context, safeOutput, result.conclusion, activeModelLabel);
+      const reviewOutput = inputs.showCost
+        ? `${safeOutput}\n\n_${costLine}_`
+        : safeOutput;
+      await createPRReview(octokit, context, reviewOutput, result.conclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -479,6 +495,7 @@ async function run(): Promise<void> {
             : spinnerHeader(activeModelLabel, "encountered an issue"),
           "",
           truncate(safeOutput),
+          ...(inputs.showCost ? ["", `_${costLine}_`] : []),
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
@@ -518,6 +535,9 @@ async function run(): Promise<void> {
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
   core.setOutput("summary", safeOutput.substring(0, 1000));
+  core.setOutput("cost_usd", costTotal.costUsd.toFixed(6));
+  core.setOutput("input_tokens", String(costTotal.inputTokens));
+  core.setOutput("output_tokens", String(costTotal.outputTokens));
 
   if (result.conclusion === "failure") {
     core.setFailed("pi execution failed");
