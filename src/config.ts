@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync, statSync } from "fs";
-import { resolve, sep } from "path";
+import { isAbsolute, relative, resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types.js";
@@ -37,6 +37,7 @@ const KEY_MAP: Record<string, keyof ElekConfig> = {
 };
 
 const SEVERITIES = new Set(["critical", "important", "minor"]);
+const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_PROMPT_LIST_ITEMS = 50;
 const MAX_PROMPT_ENTRY_CHARS = 500;
 const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
@@ -229,6 +230,10 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
       warn(`Config path is not a file: ${trimmed}`);
       return emptyConfig();
     }
+    if (stat.size > MAX_CONFIG_BYTES) {
+      warn(`Config file is too large: ${trimmed}`);
+      return emptyConfig();
+    }
     const realResolved = realpathSync(resolved);
     if (realResolved !== root && !realResolved.startsWith(root + sep)) {
       warn(`Config path resolves outside the workspace: ${trimmed}`);
@@ -250,12 +255,35 @@ function normalizeBaseRef(baseRef: string): string | undefined {
   if (
     !shortRef ||
     shortRef.startsWith("-") ||
+    shortRef.startsWith(".") ||
+    shortRef.includes("..") ||
     shortRef.split(/[\\/]+/).includes("..") ||
     !/^[A-Za-z0-9_./-]+$/.test(shortRef)
   ) {
     return undefined;
   }
   return shortRef;
+}
+
+function repoLocalConfigPath(path: string, warn: (message: string) => void): string | undefined {
+  const trimmed = path.trim();
+  if (!isAbsolute(trimmed)) return trimmed;
+
+  let root: string;
+  try {
+    root = realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
+  } catch (err) {
+    warn(`Workspace path not resolvable: ${(err as Error).message}`);
+    return undefined;
+  }
+
+  const resolved = resolve(trimmed);
+  if (resolved !== root && !resolved.startsWith(root + sep)) {
+    warn(`Config path resolves outside the workspace: ${trimmed}`);
+    return undefined;
+  }
+  const repoPath = relative(root, resolved);
+  return repoPath || undefined;
 }
 
 export function loadBaseBranchElekConfig(
@@ -267,7 +295,11 @@ export function loadBaseBranchElekConfig(
   if (!baseRef || !trimmed || ["none", "off", "false"].includes(trimmed.toLowerCase())) {
     return { config: emptyConfig(), loaded: false };
   }
-  if (trimmed.startsWith("/") || trimmed.split(/[\\/]+/).includes("..")) {
+  const repoPath = repoLocalConfigPath(trimmed, warn);
+  if (!repoPath) {
+    return { config: emptyConfig(), loaded: false };
+  }
+  if (repoPath.split(/[\\/]+/).includes("..")) {
     warn(`Config path is not repo-local: ${trimmed}`);
     return { config: emptyConfig(), loaded: false };
   }
@@ -298,16 +330,20 @@ export function loadBaseBranchElekConfig(
   }
 
   try {
-    const text = execFileSync("git", ["show", `${remoteRef}:${trimmed}`], {
+    const text = execFileSync("git", ["show", `${remoteRef}:${repoPath}`], {
       cwd: gitCwd,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
-      maxBuffer: 10 * 1024 * 1024,
+      maxBuffer: MAX_CONFIG_BYTES + 1,
     });
+    if (Buffer.byteLength(text, "utf-8") > MAX_CONFIG_BYTES) {
+      warn(`Base branch config file is too large: ${repoPath}`);
+      return { config: emptyConfig(), loaded: false };
+    }
     return { config: parseElekConfig(text, warn, { throwOnParseError: true }), loaded: true };
   } catch (err) {
     if (err instanceof ElekConfigParseError) throw err;
-    warn(`Could not load base branch config from ${trimmed} on ${baseRef}: ${(err as Error).message}`);
+    warn(`Could not load base branch config from ${repoPath} on ${baseRef}: ${(err as Error).message}`);
     return { config: emptyConfig(), loaded: false };
   }
 }
@@ -353,7 +389,7 @@ export function formatConfigAuditLog(
     ? "checked-out-pr-branch"
     : "checked-out-workspace");
   const fields = [
-    "[config] loaded",
+    "[config] audit",
     `path=${disabled ? "(disabled)" : path}`,
     `source=${disabled ? "(disabled)" : source}`,
     `review_strategy=${config.reviewStrategy ?? "(unset)"}`,

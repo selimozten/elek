@@ -321,6 +321,23 @@ instructions:
     }
   });
 
+  it("skips oversized workspace config files", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-config-test-"));
+    const path = join(dir, ".elek.yml");
+    const warnings: string[] = [];
+    try {
+      writeFileSync(path, `instructions:\n  - ${"a".repeat(1024 * 1024)}\n`);
+
+      expect(loadElekConfig(path, (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings).toEqual([`Config file is too large: ${path}`]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("throws when an existing config file has malformed yaml", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-config-test-"));
     const path = join(dir, ".elek.yml");
@@ -371,13 +388,25 @@ instructions:
       expect(loadBaseBranchElekConfig(".elek.yml", "refs/heads/main")).toEqual({
         loaded: true,
         config: {
-        reviewStrategy: "council",
-        reviewModels: "openrouter/base-reviewer",
-        validatorModel: "deepseek/base-validator",
-        costRates: "openrouter/base-reviewer=1:2",
-        severityThreshold: "important",
-        ignorePaths: ["base-only/**"],
-        instructions: ["Base instruction."],
+          reviewStrategy: "council",
+          reviewModels: "openrouter/base-reviewer",
+          validatorModel: "deepseek/base-validator",
+          costRates: "openrouter/base-reviewer=1:2",
+          severityThreshold: "important",
+          ignorePaths: ["base-only/**"],
+          instructions: ["Base instruction."],
+        },
+      });
+      expect(loadBaseBranchElekConfig(join(work, ".elek.yml"), "refs/heads/main")).toEqual({
+        loaded: true,
+        config: {
+          reviewStrategy: "council",
+          reviewModels: "openrouter/base-reviewer",
+          validatorModel: "deepseek/base-validator",
+          costRates: "openrouter/base-reviewer=1:2",
+          severityThreshold: "important",
+          ignorePaths: ["base-only/**"],
+          instructions: ["Base instruction."],
         },
       });
     } finally {
@@ -449,6 +478,24 @@ instructions:
         },
       });
       expect(warnings.at(-1)).toContain("Base ref is not safe");
+
+      expect(loadBaseBranchElekConfig(".elek.yml", "foo..bar", (message) => warnings.push(message))).toEqual({
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
+      });
+      expect(warnings.at(-1)).toContain("Base ref is not safe");
+
+      expect(loadBaseBranchElekConfig(".elek.yml", ".hidden", (message) => warnings.push(message))).toEqual({
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
+      });
+      expect(warnings.at(-1)).toContain("Base ref is not safe");
     } finally {
       process.chdir(previousCwd);
       if (previousWorkspace === undefined) {
@@ -473,7 +520,7 @@ instructions:
         ignorePaths: ["docs/**"],
         instructions: ["Treat migrations as operational risk."],
       })).toBe(
-        "[config] loaded | path=.elek.yml | source=checked-out-workspace | " +
+        "[config] audit | path=.elek.yml | source=checked-out-workspace | " +
           "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
           "validator_model=deepseek/model-b | " +
           "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
