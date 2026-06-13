@@ -4,7 +4,7 @@
 import type { GitHubEntityContext } from "../types.js";
 import { getGitDiff } from "./git.js";
 import { mcpToolGuidance } from "./mcp-guidance.js";
-import { reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
+import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 
 type MinimalOctokit = {
@@ -250,6 +250,10 @@ export function buildPrompt(
   parts.push("### Review finding contract");
   parts.push("");
   parts.push(...reviewContractBullets());
+  parts.push("");
+  parts.push("### Finding acceptance gates");
+  parts.push("");
+  parts.push(...findingValidationBullets());
   parts.push("");
 
   // ── If making changes ──

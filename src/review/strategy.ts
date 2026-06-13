@@ -1,7 +1,7 @@
 import type { ActionInputs } from "../types.js";
 import type { GitHubData } from "../github/data.js";
 import { mcpToolGuidance } from "../github/mcp-guidance.js";
-import { reviewContractBullets, reviewFindingTemplate } from "./contract.js";
+import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
 
@@ -255,6 +255,10 @@ export function buildLensPrompt(params: {
     ``,
     `Review calibration:`,
     ...reviewContractBullets(),
+    ``,
+    `Finding acceptance gates:`,
+    ...findingValidationBullets(),
+    ``,
     `- For risk findings, trace the failure end-to-end and explain concrete impact.`,
     `- For design findings, push for structural simplification only when the cleaner shape is visible.`,
     `- Reject cosmetic nits unless they reveal a larger maintainability issue.`,
@@ -330,6 +334,10 @@ export function buildSynthesisPrompt(params: {
     `Validation rules:`,
     `- Verify each surviving finding against the diff and repo context before surfacing it.`,
     ...reviewContractBullets(),
+    ``,
+    `Finding acceptance gates:`,
+    ...findingValidationBullets(),
+    ``,
     `- Do not surface claims that external packages, GitHub Actions, model IDs, or APIs do not exist unless they are backed by current repo files, package-manager output, or workflow error logs.`,
     `- Treat existing comments and review comments as already-visible context; do not duplicate findings that have already been posted unless they remain unresolved and materially changed.`,
     `- Drop speculative, cosmetic, duplicate, stale, or pre-existing issues not rooted in added/modified code.`,

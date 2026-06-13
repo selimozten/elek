@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { reviewContractBullets, reviewFindingTemplate } from "../src/review/contract";
+import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../src/review/contract";
 
 describe("review finding contract", () => {
   it("requires the core finding fields and filters low-confidence output", () => {
@@ -22,5 +22,14 @@ describe("review finding contract", () => {
       "- Impact: what breaks or gets harder to maintain",
       "- Fix: the smallest concrete change required",
     ]);
+  });
+
+  it("defines validation gates that reject unverifiable findings", () => {
+    const gates = findingValidationBullets();
+
+    expect(gates).toContain("- A finding must identify a concrete failure path from changed code to user-visible, security, correctness, operational, or maintainability impact.");
+    expect(gates).toContain("- Reject findings that contradict the diff, surrounding repo context, or already-visible comments.");
+    expect(gates).toContain("- Reject findings that depend on unverified external facts, guessed package behavior, or assumptions about code not inspected.");
+    expect(gates).toContain("- If a candidate finding cannot pass these gates, drop it instead of posting a caveat.");
   });
 });

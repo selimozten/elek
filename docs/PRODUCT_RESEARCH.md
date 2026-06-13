@@ -47,15 +47,18 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   loading for common project guidance files.
 - Model evaluation summary fields and `elek-eval` for scoring saved review
   summaries against seeded PR benchmark suites.
+- Finding validation gates that require a concrete failure path, reject
+  contradicted or unverifiable claims, and tell validators to drop weak
+  candidates instead of posting caveats.
 
 ### Next
 
-1. Finding validation: ask the validator to reject findings that lack a
-   reproducible path or contradict changed code.
-2. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
+1. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
    when a PR is too large.
-3. Benchmark fixture generator: create local seeded PR worktrees from a
+2. Benchmark fixture generator: create local seeded PR worktrees from a
    declarative suite so model comparisons can run end-to-end.
+3. Review analytics: aggregate summary artifacts over time to compare noise,
+   acceptance, latency, and cost by model/strategy.
 
 ## Model evaluation plan
 
