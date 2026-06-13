@@ -111,6 +111,9 @@ The `review_strategy` input controls orchestration quality:
 | `crosscheck` | 2 read-only lenses + 1 final validator | Best default for serious PR review. |
 | `council` | 4 read-only lenses + 1 final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
 
+`crosscheck` and `council` currently run only with `mode: review`. If you use
+`review+edit` or `agent`, elek runs a solo review and logs a warning.
+
 `crosscheck` runs two independent candidate reviewers:
 
 - **Risk Review** — correctness, security, breaking changes, devex regressions, feature-gate leaks.

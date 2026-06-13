@@ -46,6 +46,7 @@ import {
   buildLensPrompt,
   buildSynthesisPrompt,
   resolveReviewPlan,
+  resolveReviewPlanSupport,
 } from "../review/strategy.js";
 import { sanitize } from "../mcp/handlers.js";
 
@@ -262,13 +263,20 @@ async function run(): Promise<void> {
   };
 
   const reviewPlan = resolveReviewPlan(inputs);
-  const useReviewPlan =
-    reviewPlan.strategy !== "solo" &&
-    context.isPR &&
-    resolvedMode.mode === "review";
+  const reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+    isPR: context.isPR,
+    mode: resolvedMode.mode,
+  });
+  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
+  const useReviewPlan = reviewPlanSupport.enabled;
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
+    const lensTools = resolveMode("review").piTools
+      .split(",")
+      .filter((tool) => tool !== "mcp")
+      .join(",");
+
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
@@ -313,7 +321,7 @@ async function run(): Promise<void> {
           ...piInputs,
           provider: job.model.provider,
           model: job.model.model,
-          tools: "read,grep,find,ls",
+          tools: lensTools,
           mode: "review",
         };
         const lensResult = await runPi(
@@ -341,6 +349,7 @@ async function run(): Promise<void> {
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
       tools: piTools,
+      mode: "review",
     };
     prompt = buildSynthesisPrompt({
       data,

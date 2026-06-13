@@ -137,6 +137,10 @@ visible review is posted:
 Candidate reviewers cannot post comments. They run without MCP access; only the
 final validator can call elek's review tools.
 
+Non-solo strategies currently require `mode: review`. If `crosscheck` or
+`council` is configured with `review+edit` or `agent`, elek runs a solo review
+and logs a warning.
+
 ## Permissions
 
 ```yaml

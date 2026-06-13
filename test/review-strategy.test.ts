@@ -5,6 +5,7 @@ import {
   parseModelList,
   parseModelSpec,
   resolveReviewPlan,
+  resolveReviewPlanSupport,
   resolveReviewStrategy,
 } from "../src/review/strategy";
 import type { GitHubData } from "../src/github/data";
@@ -156,6 +157,33 @@ describe("review strategy", () => {
       "deepseek/a",
       "openrouter/b",
     ]);
+  });
+
+  it("enables non-solo strategies only for PR review mode", () => {
+    expect(resolveReviewPlanSupport("crosscheck", { isPR: true, mode: "review" })).toEqual({
+      enabled: true,
+    });
+  });
+
+  it("warns when a non-solo strategy is requested for review+edit", () => {
+    const support = resolveReviewPlanSupport("crosscheck", {
+      isPR: true,
+      mode: "review+edit",
+    });
+
+    expect(support.enabled).toBe(false);
+    expect(support.warning).toContain("only supported in mode=review");
+    expect(support.warning).toContain("mode=review+edit");
+  });
+
+  it("warns when a non-solo strategy is requested outside PR context", () => {
+    const support = resolveReviewPlanSupport("council", {
+      isPR: false,
+      mode: "review",
+    });
+
+    expect(support.enabled).toBe(false);
+    expect(support.warning).toContain("requires a pull request");
   });
 
   it("builds a lens prompt with the lens focus and diff context", () => {

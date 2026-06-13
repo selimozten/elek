@@ -28,6 +28,11 @@ export interface ReviewPlan {
   reusedModels: boolean;
 }
 
+export interface ReviewPlanSupport {
+  enabled: boolean;
+  warning?: string;
+}
+
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
     id: "risk",
@@ -127,6 +132,26 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   }));
 
   return { strategy, jobs, validator, reusedModels };
+}
+
+export function resolveReviewPlanSupport(
+  strategy: ReviewStrategy,
+  context: { isPR: boolean; mode: string },
+): ReviewPlanSupport {
+  if (strategy === "solo") return { enabled: false };
+  if (!context.isPR) {
+    return {
+      enabled: false,
+      warning: `Review strategy ${strategy} requires a pull request; running solo review instead.`,
+    };
+  }
+  if (context.mode !== "review") {
+    return {
+      enabled: false,
+      warning: `Review strategy ${strategy} is only supported in mode=review; running solo review because mode=${context.mode}.`,
+    };
+  }
+  return { enabled: true };
 }
 
 function changedFilesBlock(data: GitHubData, maxChars = 60_000): string {
