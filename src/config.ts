@@ -13,6 +13,13 @@ export interface ElekConfig {
   instructions: string[];
 }
 
+export class ElekConfigParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ElekConfigParseError";
+  }
+}
+
 const KEY_MAP: Record<string, keyof ElekConfig> = {
   review_strategy: "reviewStrategy",
   review_models: "reviewModels",
@@ -88,12 +95,18 @@ function modelList(value: unknown, key: string, warn: (message: string) => void)
   return stringValue(value);
 }
 
-export function parseElekConfig(text: string, warn: (message: string) => void = () => {}): ElekConfig {
+export function parseElekConfig(
+  text: string,
+  warn: (message: string) => void = () => {},
+  options: { throwOnParseError?: boolean } = {},
+): ElekConfig {
   let doc: unknown;
   try {
     doc = parseYaml(text);
   } catch (err) {
-    warn(`Could not parse config YAML: ${(err as Error).message}`);
+    const message = `Could not parse config YAML: ${(err as Error).message}`;
+    warn(message);
+    if (options.throwOnParseError) throw new ElekConfigParseError(message);
     return emptyConfig();
   }
 
@@ -163,7 +176,14 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     return emptyConfig();
   }
 
-  const root = realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
+  let root: string;
+  try {
+    root = realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
+  } catch (err) {
+    warn(`Workspace path not resolvable: ${(err as Error).message}`);
+    return emptyConfig();
+  }
+
   const resolved = resolve(root, trimmed);
   if (resolved !== root && !resolved.startsWith(root + sep)) {
     warn(`Config path resolves outside the workspace: ${trimmed}`);
@@ -177,8 +197,11 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
       warn(`Config path resolves outside the workspace: ${trimmed}`);
       return emptyConfig();
     }
-    return parseElekConfig(readFileSync(realResolved, "utf-8"), warn);
+    return parseElekConfig(readFileSync(realResolved, "utf-8"), warn, {
+      throwOnParseError: true,
+    });
   } catch (err) {
+    if (err instanceof ElekConfigParseError) throw err;
     warn(`Could not read config file ${trimmed}: ${(err as Error).message}`);
     return emptyConfig();
   }
@@ -197,12 +220,12 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
   };
 }
 
-export function formatConfigAuditLog(path: string, config: ElekConfig): string {
+export function formatConfigAuditLog(path: string, config: ElekConfig, effective?: ActionInputs): string {
   const disabled = !path.trim() || ["none", "off", "false"].includes(path.trim().toLowerCase());
   const source = process.env.GITHUB_EVENT_NAME === "pull_request"
     ? "checked-out-pr-branch"
     : "checked-out-workspace";
-  return [
+  const fields = [
     "[config] loaded",
     `path=${disabled ? "(disabled)" : path}`,
     `source=${disabled ? "(disabled)" : source}`,
@@ -213,7 +236,13 @@ export function formatConfigAuditLog(path: string, config: ElekConfig): string {
     `cost_rates=${config.costRates ?? "(unset)"}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
     `instructions=${config.instructions.length}`,
-  ].join(" | ");
+  ];
+  if (effective) {
+    fields.push(`effective_review_strategy=${effective.reviewStrategy || "solo"}`);
+    fields.push(`effective_review_models=${effective.reviewModels || "(primary model)"}`);
+    fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
+  }
+  return fields.join(" | ");
 }
 
 export function formatConfigPromptBlock(config: ElekConfig): string[] {

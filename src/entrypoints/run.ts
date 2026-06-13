@@ -66,11 +66,6 @@ async function run(): Promise<void> {
   core.setOutput("output_tokens", "0");
 
   const parsedInputs = parseInputs();
-  const repoConfig = loadElekConfig(parsedInputs.configPath, (message) => {
-    console.warn(`[config] ${message}`);
-  });
-  console.log(formatConfigAuditLog(parsedInputs.configPath, repoConfig));
-  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
   const context = parseEntityContext();
 
   if (!context) {
@@ -84,7 +79,7 @@ async function run(): Promise<void> {
   );
 
   // ── Phase 1: Trigger detection ───────────────────────────────────────
-  const userRequest = detectTrigger(context, inputs);
+  const userRequest = detectTrigger(context, parsedInputs);
 
   if (!userRequest) {
     console.log("No trigger detected — exiting cleanly");
@@ -93,12 +88,18 @@ async function run(): Promise<void> {
     return;
   }
 
-  if (!isActorAllowed(context, inputs)) {
+  if (!isActorAllowed(context, parsedInputs)) {
     console.log(`Actor @${context.actor} not allowed — exiting`);
     core.setOutput("conclusion", "skipped");
     core.setOutput("summary", `Actor @${context.actor} not authorized`);
     return;
   }
+
+  const repoConfig = loadElekConfig(parsedInputs.configPath, (message) => {
+    console.warn(`[config] ${message}`);
+  });
+  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
+  console.log(formatConfigAuditLog(parsedInputs.configPath, repoConfig, inputs));
 
   console.log(
     `Triggered: "${userRequest.substring(0, 120)}${userRequest.length > 120 ? "..." : ""}"`,

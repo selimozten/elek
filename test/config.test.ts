@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   applyConfigDefaults,
+  ElekConfigParseError,
   formatConfigAuditLog,
   formatConfigPromptBlock,
   loadElekConfig,
@@ -243,6 +244,22 @@ instructions:
     }
   });
 
+  it("throws when an existing config file has malformed yaml", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-config-test-"));
+    const path = join(dir, ".elek.yml");
+    const warnings: string[] = [];
+    try {
+      writeFileSync(path, "instructions:\n  - good\n    bad: [unterminated\n");
+
+      expect(() => loadElekConfig(path, (message) => warnings.push(message))).toThrow(
+        ElekConfigParseError,
+      );
+      expect(warnings[0]).toContain("Could not parse config YAML");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("formats an audit log for loaded config values", () => {
     const previousEvent = process.env.GITHUB_EVENT_NAME;
     delete process.env.GITHUB_EVENT_NAME;
@@ -270,6 +287,16 @@ instructions:
 
       expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
         "path=(disabled)",
+      );
+
+      expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
+        ...baseInputs,
+        reviewStrategy: "council",
+        reviewModels: "openrouter/model-a",
+        validatorModel: "deepseek/model-b",
+      })).toContain(
+        "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
+          "effective_validator_model=deepseek/model-b",
       );
     } finally {
       if (previousEvent === undefined) {
