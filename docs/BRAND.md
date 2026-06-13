@@ -1,4 +1,4 @@
-# Elek Brand
+# elek brand
 
 Elek should feel precise, quiet, and review-focused: closer to a disciplined
 engineering tool than a mascot product. The identity uses warm neutrals and a
@@ -35,6 +35,7 @@ extra review symbols around it. The logo should stay recognizable at 16px.
 | Sand | `#eaded2` | Social-card gradient end |
 | Clay | `#c76d50` | Validation stroke, active states, small accents |
 | Stone | `#6f6760` | Secondary text |
+| Tag-dark | `#cfc3b7` | Secondary wordmark text on dark surfaces |
 | Line | `#e1d5ca` | Borders and subtle separators |
 
 Use Clay sparingly. Most surfaces should be Ink on Bone, or Bone on Ink for
