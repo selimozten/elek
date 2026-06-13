@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MIT license file and security policy for vulnerability reporting.
+
 ## [1.1.1] - 2026-06-13
 
 ### Changed
