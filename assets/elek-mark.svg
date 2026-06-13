@@ -1,12 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="elek mark">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">elek mark</title>
+  <desc id="desc">A minimal warm-toned elek monogram built from review lines and a validation stroke.</desc>
   <style>
-    :root { color: #0f172a; }
-    @media (prefers-color-scheme: dark) { :root { color: #f8fafc; } }
-    .mark { fill: none; stroke: currentColor; stroke-width: 42; stroke-linecap: round; stroke-linejoin: round; }
-    .accent { fill: #14b8a6; }
+    .back { fill: #f7f2ea; }
+    .line {
+      fill: none;
+      stroke: #171412;
+      stroke-width: 40;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .accent {
+      fill: none;
+      stroke: #c76d50;
+      stroke-width: 40;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .node { fill: #c76d50; }
   </style>
-  <path class="mark" d="M112 136h288M112 256h218M112 376h146"/>
-  <path class="mark" d="M400 136 258 376"/>
-  <circle class="accent" cx="392" cy="376" r="30"/>
+  <rect class="back" x="48" y="48" width="416" height="416" rx="92"/>
+  <path class="line" d="M126 152h232M126 256h162M126 360h232"/>
+  <path class="accent" d="M362 152 250 360"/>
+  <circle class="node" cx="362" cy="360" r="24"/>
 </svg>

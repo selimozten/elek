@@ -9,7 +9,16 @@ const SPINNER_URL =
   "https://raw.githubusercontent.com/selimozten/elek/main/assets/elek-spinner.svg";
 
 export function spinnerHtml(): string {
-  return `<img src="${SPINNER_URL}" width="14" height="14" alt="⏳" style="vertical-align: middle; margin-left: 4px;" />`;
+  return `<img src="${SPINNER_URL}" width="18" height="18" alt="elek" style="vertical-align: middle; margin-right: 4px;" />`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -19,5 +28,5 @@ export function spinnerHtml(): string {
  * gets promoted to its own line by GitHub's media handling.
  */
 export function spinnerHeader(modelLabel: string, status = "analyzing…"): string {
-  return `<p>${spinnerHtml()} <strong>${modelLabel}</strong> ${status}</p>`;
+  return `<p>${spinnerHtml()}<strong>elek</strong> review: <strong>${escapeHtml(modelLabel)}</strong> ${escapeHtml(status)}</p>`;
 }

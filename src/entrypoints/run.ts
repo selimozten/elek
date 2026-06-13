@@ -41,6 +41,7 @@ import {
 import { runPi } from "../pi.js";
 import type { ProgressEvent } from "../pi.js";
 import { formatProgressComment, type ProgressState } from "../github/progress.js";
+import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
 import {
   buildLensPrompt,
@@ -126,7 +127,7 @@ async function run(): Promise<void> {
     workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment (with spinner, Claude-style)
+  // Create tracking comment with the elek spinner.
   let commentId: number | undefined;
   if (inputs.stickyComment) {
     try {
@@ -223,6 +224,7 @@ async function run(): Promise<void> {
   //   "done" (run finished)      → "Review complete" ✓
   let toolsSeen = 0;
   let textStreamed = false;
+  let activeModelLabel = modelLabel;
 
   let lastUpdate = 0;
   let lastBody = "";
@@ -240,8 +242,7 @@ async function run(): Promise<void> {
     } else if (event.type === "done") {
       progress.readContext = true;
       progress.analyzed = true;
-      // wroteReview reflects whether we actually got output text
-      progress.wroteReview = textStreamed || true;
+      progress.wroteReview = textStreamed;
     }
 
     if (!commentId) return;
@@ -251,7 +252,7 @@ async function run(): Promise<void> {
     const isFinal = event.type === "done";
     if (!isFinal && now - lastUpdate < 3000) return;
 
-    const body = formatProgressComment(progress, modelLabel, jobRunLink);
+    const body = formatProgressComment(progress, activeModelLabel, jobRunLink);
     if (body === lastBody && !isFinal) return; // no visible change → skip the API call
     lastUpdate = now;
     lastBody = body;
@@ -289,17 +290,18 @@ async function run(): Promise<void> {
     }
 
     if (commentId) {
+      const code = (value: string) => `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
       try {
         await updateTrackingComment(
           octokit,
           context,
           commentId,
           [
-            `🔎 **${modelLabel}** running ${reviewPlan.strategy} review`,
+            spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
-            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: \`${j.model.label}\``),
+            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: ${code(j.model.label)}`),
             "",
-            `Final validation: \`${reviewPlan.validator.label}\``,
+            `Final validation: ${code(reviewPlan.validator.label)}`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
           modelLabel,
@@ -351,6 +353,7 @@ async function run(): Promise<void> {
       tools: piTools,
       mode: "review",
     };
+    activeModelLabel = reviewPlan.validator.label;
     prompt = buildSynthesisPrompt({
       data,
       userRequest,
@@ -392,8 +395,8 @@ async function run(): Promise<void> {
   if (commentId) {
     const reviewBody = [
       result.conclusion === "success"
-        ? `🤖 **${modelLabel}** analysis complete`
-        : `⚠️ **${modelLabel}** encountered an issue`,
+        ? spinnerHeader(activeModelLabel, "analysis complete")
+        : spinnerHeader(activeModelLabel, "encountered an issue"),
       "",
       truncate(safeOutput),
       "",
@@ -458,7 +461,7 @@ async function run(): Promise<void> {
   // Post PR review if no tracking comment
   if (context.isPR && !commentId) {
     try {
-      await createPRReview(octokit, context, safeOutput, result.conclusion);
+      await createPRReview(octokit, context, safeOutput, result.conclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -471,14 +474,15 @@ async function run(): Promise<void> {
         octokit,
         context,
         [
-          result.conclusion === "success" ? "🤖" : "⚠️",
-          ` **${modelLabel}**`,
+          result.conclusion === "success"
+            ? spinnerHeader(activeModelLabel, "analysis complete")
+            : spinnerHeader(activeModelLabel, "encountered an issue"),
           "",
           truncate(safeOutput),
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
-        modelLabel,
+        activeModelLabel,
       );
     } catch (err) {
       console.warn("Could not post comment:", err);

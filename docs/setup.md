@@ -153,6 +153,16 @@ permissions:
 
 For `mode: review+edit` (pushing to `elek/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
 
+## Comment identity
+
+With the default `github_token`, GitHub displays elek comments as
+`github-actions[bot]`. Actions cannot override that avatar.
+
+To show an elek avatar in the PR timeline, pass `github_token` from a dedicated
+GitHub App or bot account token. The default `GITHUB_TOKEN` remains the safest
+zero-setup option; elek still renders its mark and name inside the tracking and
+final review comments.
+
 ## Actor filtering
 
 By default, only humans trigger (any actor matching `*[bot]` is excluded):

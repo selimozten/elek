@@ -11,6 +11,10 @@ export interface ProgressState {
   lastTool: string;
 }
 
+function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_#[\]])/g, "\\$1");
+}
+
 export function formatProgressComment(
   state: ProgressState,
   modelLabel: string,
@@ -34,8 +38,9 @@ export function formatProgressComment(
 
   // Phase 2: Analyzing (unlocked after read)
   if (state.readContext) {
+    const lastTool = escapeMarkdown(state.lastTool);
     lines.push(
-      `- [${check(state.analyzed)}] ${state.analyzed ? "Analyzed code" : `Analyzing (${state.lastTool})…`}`,
+      `- [${check(state.analyzed)}] ${state.analyzed ? "Analyzed code" : `Analyzing (${lastTool})…`}`,
     );
   } else {
     lines.push(`- [ ] Analyzing`);

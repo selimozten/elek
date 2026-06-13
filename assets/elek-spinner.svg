@@ -1,18 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="elek reviewing">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">elek reviewing</title>
+  <desc id="desc">Animated elek review mark used while a model is reviewing.</desc>
   <style>
-    :root { color: #0f172a; }
-    @media (prefers-color-scheme: dark) { :root { color: #f8fafc; } }
-    .mark { fill: none; stroke: currentColor; stroke-width: 42; stroke-linecap: round; stroke-linejoin: round; }
-    .accent { fill: #14b8a6; }
-    .orbit { fill: none; stroke: #14b8a6; stroke-width: 18; stroke-linecap: round; stroke-dasharray: 92 248; opacity: .95; }
+    .back { fill: #f7f2ea; }
+
+    .ring {
+      fill: none;
+      stroke: #c76d50;
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 36 138;
+    }
+
+    .line {
+      fill: none;
+      stroke: #171412;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .accent {
+      fill: none;
+      stroke: #c76d50;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .node { fill: #c76d50; }
   </style>
-  <g>
-    <circle class="orbit" cx="256" cy="256" r="210">
-      <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 256 256" to="360 256 256" dur="1.35s" repeatCount="indefinite"/>
-    </circle>
-    <path class="mark" d="M112 136h288M112 256h218M112 376h146"/>
-    <path class="mark" d="M400 136 258 376"/>
-    <circle class="accent" cx="392" cy="376" r="30"/>
-  </g>
+  <rect class="back" x="3" y="3" width="122" height="122" rx="30"/>
+  <circle class="ring" cx="64" cy="64" r="53">
+    <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 64 64" to="360 64 64" dur="1.25s" repeatCount="indefinite"/>
+  </circle>
+  <path class="line" d="M34 42h56M34 64h38M34 86h56"/>
+  <path class="accent" d="M91 42 64 86"/>
+  <circle class="node" cx="91" cy="86" r="6"/>
 </svg>

@@ -132,7 +132,8 @@ PATH="$(pwd)/node_modules/.bin:$PATH" pi --mode json --provider deepseek \
 
 ## CI
 
-Four workflows in `.github/workflows/`:
+Three workflows in `.github/workflows/` plus Dependabot configuration in
+`.github/dependabot.yml`:
 
 - `ci.yml` — `bun test test/` + `bunx tsc --noEmit` on every PR. 5-min
   timeout, `contents:read` perms only, concurrency-grouped. This is the
@@ -145,7 +146,7 @@ Four workflows in `.github/workflows/`:
   10-min timeout, concurrency cancels stale runs on new push, ignores
   docs-only changes. This is advisory because provider quota and transient
   model failures should not block a test-clean PR.
-- `dependabot.yml` — grouped weekly dependency update automation.
+- `.github/dependabot.yml` — grouped weekly dependency update automation.
 
 CI must pass before merging. Treat advisory elek findings as review feedback:
 fix actionable code findings, but do not block solely on provider quota or

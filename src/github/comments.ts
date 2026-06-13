@@ -1,7 +1,7 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
  * Deduplicates by signature so the same comment is reused across pushes.
- * Uses the animated pi spinner from the action's home repo on `main`,
+ * Uses the animated elek spinner from the action's home repo on `main`,
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";
@@ -36,7 +36,12 @@ function jobRunLink(context: GitHubEntityContext): string {
 
 /** Model-specific signature so dual reviews don't collide */
 function commentSignature(modelLabel: string): string {
-  return `<!-- elek-bot:${modelLabel} -->`;
+  const safeLabel = modelLabel
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/--/g, "- -");
+  return `<!-- elek-bot:${safeLabel} -->`;
 }
 
 /**
@@ -168,12 +173,13 @@ export async function createPRReview(
   context: GitHubEntityContext,
   output: string,
   conclusion: "success" | "failure",
+  modelLabel: string,
 ): Promise<void> {
   await octokit.rest.pulls.createReview({
     owner: context.repo.owner,
     repo: context.repo.repo,
     pull_number: context.entityNumber,
-    body: formatReviewBody(output, conclusion, context),
+    body: formatReviewBody(output, conclusion, context, modelLabel),
     event: "COMMENT",
   });
 
@@ -227,12 +233,14 @@ function formatReviewBody(
   output: string,
   conclusion: "success" | "failure",
   context: GitHubEntityContext,
+  modelLabel: string,
 ): string {
-  const icon = conclusion === "success" ? "✅" : "⚠️";
   const runLink = jobRunLink(context);
 
   return [
-    `${icon} **Review complete**`,
+    conclusion === "success"
+      ? spinnerHeader(modelLabel, "analysis complete")
+      : spinnerHeader(modelLabel, "encountered an issue"),
     "",
     output,
     "",
