@@ -2,7 +2,7 @@
   <img src="assets/elek-wordmark.svg" width="430" alt="elek" />
 </p>
 
-> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/badlogic/pi-mono) supports — DeepSeek, Z.AI, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, OpenRouter.
+> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/earendil-works/pi) supports — DeepSeek, Z.AI, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, OpenRouter.
 
 [![ci](https://github.com/selimozten/elek/actions/workflows/ci.yml/badge.svg)](https://github.com/selimozten/elek/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -288,7 +288,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 
 ## Credits
 
-Built on [pi coding agent](https://github.com/badlogic/pi-mono) by Mario Zechner. MCP integration via [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter). Patterns adapted from [claude-code-action](https://github.com/anthropics/claude-code-action), [gemini-cli](https://github.com/google-github-actions/run-gemini-cli).
+Built on [pi coding agent](https://github.com/earendil-works/pi). MCP integration via [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter). Patterns adapted from [claude-code-action](https://github.com/anthropics/claude-code-action), [gemini-cli](https://github.com/google-github-actions/run-gemini-cli).
 
 ## License
 

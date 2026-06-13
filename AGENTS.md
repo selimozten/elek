@@ -6,7 +6,7 @@ working in this repository. Read before editing.
 ## What this is
 
 **elek** is a model-agnostic GitHub Action that runs AI code reviews on pull
-requests and issues. It wraps [pi coding agent](https://github.com/badlogic/pi-mono)
+requests and issues. It wraps [pi coding agent](https://github.com/earendil-works/pi)
 and adds a tightly-scoped tool surface — the model can post inline review
 comments and update its tracking comment, but **cannot** approve, merge, or
 close a PR. That guarantee is structural: there is no plumbing to those
