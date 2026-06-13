@@ -129,7 +129,7 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   return { strategy, jobs, validator, reusedModels };
 }
 
-function changedFilesBlock(data: GitHubData, maxChars = 80_000): string {
+function changedFilesBlock(data: GitHubData, maxChars = 60_000): string {
   if (!data.diff) return "(diff unavailable; inspect files from the workspace if needed)";
   return data.diff.length > maxChars
     ? `${data.diff.slice(0, maxChars)}\n\n... diff truncated for prompt budget; use read/grep/find/ls tools for more context.`
