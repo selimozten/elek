@@ -1,4 +1,4 @@
-import { closeSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "fs";
+import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "fs";
 import { isAbsolute, relative, resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
@@ -56,6 +56,7 @@ const MAX_PROMPT_ENTRY_CHARS = 500;
 const MAX_KNOWLEDGE_FILES = 8;
 const MAX_KNOWLEDGE_FILE_BYTES = 12_000;
 const MAX_KNOWLEDGE_TOTAL_BYTES = 48_000;
+const MAX_KNOWLEDGE_DEPTH = 4;
 const DEFAULT_KNOWLEDGE_PATHS = ["AGENTS.md", "CONTRIBUTING.md", "docs/ARCHITECTURE.md", "docs/adr"];
 const KNOWLEDGE_FILE_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".adoc", ".rst"]);
 const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
@@ -336,18 +337,39 @@ function collectKnowledgeCandidates(root: string, requestedPath: string, warn: (
     if (!stat.isDirectory()) return [];
 
     const files: string[] = [];
-    const visit = (dir: string): void => {
+    const visit = (dir: string, depth: number): void => {
+      if (depth > MAX_KNOWLEDGE_DEPTH) {
+        warn(`Skipping knowledge directory deeper than ${MAX_KNOWLEDGE_DEPTH}: ${relative(root, dir)}`);
+        return;
+      }
       for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
         if (files.length >= MAX_KNOWLEDGE_FILES) return;
         const child = resolve(dir, entry.name);
-        if (entry.isDirectory()) {
-          visit(child);
-        } else if (entry.isFile() && isKnowledgeFile(child)) {
-          files.push(child);
+        let realChild: string;
+        try {
+          realChild = realpathSync(child);
+        } catch {
+          continue;
+        }
+        if (realChild !== root && !realChild.startsWith(root + sep)) {
+          warn(`Ignoring knowledge path outside workspace: ${relative(root, child)}`);
+          continue;
+        }
+        let childStat;
+        try {
+          childStat = lstatSync(child);
+        } catch {
+          continue;
+        }
+        if (childStat.isSymbolicLink()) continue;
+        if (childStat.isDirectory()) {
+          visit(realChild, depth + 1);
+        } else if (childStat.isFile() && isKnowledgeFile(realChild)) {
+          files.push(realChild);
         }
       }
     };
-    visit(realResolved);
+    visit(realResolved, 0);
     return files;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
@@ -375,9 +397,7 @@ export function loadRepoKnowledge(
 ): ElekConfig {
   const root = workspaceRoot(warn);
   if (!root) return config;
-  const paths = config.knowledgePaths && config.knowledgePaths.length > 0
-    ? config.knowledgePaths
-    : DEFAULT_KNOWLEDGE_PATHS;
+  const paths = config.knowledgePaths ?? DEFAULT_KNOWLEDGE_PATHS;
   const seen = new Set<string>();
   const files: RepoKnowledgeFile[] = [];
   let totalBytes = 0;
@@ -388,12 +408,19 @@ export function loadRepoKnowledge(
       if (seen.has(candidate)) continue;
       seen.add(candidate);
 
-      const stat = statSync(candidate);
-      if (stat.size > MAX_KNOWLEDGE_FILE_BYTES && totalBytes >= MAX_KNOWLEDGE_TOTAL_BYTES) continue;
       const remainingBytes = Math.max(0, MAX_KNOWLEDGE_TOTAL_BYTES - totalBytes);
       if (remainingBytes === 0) break;
-      const bytesToRead = Math.min(stat.size, MAX_KNOWLEDGE_FILE_BYTES, remainingBytes);
-      const sliced = readFilePrefix(candidate, bytesToRead);
+      let stat;
+      let sliced: Buffer;
+      let bytesToRead = 0;
+      try {
+        stat = statSync(candidate);
+        bytesToRead = Math.min(stat.size, MAX_KNOWLEDGE_FILE_BYTES, remainingBytes);
+        sliced = readFilePrefix(candidate, bytesToRead);
+      } catch (err) {
+        warn(`Could not read knowledge file ${relative(root, candidate)}: ${(err as Error).message}`);
+        continue;
+      }
       const repoPath = relative(root, candidate).split(sep).join("/");
       files.push({
         path: repoPath,

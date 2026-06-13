@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   applyConfigDefaults,
@@ -306,6 +306,7 @@ instructions:
         "AGENTS.md",
         "CONTRIBUTING.md",
       ]);
+      expect(loadRepoKnowledge({ knowledgePaths: [], ignorePaths: [], instructions: [] }).knowledge).toBeUndefined();
 
       const warnings: string[] = [];
       const config = loadRepoKnowledge({
@@ -325,6 +326,47 @@ instructions:
         process.env.GITHUB_WORKSPACE = previousWorkspace;
       }
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps repo knowledge inside the workspace and bounds loaded content", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-bounds-test-"));
+    const outside = mkdtempSync(join(process.cwd(), ".elek-knowledge-outside-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs", "nested"), { recursive: true });
+      writeFileSync(join(outside, "secret.md"), "outside secret");
+      writeFileSync(join(dir, "docs", "large.md"), "a".repeat(13_000));
+      for (let index = 0; index < 10; index++) {
+        writeFileSync(join(dir, "docs", "nested", `file-${index}.md`), `file ${index}`);
+      }
+      symlinkSync(join(outside, "secret.md"), join(dir, "docs", "escape.md"));
+
+      const warnings: string[] = [];
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      }, (message) => warnings.push(message));
+
+      expect(config.knowledge).toHaveLength(8);
+      expect(config.knowledge?.some((file) => file.text.includes("outside secret"))).toBe(false);
+      expect(config.knowledge?.some((file) => file.path.includes("escape"))).toBe(false);
+      expect(config.knowledge?.[0]).toMatchObject({
+        path: "docs/large.md",
+        truncated: true,
+      });
+      expect(config.knowledge?.[0].text.length).toBe(12_000);
+      expect(warnings).toContain("Ignoring knowledge path outside workspace: docs/escape.md");
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 
