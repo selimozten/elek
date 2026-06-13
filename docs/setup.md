@@ -297,6 +297,12 @@ locally:
 npx --package github:selimozten/elek elek-eval --suite review-benchmark.yml artifacts/*/elek-review-summary.json
 ```
 
+To create the first editable case from a saved summary:
+
+```bash
+npx --package github:selimozten/elek elek-benchmark --id auth-regression artifacts/auth/elek-review-summary.json > review-benchmark.yml
+```
+
 Minimal benchmark suite:
 
 ```yaml
@@ -315,7 +321,8 @@ cases:
 Each summary is matched to a case by `repository` and PR/issue number, or you
 can pass `--case <id>` when scoring one case at a time. The evaluator reports
 recall, precision, false positives, duration, and cost; `--json` emits the
-same data for dashboards.
+same data for dashboards. Treat generated benchmark cases as drafts and edit
+their expected findings before using them as release gates.
 
 ## Permissions
 

@@ -50,13 +50,15 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   loading for common project guidance files.
 - Model evaluation summary fields and `elek-eval` for scoring saved review
   summaries against seeded PR benchmark suites.
+- `elek-benchmark` for bootstrapping editable benchmark suite cases from saved
+  review summary artifacts.
 - Finding validation gates that require a concrete failure path, reject
   contradicted or unverifiable claims, and tell validators to drop weak
   candidates instead of posting caveats.
 
 ### Next
 
-1. Benchmark fixture generator: create local seeded PR worktrees from a
+1. Benchmark fixture runner: create local seeded PR worktrees from a
    declarative suite so model comparisons can run end-to-end.
 2. Review analytics: aggregate summary artifacts over time to compare noise,
    acceptance, latency, and cost by model/strategy.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
+import { parse as parseYaml } from "yaml";
 
 describe("elek-eval", () => {
   it("scores saved review summaries against a seeded benchmark suite", () => {
@@ -201,5 +202,99 @@ cases:
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("elek-benchmark", () => {
+  it("creates an editable benchmark suite from a review summary", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: 42 },
+        findings: [{
+          title: "Tenant session bypass",
+          severity: "critical",
+          path: "src/auth.ts",
+          evidence: "tenant is accepted from the request while session tenant is ignored",
+          impact: "tenant isolation can be bypassed",
+          fix: "compare the request tenant with the session tenant",
+        }],
+      }));
+
+      const output = execFileSync("node", [
+        "bin/elek-benchmark.mjs",
+        "--id",
+        "auth-regression",
+        "--max-false-positives",
+        "1",
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite).toEqual({
+        version: 1,
+        cases: [{
+          id: "auth-regression",
+          repository: "acme/app",
+          number: 42,
+          expected_findings: [{
+            id: "tenant-session-bypass",
+            min_severity: "critical",
+            keywords: ["tenant", "session", "bypass"],
+          }],
+          max_false_positives: 1,
+        }],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("creates a clean benchmark case when requested", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-clean-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: 7 },
+        findings: [{ title: "Ignored finding", severity: "important" }],
+      }));
+
+      const output = execFileSync("node", ["bin/elek-benchmark.mjs", "--clean", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite.cases[0]).toMatchObject({
+        id: "acme-app-7",
+        repository: "acme/app",
+        number: 7,
+        expected_findings: [],
+        max_false_positives: 0,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports invalid benchmark generator options clearly", () => {
+    expect(() => execFileSync("node", [
+      "bin/elek-benchmark.mjs",
+      "--max-false-positives",
+      "1.5",
+      "summary.json",
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "pipe",
+    })).toThrow("--max-false-positives requires a non-negative integer");
   });
 });
