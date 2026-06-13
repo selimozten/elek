@@ -1,6 +1,7 @@
 import type { GitHubEntityContext, PiRunResult } from "../types.js";
 import type { ReviewCost, ReviewCostTotal } from "./cost.js";
 import type { PostSummary } from "../entrypoints/post-buffered.js";
+import type { ParsedReviewFinding } from "./findings.js";
 
 export interface ReviewRunMetric {
   role: "reviewer" | "validator";
@@ -34,6 +35,7 @@ export interface ReviewSummaryInput {
   inlineComments: PostSummary;
   costTotal: ReviewCostTotal;
   runs: ReviewRunMetric[];
+  findings?: ParsedReviewFinding[];
 }
 
 export function metricFromPiRun(
@@ -92,6 +94,7 @@ export function buildReviewSummary(input: ReviewSummaryInput) {
       skipped: input.inlineComments.skipped,
       failed: input.inlineComments.failed,
     },
+    findings: input.findings ?? [],
     cost: {
       usd: roundUsd(input.costTotal.costUsd),
       inputTokens: input.costTotal.inputTokens,

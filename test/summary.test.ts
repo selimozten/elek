@@ -97,6 +97,17 @@ describe("review summary", () => {
         metricFromPiRun(reviewer, "reviewer", { lensId: "correctness", lensTitle: "Correctness" }),
         metricFromPiRun(validator, "validator"),
       ],
+      findings: [{
+        title: "Missing tenant check",
+        severity: "critical",
+        confidence: "high",
+        path: "src/auth.ts",
+        line: "42",
+        evidence: "tenant is not checked",
+        impact: "tenant isolation can fail",
+        fix: "compare tenant ids before querying",
+        body: "- Severity: critical",
+      }],
     });
 
     expect(summary.run.durationSeconds).toBe(123.5);
@@ -111,6 +122,11 @@ describe("review summary", () => {
       commentId: "99",
     });
     expect(summary.inlineComments).toEqual({ posted: 2, skipped: 1, failed: 0 });
+    expect(summary.findings).toEqual([expect.objectContaining({
+      title: "Missing tenant check",
+      severity: "critical",
+      confidence: "high",
+    })]);
     expect(summary.cost).toMatchObject({
       usd: 0.005235,
       inputTokens: 1500,

@@ -73,6 +73,7 @@ import {
   metricFromPiRun,
   type ReviewRunMetric,
 } from "../review/summary.js";
+import { parseReviewFindings } from "../review/findings.js";
 import { sanitize } from "../mcp/handlers.js";
 import type { PostSummary } from "./post-buffered.js";
 
@@ -563,6 +564,7 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
+  const parsedFindings = parseReviewFindings(safeOutput);
   runMetrics.push(metricFromPiRun(result, "validator"));
   const costTotal = aggregateCosts(runCosts);
   const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
@@ -735,6 +737,7 @@ async function run(): Promise<void> {
     inlineComments: inlineSummary,
     costTotal,
     runs: runMetrics,
+    findings: parsedFindings,
   });
   const reviewSummaryJson = JSON.stringify(reviewSummary);
   const reviewSummaryFileJson = JSON.stringify(reviewSummary, null, 2);
