@@ -54,9 +54,11 @@ import type { PiRunResult } from "../types.js";
 import {
   buildLensPrompt,
   buildSynthesisPrompt,
+  countChangedDiffLines,
   resolveReviewPlan,
   resolveReviewPlanSupport,
   selectReviewPlanWithinBudget,
+  selectReviewPlanWithinDiffSize,
   type ReviewJob,
   type ReviewPlan,
 } from "../review/strategy.js";
@@ -407,6 +409,28 @@ async function run(): Promise<void> {
     });
     return [...lensCosts, synthesisCost];
   };
+
+  const changedLines = countChangedDiffLines(data.diff);
+  if (reviewPlanSupport.enabled) {
+    const sizeBoundPlan = selectReviewPlanWithinDiffSize({
+      inputs,
+      initialPlan: reviewPlan,
+      supportContext: { isPR: context.isPR, mode: resolvedMode.mode },
+      changedLines,
+    });
+    reviewPlan = sizeBoundPlan.plan;
+    reviewPlanSupport = sizeBoundPlan.support;
+    if (changedLines !== undefined) {
+      console.log(`[size] changed_lines=${changedLines}`);
+    }
+    for (const event of sizeBoundPlan.events) {
+      if (event.level === "warn") {
+        console.warn(event.message);
+      } else {
+        console.log(event.message);
+      }
+    }
+  }
 
   if (reviewPlanSupport.enabled && inputs.maxCostUsd !== undefined) {
     const budgetedPlan = selectReviewPlanWithinBudget({

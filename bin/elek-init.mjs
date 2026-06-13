@@ -233,6 +233,9 @@ export function renderConfig(options) {
     lines.push(`max_cost_usd: ${options.maxCostUsd}`, "");
   }
   lines.push(
+    "max_council_changed_lines: 1200",
+    "max_crosscheck_changed_lines: 3000",
+    "",
     "severity_threshold: important",
     "",
     "knowledge_paths:",

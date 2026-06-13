@@ -10,6 +10,8 @@ export interface ElekConfig {
   validatorModel?: string;
   costRates?: string;
   maxCostUsd?: number;
+  maxCouncilChangedLines?: number;
+  maxCrosscheckChangedLines?: number;
   severityThreshold?: "critical" | "important" | "minor";
   /** Repo-local docs to include in the review prompt. */
   knowledgePaths?: string[];
@@ -36,6 +38,8 @@ type ElekConfigKey =
   | "validatorModel"
   | "costRates"
   | "maxCostUsd"
+  | "maxCouncilChangedLines"
+  | "maxCrosscheckChangedLines"
   | "severityThreshold"
   | "knowledgePaths"
   | "ignorePaths"
@@ -54,6 +58,8 @@ const KEY_MAP: Record<string, ElekConfigKey> = {
   validator_model: "validatorModel",
   cost_rates: "costRates",
   max_cost_usd: "maxCostUsd",
+  max_council_changed_lines: "maxCouncilChangedLines",
+  max_crosscheck_changed_lines: "maxCrosscheckChangedLines",
   severity_threshold: "severityThreshold",
   knowledge_paths: "knowledgePaths",
   ignore_paths: "ignorePaths",
@@ -167,6 +173,21 @@ function positiveNumber(value: unknown, key: string, warn: (message: string) => 
   return parsed;
 }
 
+function nonNegativeInteger(value: unknown, key: string, warn: (message: string) => void): number | undefined {
+  const scalar = stringValue(value);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+    return undefined;
+  }
+  if (!scalar) return undefined;
+  const parsed = Number(scalar);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    warn(`Ignoring invalid ${key}: ${scalar}`);
+    return undefined;
+  }
+  return parsed;
+}
+
 function promptText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -226,6 +247,10 @@ export function parseElekConfig(
         break;
       case "maxCostUsd":
         config.maxCostUsd = positiveNumber(value, rawKey, warn);
+        break;
+      case "maxCouncilChangedLines":
+      case "maxCrosscheckChangedLines":
+        config[key] = nonNegativeInteger(value, rawKey, warn);
         break;
       case "reviewStrategy": {
         const strategy = stringValue(value);
@@ -603,6 +628,8 @@ export function mergeBasePolicyWithWorkspaceGuidance(
     validatorModel: basePolicy.validatorModel,
     costRates: basePolicy.costRates,
     maxCostUsd: basePolicy.maxCostUsd,
+    maxCouncilChangedLines: basePolicy.maxCouncilChangedLines,
+    maxCrosscheckChangedLines: basePolicy.maxCrosscheckChangedLines,
     severityThreshold: basePolicy.severityThreshold,
     knowledgePaths: workspaceGuidance.knowledgePaths,
     knowledge: workspaceGuidance.knowledge,
@@ -626,6 +653,12 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
     maxCostUsd: inputs.maxCostUsd === undefined && config.maxCostUsd !== undefined
       ? config.maxCostUsd
       : inputs.maxCostUsd,
+    maxCouncilChangedLines: inputs.maxCouncilChangedLines === undefined && config.maxCouncilChangedLines !== undefined
+      ? config.maxCouncilChangedLines
+      : inputs.maxCouncilChangedLines,
+    maxCrosscheckChangedLines: inputs.maxCrosscheckChangedLines === undefined && config.maxCrosscheckChangedLines !== undefined
+      ? config.maxCrosscheckChangedLines
+      : inputs.maxCrosscheckChangedLines,
   };
 }
 
@@ -654,6 +687,8 @@ export function formatConfigAuditLog(
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
     `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
+    `max_council_changed_lines=${config.maxCouncilChangedLines ?? "(default)"}`,
+    `max_crosscheck_changed_lines=${config.maxCrosscheckChangedLines ?? "(default)"}`,
     `knowledge_paths=${knowledgePaths}`,
     `knowledge_files=${(config.knowledge ?? []).length}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
@@ -666,6 +701,8 @@ export function formatConfigAuditLog(
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
     fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
     fields.push(`effective_max_cost_usd=${effective.maxCostUsd ?? "(unset)"}`);
+    fields.push(`effective_max_council_changed_lines=${effective.maxCouncilChangedLines ?? "(default)"}`);
+    fields.push(`effective_max_crosscheck_changed_lines=${effective.maxCrosscheckChangedLines ?? "(default)"}`);
   }
   return fields.join(" | ");
 }

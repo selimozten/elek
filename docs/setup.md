@@ -184,6 +184,8 @@ review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
+max_council_changed_lines: 1200
+max_crosscheck_changed_lines: 3000
 severity_threshold: important
 
 knowledge_paths:
@@ -209,6 +211,8 @@ Supported keys:
 | `validator_model` | Default final validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | Soft cap; downgrade multi-lens reviews when known input-side estimates already exceed it |
+| `max_council_changed_lines` | Changed-line cap before `council` downgrades; `0` disables |
+| `max_crosscheck_changed_lines` | Changed-line cap before `crosscheck` downgrades; `0` disables |
 | `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `knowledge_paths` | Repo-local docs or directories to include as bounded review context |
 | `ignore_paths` | Skip a finding only when all of its evidence lies inside these paths; still surface issues that leak impact outside them |
@@ -221,9 +225,9 @@ existing config file has malformed YAML, elek fails the run instead of silently
 dropping repo policy.
 
 Security note: on pull requests, elek loads policy fields (`review_strategy`,
-`review_models`, `validator_model`, `cost_rates`, `max_cost_usd`, and
-`severity_threshold`) from the base branch when available. Guidance fields
-(`knowledge_paths`, `ignore_paths`, and `instructions`) come from the
+`review_models`, `validator_model`, `cost_rates`, `max_cost_usd`,
+changed-line guards, and `severity_threshold`) from the base branch when
+available. Guidance fields (`knowledge_paths`, `ignore_paths`, and `instructions`) come from the
 checked-out branch, so contributors can propose review guidance changes without
 controlling cost or severity policy. Each run logs the loaded config source
 plus effective strategy/model/severity choices.
@@ -267,11 +271,16 @@ per 1M input/output tokens:
     show_cost: true
     cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
     max_cost_usd: "0.10"
+    max_council_changed_lines: 1200
+    max_crosscheck_changed_lines: 3000
 ```
 
 `max_cost_usd` is conservative. elek only downgrades a multi-lens strategy
 when the known prompt/input-side estimate already exceeds the cap before
 output tokens. Add `cost_rates` for custom models so the guard can enforce it.
+Changed-line guards run first: by default, `council` downgrades above 1,200
+changed diff lines and `crosscheck` downgrades above 3,000. Set either guard
+to `0` to disable it.
 
 Disable the visible comment/log line while keeping outputs available:
 

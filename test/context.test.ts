@@ -24,6 +24,8 @@ const ENV_KEYS = [
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
   "INPUT_MAX_COST_USD",
+  "INPUT_MAX_COUNCIL_CHANGED_LINES",
+  "INPUT_MAX_CROSSCHECK_CHANGED_LINES",
   "INPUT_RUN_TIMEOUT_SECONDS",
 ];
 const saved: Record<string, string | undefined> = {};
@@ -207,17 +209,30 @@ describe("parseInputs", () => {
     process.env.INPUT_SHOW_COST = "false";
     process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
     process.env.INPUT_MAX_COST_USD = "0.25";
+    process.env.INPUT_MAX_COUNCIL_CHANGED_LINES = "1500";
+    process.env.INPUT_MAX_CROSSCHECK_CHANGED_LINES = "0";
 
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
     expect(inputs.maxCostUsd).toBe(0.25);
+    expect(inputs.maxCouncilChangedLines).toBe(1500);
+    expect(inputs.maxCrosscheckChangedLines).toBe(0);
   });
 
   it("rejects invalid max_cost_usd action inputs", () => {
     for (const value of ["0", "-0.05", "abc", "Infinity", ""]) {
       process.env.INPUT_MAX_COST_USD = value;
       expect(parseInputs().maxCostUsd).toBeUndefined();
+    }
+  });
+
+  it("rejects invalid changed-line guard inputs", () => {
+    for (const value of ["-1", "1.5", "abc", "Infinity"]) {
+      process.env.INPUT_MAX_COUNCIL_CHANGED_LINES = value;
+      process.env.INPUT_MAX_CROSSCHECK_CHANGED_LINES = value;
+      expect(parseInputs().maxCouncilChangedLines).toBeUndefined();
+      expect(parseInputs().maxCrosscheckChangedLines).toBeUndefined();
     }
   });
 
