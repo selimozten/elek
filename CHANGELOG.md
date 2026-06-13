@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - MIT license file and security policy for vulnerability reporting.
+- Weekly Dependabot maintenance for GitHub Actions and npm dependencies.
+- CI audit gate for high-severity runtime dependency advisories.
 
 ## [1.1.1] - 2026-06-13
 
