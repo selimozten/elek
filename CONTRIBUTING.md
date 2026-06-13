@@ -94,6 +94,14 @@ not explain what shipped.
 - [ ] No `package-lock.json` in the diff (gitignored)
 - [ ] No new MCP tools, no new model SDK imports, no new bash escape hatches
 
+## Dependency updates
+
+Dependabot opens weekly grouped PRs for patch and minor updates to GitHub
+Actions and npm dependencies. Major version upgrades are intentionally manual:
+open a focused PR with migration notes, local validation, and any required
+runtime changes. Keep `@types/node` aligned with the Node major in
+[action.yml](action.yml).
+
 ## Commit messages
 
 Use the same Conventional Commit style as PR titles: `feat:`, `fix:`,
