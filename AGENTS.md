@@ -1,7 +1,6 @@
 # AGENTS.md
 
-Instructions for coding agents working in this repository.
-working in this repository. Read before editing.
+Instructions for coding agents working in this repository. Read before editing.
 
 ## What this is
 

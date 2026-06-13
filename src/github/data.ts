@@ -1,6 +1,5 @@
 /**
  * GitHub data fetching and prompt building.
- * GitHub data fetching and prompt building.
  */
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
