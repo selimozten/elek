@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-13
+
 ### Changed
 
 - Switch the secondary self-review workflow to OpenRouter Kimi K2.7 Code.
