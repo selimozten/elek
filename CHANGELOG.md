@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MIT license file and security policy for vulnerability reporting.
 - Weekly Dependabot maintenance for GitHub Actions and npm dependencies.
 - CI audit gate for high-severity runtime dependency advisories.
+- Exact top-level dependency pins for more predictable action installs.
+
+### Changed
+
+- Composite action runtime installs now omit dev dependencies and avoid
+  writing a transient package lockfile.
 
 ## [1.1.1] - 2026-06-13
 

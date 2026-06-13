@@ -21,7 +21,7 @@ trigger phrase, actor filter, etc. Exposes the same surface for any pi-supported
 provider — the per-provider `*_api_key` inputs are just env-var pass-throughs
 (pi reads `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, etc. from process.env).
 
-Setup steps: `npm install` in `$GITHUB_ACTION_PATH`, prepend
+Setup steps: `npm install --omit=dev --no-package-lock` in `$GITHUB_ACTION_PATH`, prepend
 `node_modules/.bin` to `$GITHUB_PATH`, optionally `pi install npm:pi-mcp-adapter`.
 
 Run step: `tsx src/entrypoints/run.ts` with the inputs forwarded as `INPUT_*`
