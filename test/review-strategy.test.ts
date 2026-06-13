@@ -172,6 +172,8 @@ describe("review strategy", () => {
 
     expect(prompt).toContain("Your lens: Risk Review");
     expect(prompt).toContain("Focus: Correctness and security.");
+    expect(prompt).toContain("Available tools: `read`, `grep`, `find`, `ls`");
+    expect(prompt).toContain("Do not paste raw diff blocks into your candidate report");
     expect(prompt).toContain("Review this pull request.");
     expect(prompt).toContain("diff --git a/src/a.ts b/src/a.ts");
     expect(prompt).toContain("(no description)");

@@ -317,6 +317,7 @@ export function buildPiArgs(
     args.push("--no-extensions");
   }
 
+  // Empty model string intentionally means "use this provider's default".
   if (inputs.model) {
     args.push("--model", inputs.model);
   }
