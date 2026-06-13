@@ -1,5 +1,17 @@
 # Workflow examples
 
+## Generate starter files
+
+```bash
+npx --package github:selimozten/elek elek-init --provider deepseek
+```
+
+Cost-aware multi-pass starter:
+
+```bash
+npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
+```
+
 ## Auto-review on every push (recommended starting point)
 
 ```yaml

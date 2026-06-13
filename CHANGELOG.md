@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   impact, and a concrete fix for surfaced findings.
 - Repo-local `.elek.yml` config for review defaults, severity policy, ignored
   paths, and extra reviewer instructions.
+- Zero-dependency `elek-init` setup helper for generating a starter workflow
+  and repo review policy.
 
 ### Changed
 

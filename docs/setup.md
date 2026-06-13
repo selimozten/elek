@@ -6,6 +6,33 @@
 - One provider API key (DeepSeek, OpenRouter, OpenAI, Anthropic, ...)
 - Repo admin access (to add secrets)
 
+## Fast path
+
+From your repository root:
+
+```bash
+npx --package github:selimozten/elek elek-init --provider deepseek
+```
+
+This creates:
+
+- `.github/workflows/elek.yml`
+- `.elek.yml`
+
+Then add the `DEEPSEEK_API_KEY` repository secret and open a PR.
+
+Useful variants:
+
+```bash
+npx --package github:selimozten/elek elek-init --provider openrouter --model moonshotai/kimi-k2.7-code
+npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
+npx --package github:selimozten/elek elek-init --provider anthropic \
+  --model claude-sonnet-4-6 --secret ANTHROPIC_API_KEY
+npx --package github:selimozten/elek elek-init --no-config
+```
+
+`elek-init` refuses to overwrite existing files unless you pass `--force`.
+
 ## 1. Add the API key
 
 `Settings → Secrets and variables → Actions → New repository secret`. Use the secret name that matches the input on the action:
@@ -23,7 +50,7 @@
 
 For Bedrock: set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as job-level env. For Vertex: `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_VERTEX_PROJECT_ID`.
 
-## 2. Add the workflow
+## 2. Add the workflow manually
 
 `.github/workflows/elek.yml`:
 
