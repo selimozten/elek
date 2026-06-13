@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Composite action runtime installs now omit dev dependencies and avoid
   writing a transient package lockfile.
+- Dependabot version-update policy now defers semver-major upgrades to manual
+  migration PRs.
 
 ## [1.1.1] - 2026-06-13
 
