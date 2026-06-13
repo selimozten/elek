@@ -15,6 +15,7 @@ import { buildReviewCommentParams } from "../mcp/handlers";
 export type PostBufferedOctokit = {
   pulls: {
     createReviewComment: (params: any) => Promise<any>;
+    createReview?: (params: any) => Promise<any>;
     get: (params: any) => Promise<any>;
     listFiles?: (params: any) => Promise<any>;
   };
@@ -105,6 +106,19 @@ function isEntryCommentable(entry: BufferedEntry, map: Map<string, CommentableLi
   return null;
 }
 
+function toCreateReviewComment(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const {
+    owner: _owner,
+    repo: _repo,
+    pull_number: _pullNumber,
+    commit_id: _commitId,
+    ...comment
+  } = params;
+  return comment;
+}
+
 async function buildCommentableMap(
   octokit: PostBufferedOctokit,
   env: PostBufferedDeps["env"],
@@ -172,6 +186,8 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
     }
   };
 
+  const prepared: Array<Record<string, unknown>> = [];
+
   for (const entry of entries) {
     if (entry.confirmed === false) {
       summary.skipped++;
@@ -191,15 +207,49 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
       deps.env,
       entry.commit_id ?? (await ensureHeadSha()),
     );
+    prepared.push(params);
+  }
 
+  if (prepared.length === 0) return summary;
+
+  const commitIds = new Set(
+    prepared
+      .map((params) => params.commit_id)
+      .filter((v): v is string => typeof v === "string" && v.length > 0),
+  );
+
+  if (deps.octokit.pulls.createReview && commitIds.size === 1) {
+    try {
+      const [commitId] = [...commitIds];
+      await deps.octokit.pulls.createReview({
+        owner: deps.env.repoOwner,
+        repo: deps.env.repoName,
+        pull_number: parseInt(deps.env.prNumber, 10),
+        event: "COMMENT",
+        commit_id: commitId,
+        comments: prepared.map(toCreateReviewComment),
+      });
+      summary.posted += prepared.length;
+      log(`posted grouped review with ${prepared.length} inline comment(s)`);
+      return summary;
+    } catch (err) {
+      log(
+        `grouped review failed; falling back to individual comments — ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  for (const params of prepared) {
     try {
       await deps.octokit.pulls.createReviewComment(params);
       summary.posted++;
-      log(`posted ${entry.path}:${entry.line}`);
+      log(`posted ${params.path}:${params.line}`);
     } catch (err) {
       summary.failed++;
       log(
-        `failed ${entry.path}:${entry.line} — ${err instanceof Error ? err.message : String(err)}`,
+        `failed ${params.path}:${params.line} — ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
