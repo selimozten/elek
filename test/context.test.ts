@@ -24,6 +24,7 @@ const ENV_KEYS = [
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
   "INPUT_MAX_COST_USD",
+  "INPUT_RUN_TIMEOUT_SECONDS",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -218,6 +219,19 @@ describe("parseInputs", () => {
       process.env.INPUT_MAX_COST_USD = value;
       expect(parseInputs().maxCostUsd).toBeUndefined();
     }
+  });
+
+  it("parses run_timeout_seconds and falls back on invalid values", () => {
+    delete process.env.INPUT_RUN_TIMEOUT_SECONDS;
+    expect(parseInputs().runTimeoutSeconds).toBe(600);
+
+    for (const value of ["0", "-10", "1.5", "abc"]) {
+      process.env.INPUT_RUN_TIMEOUT_SECONDS = value;
+      expect(parseInputs().runTimeoutSeconds).toBe(600);
+    }
+
+    process.env.INPUT_RUN_TIMEOUT_SECONDS = "120";
+    expect(parseInputs().runTimeoutSeconds).toBe(120);
   });
 
   it("parses severity_threshold when explicitly set", () => {

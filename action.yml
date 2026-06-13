@@ -74,6 +74,10 @@ inputs:
     description: "Maximum conversation turns (limits cost). Default: 20."
     required: false
     default: "20"
+  run_timeout_seconds:
+    description: "Wall-clock timeout for each model run. elek reports a failure review before the outer GitHub step timeout can leave a stale tracking comment."
+    required: false
+    default: "600"
   tools:
     description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
@@ -185,6 +189,12 @@ outputs:
   output_tokens:
     description: "Estimated output tokens used by the review"
     value: ${{ steps.run.outputs.output_tokens }}
+  review_summary_path:
+    description: "Path to the machine-readable elek review summary JSON file"
+    value: ${{ steps.run.outputs.review_summary_path }}
+  review_summary_json:
+    description: "Machine-readable elek review summary JSON"
+    value: ${{ steps.run.outputs.review_summary_json }}
 
 runs:
   using: "composite"
@@ -237,6 +247,7 @@ runs:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+        INPUT_RUN_TIMEOUT_SECONDS: ${{ inputs.run_timeout_seconds }}
         INPUT_TOOLS: ${{ inputs.tools }}
         INPUT_CONFIG_PATH: ${{ inputs.config_path }}
         INPUT_BASE_BRANCH: ${{ inputs.base_branch }}

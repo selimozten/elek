@@ -257,9 +257,28 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh`; provider adapters map these to native efforts, e.g. Claude's maximum `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
 | `max_turns` | `20` | Cap conversation turns |
+| `run_timeout_seconds` | `600` | Wall-clock timeout for each model run; keep the job timeout higher so elek can update the tracking comment |
 | `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
 | `base_branch` | _(repo default)_ | Override the comparison base |
 | `branch_prefix` | `elek/` | Prefix for branches the action creates |
+
+## Outputs
+
+| Output | Notes |
+|---|---|
+| `conclusion` | `success`, `failure`, or `skipped` |
+| `summary` | First 1,000 chars of the final review text |
+| `cost_usd` | Aggregate estimated USD cost across all model runs |
+| `input_tokens` / `output_tokens` | Aggregate estimated token usage |
+| `review_summary_path` | Path to `elek-review-summary.json` on the runner |
+| `review_summary_json` | Same summary as a single-line JSON output |
+
+The review summary JSON includes run duration, requested/executed strategy,
+model labels, per-model token/cost estimates, pricing source, and inline
+comment counts. Use `review_summary_path` with your own artifact upload step
+when you want to compare models or review strategies across CI runs. If the
+runner cannot write the optional file, `review_summary_path` is set to an
+empty string while `review_summary_json` is still emitted.
 
 ## Repo Config
 

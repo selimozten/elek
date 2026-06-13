@@ -11,6 +11,8 @@ export interface ActionInputs {
   prompt: string;
   systemPrompt: string;
   maxTurns: number;
+  /** Wall-clock timeout for one pi invocation, in seconds. */
+  runTimeoutSeconds: number;
   tools: string;
   /** Repo-local config file path, e.g. .elek.yml. */
   configPath: string;
@@ -81,6 +83,7 @@ export interface PiRunResult {
   output: string;
   sessionId?: string;
   turnsUsed: number;
+  durationSeconds: number;
   costUsd: number;
   usage: {
     inputTokens: number;

@@ -85,6 +85,7 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
+          run_timeout_seconds: 600
 ```
 
 ## 3. Test it
@@ -236,6 +237,14 @@ and action outputs include:
 - `cost_usd`
 - `input_tokens`
 - `output_tokens`
+- `review_summary_path`
+- `review_summary_json`
+
+`review_summary_path` points to `elek-review-summary.json` in the runner temp
+directory. The JSON includes total duration, requested/executed strategy,
+model labels, per-model token/cost estimates, pricing source, and inline
+comment counts. Upload that path as an artifact in your workflow when you want
+to compare model quality, speed, and cost across PRs.
 
 For models without built-in price hints, pass your provider's current USD price
 per 1M input/output tokens:
