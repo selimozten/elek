@@ -171,11 +171,15 @@ with:
   review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
   validator_model: deepseek/deepseek-v4-pro
   max_cost_usd: "0.05"
+  max_council_changed_lines: 1200
+  max_crosscheck_changed_lines: 3000
 ```
 
 For expensive models, a good pattern is cheap parallel reviewers plus one stronger validator.
 If the selected multi-lens strategy already exceeds `max_cost_usd` before
 output tokens are counted, elek downgrades to the next cheaper strategy.
+If a PR exceeds a changed-line guard, elek also downgrades before starting
+model calls.
 
 ## Cross-Model Review
 
@@ -244,6 +248,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; multi-lens strategies downgrade when known input-side estimates already exceed it |
+| `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `council` downgrades; `0` disables |
+| `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `crosscheck` downgrades; `0` disables |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -319,6 +325,8 @@ review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
+max_council_changed_lines: 1200
+max_crosscheck_changed_lines: 3000
 severity_threshold: important
 
 knowledge_paths:
@@ -336,7 +344,8 @@ instructions:
 ```
 
 Supported keys: `review_strategy`, `review_models`, `validator_model`,
-`cost_rates`, `max_cost_usd`, `severity_threshold`, `knowledge_paths`,
+`cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
+`max_crosscheck_changed_lines`, `severity_threshold`, `knowledge_paths`,
 `ignore_paths`, and `instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
 the workflow input.
@@ -346,9 +355,9 @@ server-side filter. If an existing config file has malformed YAML, elek fails
 the run instead of silently dropping repo policy.
 
 On pull requests, policy fields (`review_strategy`, `review_models`,
-`validator_model`, `cost_rates`, `max_cost_usd`, and `severity_threshold`) are
-loaded from the base branch when available. Guidance fields (`knowledge_paths`,
-`ignore_paths`, and `instructions`) come from the checked-out branch so
+`validator_model`, `cost_rates`, `max_cost_usd`, changed-line guards, and
+`severity_threshold`) are loaded from the base branch when available. Guidance
+fields (`knowledge_paths`, `ignore_paths`, and `instructions`) come from the checked-out branch so
 contributors can propose review guidance changes without controlling cost or
 severity policy. `knowledge_paths` points elek at repo-local docs that should
 shape review judgment, such as agent instructions, contribution guidelines,
@@ -438,6 +447,8 @@ with:
   show_cost: true
   cost_rates: openai/gpt-5.5=1.25:10,anthropic/claude-sonnet-4-6=3:15
   max_cost_usd: "0.10"
+  max_council_changed_lines: 1200
+  max_crosscheck_changed_lines: 3000
 ```
 
 `max_cost_usd` is a soft guard for strategy selection. elek estimates the
@@ -445,6 +456,12 @@ known prompt/input-side cost before running multi-lens reviews; if that
 minimum estimate already exceeds the cap, it downgrades `council` to
 `crosscheck`, then `crosscheck` to `solo`. Provide `cost_rates` for custom
 models so the guard can enforce the cap.
+
+Changed-line guards run before cost estimates. By default, `council`
+downgrades above 1,200 changed diff lines and `crosscheck` downgrades above
+3,000. Override with `max_council_changed_lines` and
+`max_crosscheck_changed_lines`, or set either value to `0` to disable that
+guard.
 
 Running two cheap models in crosscheck mode often costs less than one premium
 validator while surfacing disagreements that a single pass misses.

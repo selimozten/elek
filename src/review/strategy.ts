@@ -47,6 +47,9 @@ export interface BudgetPlanResult {
   events: BudgetPlanEvent[];
 }
 
+const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 1_200;
+const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 3_000;
+
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
     id: "risk",
@@ -209,6 +212,63 @@ export function selectReviewPlanWithinBudget(args: {
       message:
         `[cost] ${plan.strategy} exceeds max_cost_usd=${costLabel(maxCostUsd)} ` +
         `before output tokens; downgrading to ${downgraded}.`,
+    });
+    plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
+    support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+    if (!support.enabled) break;
+  }
+
+  return { plan, support, events };
+}
+
+export function countChangedDiffLines(diff: string | undefined): number | undefined {
+  if (!diff) return undefined;
+  let changed = 0;
+  for (const line of diff.split("\n")) {
+    if (!line) continue;
+    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) changed++;
+  }
+  return changed;
+}
+
+function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInputs): number | undefined {
+  if (strategy === "council") {
+    const limit = inputs.maxCouncilChangedLines ?? DEFAULT_MAX_COUNCIL_CHANGED_LINES;
+    return limit === 0 ? undefined : limit;
+  }
+  if (strategy === "crosscheck") {
+    const limit = inputs.maxCrosscheckChangedLines ?? DEFAULT_MAX_CROSSCHECK_CHANGED_LINES;
+    return limit === 0 ? undefined : limit;
+  }
+  return undefined;
+}
+
+export function selectReviewPlanWithinDiffSize(args: {
+  inputs: ActionInputs;
+  initialPlan: ReviewPlan;
+  supportContext: { isPR: boolean; mode: string };
+  changedLines: number | undefined;
+}): BudgetPlanResult {
+  let plan = args.initialPlan;
+  let support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+  const events: BudgetPlanEvent[] = [];
+
+  if (!support.enabled || args.changedLines === undefined) {
+    return { plan, support, events };
+  }
+
+  for (;;) {
+    const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
+    if (limit === undefined || args.changedLines <= limit) break;
+
+    const downgraded = downgradeReviewStrategy(plan.strategy);
+    if (!downgraded) break;
+    events.push({
+      level: "warn",
+      message:
+        `[size] changed_lines=${args.changedLines} strategy=${plan.strategy} ` +
+        `max_${plan.strategy}_changed_lines=${limit}; downgrading to ${downgraded}.`,
     });
     plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
     support = resolveReviewPlanSupport(plan.strategy, args.supportContext);

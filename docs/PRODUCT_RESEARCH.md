@@ -39,6 +39,9 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - Estimated token/cost reporting through `show_cost`, `cost_rates`, and outputs.
 - Cost controls through `max_cost_usd`, including conservative downgrades from
   expensive multi-lens reviews when known prompt/input estimates exceed budget.
+- Strategy size guards through `max_council_changed_lines` and
+  `max_crosscheck_changed_lines`, including automatic fallback for large PRs
+  before model calls start.
 - Zero-dependency `elek-init` setup helper that creates a starter workflow and
   repo review policy.
 - Machine-readable review summary JSON with run duration, model labels,
@@ -53,11 +56,9 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 
 ### Next
 
-1. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
-   when a PR is too large.
-2. Benchmark fixture generator: create local seeded PR worktrees from a
+1. Benchmark fixture generator: create local seeded PR worktrees from a
    declarative suite so model comparisons can run end-to-end.
-3. Review analytics: aggregate summary artifacts over time to compare noise,
+2. Review analytics: aggregate summary artifacts over time to compare noise,
    acceptance, latency, and cost by model/strategy.
 
 ## Model evaluation plan

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildLensPrompt,
   buildSynthesisPrompt,
+  countChangedDiffLines,
   downgradeReviewStrategy,
   parseModelList,
   parseModelSpec,
@@ -9,6 +10,7 @@ import {
   resolveReviewPlanSupport,
   resolveReviewStrategy,
   selectReviewPlanWithinBudget,
+  selectReviewPlanWithinDiffSize,
 } from "../src/review/strategy";
 import type { GitHubData } from "../src/github/data";
 import type { ActionInputs } from "../src/types";
@@ -151,6 +153,69 @@ describe("review strategy", () => {
     expect(downgradeReviewStrategy("council")).toBe("crosscheck");
     expect(downgradeReviewStrategy("crosscheck")).toBe("solo");
     expect(downgradeReviewStrategy("solo")).toBeUndefined();
+  });
+
+  it("counts changed diff lines without counting file headers", () => {
+    expect(countChangedDiffLines([
+      "diff --git a/src/a.ts b/src/a.ts",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "-old",
+      "+new",
+      " context",
+      "+another",
+    ].join("\n"))).toBe(3);
+    expect(countChangedDiffLines(undefined)).toBeUndefined();
+  });
+
+  it("downgrades council and crosscheck when changed lines exceed default size guards", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "council" };
+    const result = selectReviewPlanWithinDiffSize({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      changedLines: 3_500,
+    });
+
+    expect(result.plan.strategy).toBe("solo");
+    expect(result.support.enabled).toBe(false);
+    expect(result.events.map((event) => event.message)).toEqual([
+      "[size] changed_lines=3500 strategy=council max_council_changed_lines=1200; downgrading to crosscheck.",
+      "[size] changed_lines=3500 strategy=crosscheck max_crosscheck_changed_lines=3000; downgrading to solo.",
+    ]);
+  });
+
+  it("keeps the requested strategy when explicit size limits allow it", () => {
+    const inputs = {
+      ...baseInputs,
+      reviewStrategy: "council",
+      maxCouncilChangedLines: 5_000,
+      maxCrosscheckChangedLines: 6_000,
+    };
+    const result = selectReviewPlanWithinDiffSize({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      changedLines: 3_500,
+    });
+
+    expect(result.plan.strategy).toBe("council");
+    expect(result.support.enabled).toBe(true);
+    expect(result.events).toEqual([]);
+  });
+
+  it("lets zero disable a strategy size guard", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "crosscheck", maxCrosscheckChangedLines: 0 };
+    const result = selectReviewPlanWithinDiffSize({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      changedLines: 20_000,
+    });
+
+    expect(result.plan.strategy).toBe("crosscheck");
+    expect(result.support.enabled).toBe(true);
+    expect(result.events).toEqual([]);
   });
 
   it("keeps the requested strategy when no budget cap is configured", () => {

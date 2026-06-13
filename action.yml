@@ -163,6 +163,18 @@ inputs:
       to a cheaper strategy.
     required: false
     default: ""
+  max_council_changed_lines:
+    description: >
+      Maximum changed diff lines before council automatically downgrades.
+      Empty uses elek's default guard; 0 disables the council size guard.
+    required: false
+    default: ""
+  max_crosscheck_changed_lines:
+    description: >
+      Maximum changed diff lines before crosscheck automatically downgrades.
+      Empty uses elek's default guard; 0 disables the crosscheck size guard.
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -263,6 +275,8 @@ runs:
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}
         INPUT_MAX_COST_USD: ${{ inputs.max_cost_usd }}
+        INPUT_MAX_COUNCIL_CHANGED_LINES: ${{ inputs.max_council_changed_lines }}
+        INPUT_MAX_CROSSCHECK_CHANGED_LINES: ${{ inputs.max_crosscheck_changed_lines }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}
