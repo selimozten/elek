@@ -341,7 +341,6 @@ export function buildSynthesisPrompt(params: {
     `- Do not surface claims that external packages, GitHub Actions, model IDs, or APIs do not exist unless they are backed by current repo files, package-manager output, or workflow error logs.`,
     `- Treat existing comments and review comments as already-visible context; do not duplicate findings that have already been posted unless they remain unresolved and materially changed.`,
     `- Drop speculative, cosmetic, duplicate, stale, or pre-existing issues not rooted in added/modified code.`,
-    `- Drop proposed fixes that add defensive bloat for impossible states, unused abstractions, or comments that restate code.`,
     `- If two reviewers found the same issue independently, treat that as stronger signal, but still verify it yourself.`,
     `- Prefer a small number of precise, actionable comments over noisy coverage.`,
     `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available are elek review-comment tools.`,
