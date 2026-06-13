@@ -4,6 +4,7 @@
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
 import { mcpToolGuidance } from "./mcp-guidance";
+import { reviewContractBullets, reviewFindingTemplate } from "../review/contract";
 
 type MinimalOctokit = {
   rest: {
@@ -232,8 +233,14 @@ export function buildPrompt(
   parts.push("4. **Provide your review** — Be specific:");
   parts.push("   - Reference exact file paths and line numbers");
   parts.push("   - Use code blocks for suggestions");
-  parts.push("   - Prioritize by severity: 🔴 critical → 🟡 medium → 🟢 minor");
+  parts.push("   - Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
+  parts.push("   - Follow the review finding contract for every finding.");
   parts.push(`   ${commentId ? "ALL feedback goes into your comment. Your console output is NOT visible to anyone." : ""}`);
+  parts.push("");
+
+  parts.push("### Review finding contract");
+  parts.push("");
+  parts.push(...reviewContractBullets());
   parts.push("");
 
   // ── If making changes ──
@@ -266,15 +273,7 @@ export function buildPrompt(
   parts.push("");
   parts.push("## Findings");
   parts.push("");
-  parts.push("### 🔴 Critical / 🟡 Medium / 🟢 Minor: [Title]");
-  parts.push("**File:** `path/to/file.ts` (line N)");
-  parts.push("");
-  parts.push("Explanation of the issue and why it matters.");
-  parts.push("");
-  parts.push("**Fix:**");
-  parts.push("```suggestion");
-  parts.push("// code suggestion here");
-  parts.push("```");
+  parts.push(...reviewFindingTemplate());
   parts.push("");
   parts.push("## Recommendations");
   parts.push("(broader suggestions, architecture notes, etc.)");

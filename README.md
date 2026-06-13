@@ -143,6 +143,10 @@ The `review_strategy` input controls orchestration quality:
 
 Candidate reviewers are read-only and cannot post. The final validator receives their reports, rejects speculative or duplicate findings, and posts only high-confidence feedback through elek's narrow review MCP tools.
 
+Every finding is expected to follow elek's review contract: severity,
+confidence, evidence, impact, and a concrete fix. Low-confidence findings
+should be dropped instead of posted.
+
 ```yaml
 with:
   provider: deepseek

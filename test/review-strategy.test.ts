@@ -205,6 +205,8 @@ describe("review strategy", () => {
     expect(prompt).toContain("Available tools: `read`, `grep`, `find`, `ls`");
     expect(prompt).toContain("Do not paste raw diff blocks into your candidate report");
     expect(prompt).toContain("Do not claim external packages, GitHub Actions");
+    expect(prompt).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
+    expect(prompt).toContain("- Confidence: high|medium");
     expect(prompt).toContain("Review this pull request.");
     expect(prompt).toContain("diff --git a/src/a.ts b/src/a.ts");
     expect(prompt).toContain("(no description)");
@@ -252,6 +254,8 @@ describe("review strategy", () => {
     });
 
     expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
+    expect(prompt).toContain("Do not surface low-confidence findings.");
+    expect(prompt).toContain("Fix: the smallest concrete change required");
     expect(prompt).toContain("Do not surface claims that external packages");
     expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
