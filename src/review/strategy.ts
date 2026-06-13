@@ -3,6 +3,7 @@ import type { GitHubData } from "../github/data.js";
 import { mcpToolGuidance } from "../github/mcp-guidance.js";
 import { reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
+import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -33,6 +34,17 @@ export interface ReviewPlan {
 export interface ReviewPlanSupport {
   enabled: boolean;
   warning?: string;
+}
+
+export interface BudgetPlanEvent {
+  level: "log" | "warn";
+  message: string;
+}
+
+export interface BudgetPlanResult {
+  plan: ReviewPlan;
+  support: ReviewPlanSupport;
+  events: BudgetPlanEvent[];
 }
 
 const CROSSCHECK_LENSES: ReviewLens[] = [
@@ -123,6 +135,12 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   return { strategy, jobs, validator, reusedModels };
 }
 
+export function downgradeReviewStrategy(strategy: ReviewStrategy): ReviewStrategy | undefined {
+  if (strategy === "council") return "crosscheck";
+  if (strategy === "crosscheck") return "solo";
+  return undefined;
+}
+
 export function resolveReviewPlanSupport(
   strategy: ReviewStrategy,
   context: { isPR: boolean; mode: string },
@@ -141,6 +159,63 @@ export function resolveReviewPlanSupport(
     };
   }
   return { enabled: true };
+}
+
+export function selectReviewPlanWithinBudget(args: {
+  inputs: ActionInputs;
+  initialPlan: ReviewPlan;
+  supportContext: { isPR: boolean; mode: string };
+  estimateCosts: (plan: ReviewPlan) => ReviewCost[];
+}): BudgetPlanResult {
+  let plan = args.initialPlan;
+  let support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+  const events: BudgetPlanEvent[] = [];
+  const maxCostUsd = args.inputs.maxCostUsd;
+
+  if (!support.enabled || maxCostUsd === undefined) {
+    return { plan, support, events };
+  }
+
+  const costLabel = (costUsd: number) => `${formatUsd(costUsd)} (${costUsd.toFixed(6)})`;
+
+  for (;;) {
+    const plannedCost = aggregateCosts(args.estimateCosts(plan));
+    const hasUnknownPricing = plannedCost.runs.some((run) => run.source === "unknown");
+    const knownCostUsd = plannedCost.runs
+      .filter((run) => run.source !== "unknown")
+      .reduce((sum, run) => sum + run.costUsd, 0);
+    const comparableCostUsd = hasUnknownPricing ? knownCostUsd : plannedCost.costUsd;
+
+    if (hasUnknownPricing) {
+      events.push({
+        level: "warn",
+        message:
+          `[cost] max_cost_usd=${costLabel(maxCostUsd)} has incomplete pricing for ${plan.strategy}; ` +
+          `provide cost_rates for all planned models.`,
+      });
+    }
+    events.push({
+      level: "log",
+      message:
+        `[cost] planned_minimum_input_cost=${costLabel(comparableCostUsd)} ` +
+        `strategy=${plan.strategy} max_cost_usd=${costLabel(maxCostUsd)}`,
+    });
+    if (comparableCostUsd <= maxCostUsd) break;
+
+    const downgraded = downgradeReviewStrategy(plan.strategy);
+    if (!downgraded) break;
+    events.push({
+      level: "warn",
+      message:
+        `[cost] ${plan.strategy} exceeds max_cost_usd=${costLabel(maxCostUsd)} ` +
+        `before output tokens; downgrading to ${downgraded}.`,
+    });
+    plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
+    support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+    if (!support.enabled) break;
+  }
+
+  return { plan, support, events };
 }
 
 function changedFilesBlock(data: GitHubData, maxChars = 60_000): string {

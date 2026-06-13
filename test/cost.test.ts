@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   aggregateCosts,
   costFromPiResult,
+  estimatePromptOnlyCost,
   estimateRunCost,
   estimateTokens,
   formatCostLine,
@@ -69,6 +70,18 @@ describe("review cost estimates", () => {
     expect(cost.outputTokens).toBe(1000);
     expect(cost.costUsd).toBeCloseTo(0.000435 + 0.00087, 8);
     expect(cost.source).toBe("builtin");
+  });
+
+  it("estimates prompt-only cost for preflight budget checks", () => {
+    const cost = estimatePromptOnlyCost({
+      modelLabel: "deepseek/deepseek-v4-pro",
+      prompt: "a".repeat(4000),
+      costRates: "",
+    });
+
+    expect(cost.inputTokens).toBe(1000);
+    expect(cost.outputTokens).toBe(0);
+    expect(cost.costUsd).toBeCloseTo(0.000435, 8);
   });
 
   it("aggregates multi-run review cost", () => {

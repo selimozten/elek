@@ -40,6 +40,7 @@ const baseInputs: ActionInputs = {
   severityThreshold: "",
   showCost: true,
   costRates: "",
+  maxCostUsd: undefined,
 };
 
 describe("elek config", () => {
@@ -51,6 +52,7 @@ review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4
+max_cost_usd: 0.25
 severity_threshold: important
 ignore_paths:
   - docs/**
@@ -68,6 +70,7 @@ instructions:
       reviewModels: "deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code",
       validatorModel: "deepseek/deepseek-v4-pro",
       costRates: "openrouter/moonshotai/kimi-k2.7-code=0.95:4",
+      maxCostUsd: 0.25,
       severityThreshold: "important",
       ignorePaths: ["docs/**", "*.md"],
       instructions: [
@@ -82,6 +85,7 @@ instructions:
     const config = parseElekConfig(
       `
 severity_threshold: advisory
+max_cost_usd: nope
 review_strategy: corsscheck
 validator_model:
   nested: model
@@ -101,6 +105,7 @@ instructions:
     );
 
     expect(config.severityThreshold).toBeUndefined();
+    expect(config.maxCostUsd).toBeUndefined();
     expect(config.reviewStrategy).toBeUndefined();
     expect(config.validatorModel).toBeUndefined();
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
@@ -109,6 +114,7 @@ instructions:
     expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
+      "Ignoring invalid max_cost_usd: nope",
       "Ignoring invalid review_strategy: corsscheck",
       "Ignoring non-scalar validator_model value",
       "Ignoring unknown config key: unknown_key",
@@ -116,6 +122,17 @@ instructions:
       "Ignoring non-scalar cost_rates item",
       "Ignoring non-scalar instructions item",
     ]);
+  });
+
+  it("warns and skips boundary max_cost_usd values", () => {
+    for (const value of ["0", "-0.01", ".inf", ".nan"]) {
+      const warnings: string[] = [];
+      const config = parseElekConfig(`max_cost_usd: ${value}\n`, (message) => warnings.push(message));
+
+      expect(config.maxCostUsd).toBeUndefined();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toStartWith("Ignoring invalid max_cost_usd:");
+    }
   });
 
   it("warns and skips non-mapping yaml documents", () => {
@@ -165,6 +182,7 @@ instructions:
       reviewModels: "openrouter/model-a",
       validatorModel: "deepseek/model-b",
       costRates: "deepseek/model-b=1:2",
+      maxCostUsd: 0.2,
       ignorePaths: [],
       instructions: [],
     };
@@ -175,6 +193,7 @@ instructions:
       validatorModel: "deepseek/model-b",
       severityThreshold: "",
       costRates: "deepseek/model-b=1:2",
+      maxCostUsd: 0.2,
     });
 
     expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "", severityThreshold: "" }, {
@@ -191,12 +210,14 @@ instructions:
       validatorModel: "explicit/validator",
       severityThreshold: "critical",
       costRates: "explicit/model=3:4",
+      maxCostUsd: 1,
     }, config)).toMatchObject({
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
       validatorModel: "explicit/validator",
       severityThreshold: "critical",
       costRates: "explicit/model=3:4",
+      maxCostUsd: 1,
     });
   });
 
@@ -206,6 +227,7 @@ instructions:
       reviewModels: "openrouter/base-reviewer",
       validatorModel: "deepseek/base-validator",
       costRates: "openrouter/base-reviewer=1:2",
+      maxCostUsd: 0.5,
       severityThreshold: "important",
       ignorePaths: ["base-only/**"],
       instructions: ["Base instruction."],
@@ -214,6 +236,7 @@ instructions:
       reviewModels: "openrouter/pr-reviewer",
       validatorModel: "deepseek/pr-validator",
       costRates: "openrouter/pr-reviewer=10:20",
+      maxCostUsd: 10,
       severityThreshold: "critical",
       ignorePaths: ["docs/**"],
       instructions: ["PR guidance."],
@@ -222,6 +245,7 @@ instructions:
       reviewModels: "openrouter/base-reviewer",
       validatorModel: "deepseek/base-validator",
       costRates: "openrouter/base-reviewer=1:2",
+      maxCostUsd: 0.5,
       severityThreshold: "important",
       ignorePaths: ["docs/**"],
       instructions: ["PR guidance."],
@@ -370,6 +394,7 @@ instructions:
         "review_models: openrouter/base-reviewer",
         "validator_model: deepseek/base-validator",
         "cost_rates: openrouter/base-reviewer=1:2",
+        "max_cost_usd: 0.75",
         "severity_threshold: important",
         "ignore_paths:",
         "  - base-only/**",
@@ -392,6 +417,7 @@ instructions:
           reviewModels: "openrouter/base-reviewer",
           validatorModel: "deepseek/base-validator",
           costRates: "openrouter/base-reviewer=1:2",
+          maxCostUsd: 0.75,
           severityThreshold: "important",
           ignorePaths: ["base-only/**"],
           instructions: ["Base instruction."],
@@ -404,6 +430,7 @@ instructions:
           reviewModels: "openrouter/base-reviewer",
           validatorModel: "deepseek/base-validator",
           costRates: "openrouter/base-reviewer=1:2",
+          maxCostUsd: 0.75,
           severityThreshold: "important",
           ignorePaths: ["base-only/**"],
           instructions: ["Base instruction."],
@@ -517,13 +544,14 @@ instructions:
         validatorModel: "deepseek/model-b",
         severityThreshold: "important",
         costRates: "deepseek/model-b=1:2",
+        maxCostUsd: 0.3,
         ignorePaths: ["docs/**"],
         instructions: ["Treat migrations as operational risk."],
       })).toBe(
         "[config] audit | path=.elek.yml | source=checked-out-workspace | " +
           "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
           "validator_model=deepseek/model-b | " +
-          "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
+          "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | max_cost_usd=0.3 | " +
           "ignore_paths=docs/** | instructions=1",
       );
 
@@ -543,10 +571,11 @@ instructions:
         validatorModel: "deepseek/model-b",
         severityThreshold: "critical",
         costRates: "deepseek/model-b=1:2",
+        maxCostUsd: 0.3,
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
           "effective_validator_model=deepseek/model-b | effective_severity_threshold=critical | " +
-          "effective_cost_rates=deepseek/model-b=1:2",
+          "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3",
       );
     } finally {
       if (previousEvent === undefined) {

@@ -41,6 +41,12 @@ export interface ActionInputs {
    * model=inputPerMillion:outputPerMillion,...
    */
   costRates: string;
+  /**
+   * Optional soft cap for the estimated review cost. When a multi-lens
+   * strategy would exceed this cap before execution, elek downgrades to a
+   * cheaper strategy.
+   */
+  maxCostUsd?: number;
 }
 
 export interface GitHubEntityContext {

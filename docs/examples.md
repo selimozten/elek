@@ -131,6 +131,7 @@ jobs:
           severity_threshold: important
           show_cost: true
           cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
+          max_cost_usd: "0.10"
 ```
 
 ## Repo-local review policy
@@ -141,6 +142,7 @@ jobs:
 review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
+max_cost_usd: 0.05
 severity_threshold: important
 
 ignore_paths:

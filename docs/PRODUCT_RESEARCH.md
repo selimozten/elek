@@ -37,13 +37,15 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - `solo`, `crosscheck`, and `council` review strategies.
 - OpenRouter Kimi K2.7 Code support in examples.
 - Estimated token/cost reporting through `show_cost`, `cost_rates`, and outputs.
+- Cost controls through `max_cost_usd`, including conservative downgrades from
+  expensive multi-lens reviews when known prompt/input estimates exceed budget.
 
 ### Next
 
 1. Finding validation: ask the validator to reject findings that lack a
    reproducible path or contradict changed code.
-2. Cost controls: `max_cost_usd`, per-strategy budgets, and automatic fallback
-   from `council` to `crosscheck` when a PR is too large.
+2. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
+   when a PR is too large.
 3. Setup command: generate a starter workflow and recommended secrets checklist.
 4. Repo knowledge: include selected project docs such as `AGENTS.md`,
    `CONTRIBUTING.md`, `docs/adr/**`, and configured guidelines in the prompt.

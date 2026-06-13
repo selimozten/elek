@@ -9,6 +9,7 @@ export interface ElekConfig {
   reviewModels?: string;
   validatorModel?: string;
   costRates?: string;
+  maxCostUsd?: number;
   severityThreshold?: "critical" | "important" | "minor";
   ignorePaths: string[];
   instructions: string[];
@@ -31,6 +32,7 @@ const KEY_MAP: Record<string, keyof ElekConfig> = {
   review_models: "reviewModels",
   validator_model: "validatorModel",
   cost_rates: "costRates",
+  max_cost_usd: "maxCostUsd",
   severity_threshold: "severityThreshold",
   ignore_paths: "ignorePaths",
   instructions: "instructions",
@@ -122,6 +124,21 @@ function modelList(value: unknown, key: string, warn: (message: string) => void)
   return scalar;
 }
 
+function positiveNumber(value: unknown, key: string, warn: (message: string) => void): number | undefined {
+  const scalar = stringValue(value);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+    return undefined;
+  }
+  if (!scalar) return undefined;
+  const parsed = Number(scalar);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    warn(`Ignoring invalid ${key}: ${scalar}`);
+    return undefined;
+  }
+  return parsed;
+}
+
 function promptText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -168,6 +185,9 @@ export function parseElekConfig(
         break;
       case "costRates":
         config.costRates = modelList(value, rawKey, warn);
+        break;
+      case "maxCostUsd":
+        config.maxCostUsd = positiveNumber(value, rawKey, warn);
         break;
       case "reviewStrategy": {
         const strategy = stringValue(value);
@@ -357,6 +377,7 @@ export function mergeBasePolicyWithWorkspaceGuidance(
     reviewModels: basePolicy.reviewModels,
     validatorModel: basePolicy.validatorModel,
     costRates: basePolicy.costRates,
+    maxCostUsd: basePolicy.maxCostUsd,
     severityThreshold: basePolicy.severityThreshold,
     ignorePaths: workspaceGuidance.ignorePaths,
     instructions: workspaceGuidance.instructions,
@@ -375,6 +396,9 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
     severityThreshold:
       !inputs.severityThreshold && config.severityThreshold ? config.severityThreshold : inputs.severityThreshold,
     costRates: !inputs.costRates && config.costRates ? config.costRates : inputs.costRates,
+    maxCostUsd: inputs.maxCostUsd === undefined && config.maxCostUsd !== undefined
+      ? config.maxCostUsd
+      : inputs.maxCostUsd,
   };
 }
 
@@ -397,6 +421,7 @@ export function formatConfigAuditLog(
     `validator_model=${config.validatorModel ?? "(unset)"}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
+    `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
     `instructions=${config.instructions.length}`,
   ];
@@ -406,6 +431,7 @@ export function formatConfigAuditLog(
     fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
     fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
+    fields.push(`effective_max_cost_usd=${effective.maxCostUsd ?? "(unset)"}`);
   }
   return fields.join(" | ");
 }

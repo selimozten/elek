@@ -23,6 +23,7 @@ const ENV_KEYS = [
   "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
+  "INPUT_MAX_COST_USD",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -204,10 +205,19 @@ describe("parseInputs", () => {
   it("can disable cost reporting and parse rate overrides", () => {
     process.env.INPUT_SHOW_COST = "false";
     process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
+    process.env.INPUT_MAX_COST_USD = "0.25";
 
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
+    expect(inputs.maxCostUsd).toBe(0.25);
+  });
+
+  it("rejects invalid max_cost_usd action inputs", () => {
+    for (const value of ["0", "-0.05", "abc", "Infinity", ""]) {
+      process.env.INPUT_MAX_COST_USD = value;
+      expect(parseInputs().maxCostUsd).toBeUndefined();
+    }
   });
 
   it("parses severity_threshold when explicitly set", () => {
