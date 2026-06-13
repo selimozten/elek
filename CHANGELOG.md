@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Weekly Dependabot maintenance for GitHub Actions and npm dependencies.
 - CI audit gate for high-severity runtime dependency advisories.
 - Exact top-level dependency pins for more predictable action installs.
+- CodeQL code scanning workflow for JavaScript/TypeScript security analysis.
 
 ### Changed
 
