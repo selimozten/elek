@@ -108,6 +108,8 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
+  configureGitAuth(githubToken, context);
+
   let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
   if (context.isPR && !context.pr?.baseRef) {
     try {
@@ -126,22 +128,26 @@ async function run(): Promise<void> {
   const workspaceConfig = loadElekConfig(parsedInputs.configPath, (message) => {
     console.warn(`[config] ${message}`);
   });
-  const repoConfig = context.isPR
-    ? mergeBasePolicyWithWorkspaceGuidance(
-        loadBaseBranchElekConfig(
-          parsedInputs.configPath,
-          configBaseRef,
-          (message) => console.warn(`[config] ${message}`),
-        ),
-        workspaceConfig,
+  const baseConfig = context.isPR
+    ? loadBaseBranchElekConfig(
+        parsedInputs.configPath,
+        configBaseRef,
+        (message) => console.warn(`[config] ${message}`),
       )
+    : undefined;
+  const repoConfig = baseConfig
+    ? mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig)
     : workspaceConfig;
   const inputs = applyConfigDefaults(parsedInputs, repoConfig);
   console.log(formatConfigAuditLog(
     parsedInputs.configPath,
     repoConfig,
     inputs,
-    context.isPR ? "base-branch-policy+checked-out-guidance" : undefined,
+    context.isPR
+      ? baseConfig?.loaded
+        ? "base-branch-policy+checked-out-guidance"
+        : "checked-out-guidance-only"
+      : undefined,
   ));
 
   console.log(
@@ -165,9 +171,6 @@ async function run(): Promise<void> {
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
   const piInputs = { ...inputs, tools: piTools };
-
-  // Configure git for potential code changes
-  configureGitAuth(githubToken, context);
 
   // Determine base branch
   const baseBranch =

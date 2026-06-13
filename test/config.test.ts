@@ -227,6 +227,25 @@ instructions:
     ]);
   });
 
+  it("bounds config prompt guidance", () => {
+    const warnings: string[] = [];
+    const config = parseElekConfig([
+      "ignore_paths:",
+      ...Array.from({ length: 52 }, (_, index) => `  - path-${index}`),
+      "instructions:",
+      `  - ${"a".repeat(501)}`,
+      "",
+    ].join("\n"), (message) => warnings.push(message));
+
+    expect(config.ignorePaths).toHaveLength(50);
+    expect(config.ignorePaths.at(-1)).toBe("path-49");
+    expect(config.instructions).toEqual(["a".repeat(500)]);
+    expect(warnings).toEqual([
+      "Ignoring 2 excess ignore_paths items",
+      "Truncating instructions item longer than 500 characters",
+    ]);
+  });
+
   it("treats disable aliases as disabling config loading", () => {
     expect(loadElekConfig("none")).toEqual({ ignorePaths: [], instructions: [] });
     expect(loadElekConfig("off")).toEqual({ ignorePaths: [], instructions: [] });
@@ -249,7 +268,7 @@ instructions:
         ignorePaths: [],
         instructions: [],
       });
-      expect(warnings.at(-1)).toContain("Could not read config file");
+      expect(warnings.at(-1)).toContain("Config path is not a file");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -328,7 +347,9 @@ instructions:
 
       process.chdir(work);
       process.env.GITHUB_WORKSPACE = work;
-      expect(loadBaseBranchElekConfig(".elek.yml", "main")).toEqual({
+      expect(loadBaseBranchElekConfig(".elek.yml", "refs/heads/main")).toEqual({
+        loaded: true,
+        config: {
         reviewStrategy: "council",
         reviewModels: "openrouter/base-reviewer",
         validatorModel: "deepseek/base-validator",
@@ -336,6 +357,7 @@ instructions:
         severityThreshold: "important",
         ignorePaths: ["base-only/**"],
         instructions: ["Base instruction."],
+        },
       });
     } finally {
       process.chdir(previousCwd);
@@ -370,28 +392,40 @@ instructions:
       process.env.GITHUB_WORKSPACE = work;
       const warnings: string[] = [];
       expect(loadBaseBranchElekConfig("missing.yml", "main", (message) => warnings.push(message))).toEqual({
-        ignorePaths: [],
-        instructions: [],
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
       });
       expect(warnings.at(-1)).toContain("Could not load base branch config");
 
       expect(() => loadBaseBranchElekConfig(".elek.yml", "main")).toThrow(ElekConfigParseError);
 
       expect(loadBaseBranchElekConfig("../.elek.yml", "main", (message) => warnings.push(message))).toEqual({
-        ignorePaths: [],
-        instructions: [],
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
       });
       expect(warnings.at(-1)).toContain("Config path is not repo-local");
 
       expect(loadBaseBranchElekConfig(".elek.yml", "-bad", (message) => warnings.push(message))).toEqual({
-        ignorePaths: [],
-        instructions: [],
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
       });
       expect(warnings.at(-1)).toContain("Base ref is not safe");
 
       expect(loadBaseBranchElekConfig(".elek.yml", "../main", (message) => warnings.push(message))).toEqual({
-        ignorePaths: [],
-        instructions: [],
+        loaded: false,
+        config: {
+          ignorePaths: [],
+          instructions: [],
+        },
       });
       expect(warnings.at(-1)).toContain("Base ref is not safe");
     } finally {

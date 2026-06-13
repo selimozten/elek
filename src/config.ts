@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync } from "fs";
+import { readFileSync, realpathSync, statSync } from "fs";
 import { resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
@@ -12,6 +12,11 @@ export interface ElekConfig {
   severityThreshold?: "critical" | "important" | "minor";
   ignorePaths: string[];
   instructions: string[];
+}
+
+export interface ElekConfigLoadResult {
+  config: ElekConfig;
+  loaded: boolean;
 }
 
 export class ElekConfigParseError extends Error {
@@ -32,6 +37,8 @@ const KEY_MAP: Record<string, keyof ElekConfig> = {
 };
 
 const SEVERITIES = new Set(["critical", "important", "minor"]);
+const MAX_PROMPT_LIST_ITEMS = 50;
+const MAX_PROMPT_ENTRY_CHARS = 500;
 const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
   solo: "solo",
   crosscheck: "crosscheck",
@@ -80,6 +87,18 @@ function stringList(value: unknown, key: string, warn: (message: string) => void
     warn(`Ignoring non-scalar ${key} value`);
   }
   return scalar ? [scalar] : [];
+}
+
+function boundedPromptList(items: string[], key: string, warn: (message: string) => void): string[] {
+  const bounded = items.slice(0, MAX_PROMPT_LIST_ITEMS).map((item) => {
+    if (item.length <= MAX_PROMPT_ENTRY_CHARS) return item;
+    warn(`Truncating ${key} item longer than ${MAX_PROMPT_ENTRY_CHARS} characters`);
+    return item.slice(0, MAX_PROMPT_ENTRY_CHARS);
+  });
+  if (items.length > MAX_PROMPT_LIST_ITEMS) {
+    warn(`Ignoring ${items.length - MAX_PROMPT_LIST_ITEMS} excess ${key} items`);
+  }
+  return bounded;
 }
 
 function modelList(value: unknown, key: string, warn: (message: string) => void): string | undefined {
@@ -141,7 +160,7 @@ export function parseElekConfig(
     switch (key) {
       case "ignorePaths":
       case "instructions":
-        config[key] = stringList(value, rawKey, warn);
+        config[key] = boundedPromptList(stringList(value, rawKey, warn), rawKey, warn);
         break;
       case "reviewModels":
         config.reviewModels = modelList(value, rawKey, warn);
@@ -177,6 +196,7 @@ export function parseElekConfig(
         } else if (value != null) {
           warn(`Ignoring non-scalar ${rawKey} value`);
         }
+        break;
       }
     }
   }
@@ -203,9 +223,12 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     warn(`Config path resolves outside the workspace: ${trimmed}`);
     return emptyConfig();
   }
-  if (!existsSync(resolved)) return emptyConfig();
-
   try {
+    const stat = statSync(resolved);
+    if (!stat.isFile()) {
+      warn(`Config path is not a file: ${trimmed}`);
+      return emptyConfig();
+    }
     const realResolved = realpathSync(resolved);
     if (realResolved !== root && !realResolved.startsWith(root + sep)) {
       warn(`Config path resolves outside the workspace: ${trimmed}`);
@@ -216,59 +239,76 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     });
   } catch (err) {
     if (err instanceof ElekConfigParseError) throw err;
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return emptyConfig();
     warn(`Could not read config file ${trimmed}: ${(err as Error).message}`);
     return emptyConfig();
   }
+}
+
+function normalizeBaseRef(baseRef: string): string | undefined {
+  const shortRef = baseRef.startsWith("refs/heads/") ? baseRef.slice("refs/heads/".length) : baseRef;
+  if (
+    !shortRef ||
+    shortRef.startsWith("-") ||
+    shortRef.split(/[\\/]+/).includes("..") ||
+    !/^[A-Za-z0-9_./-]+$/.test(shortRef)
+  ) {
+    return undefined;
+  }
+  return shortRef;
 }
 
 export function loadBaseBranchElekConfig(
   path: string,
   baseRef: string | undefined,
   warn: (message: string) => void = () => {},
-): ElekConfig {
+): ElekConfigLoadResult {
   const trimmed = path.trim();
   if (!baseRef || !trimmed || ["none", "off", "false"].includes(trimmed.toLowerCase())) {
-    return emptyConfig();
+    return { config: emptyConfig(), loaded: false };
   }
   if (trimmed.startsWith("/") || trimmed.split(/[\\/]+/).includes("..")) {
     warn(`Config path is not repo-local: ${trimmed}`);
-    return emptyConfig();
+    return { config: emptyConfig(), loaded: false };
   }
-  if (baseRef.startsWith("-") || baseRef.split(/[\\/]+/).includes("..") || !/^[A-Za-z0-9_./-]+$/.test(baseRef)) {
+
+  const shortBaseRef = normalizeBaseRef(baseRef);
+  if (!shortBaseRef) {
     warn(`Base ref is not safe for config loading: ${baseRef}`);
-    return emptyConfig();
+    return { config: emptyConfig(), loaded: false };
   }
+  const remoteRef = `origin/${shortBaseRef}`;
 
   const gitCwd = process.env.GITHUB_WORKSPACE || process.cwd();
   try {
-    execFileSync("git", ["rev-parse", "--verify", `origin/${baseRef}`], {
+    execFileSync("git", ["rev-parse", "--verify", remoteRef], {
       cwd: gitCwd,
       stdio: "ignore",
     });
   } catch {
     try {
-      execFileSync("git", ["fetch", "origin", baseRef, "--depth=1"], {
+      execFileSync("git", ["fetch", "origin", shortBaseRef, "--depth=1"], {
         cwd: gitCwd,
         stdio: "ignore",
       });
     } catch (err) {
       warn(`Could not fetch base branch config source ${baseRef}: ${(err as Error).message}`);
-      return emptyConfig();
+      return { config: emptyConfig(), loaded: false };
     }
   }
 
   try {
-    const text = execFileSync("git", ["show", `origin/${baseRef}:${trimmed}`], {
+    const text = execFileSync("git", ["show", `${remoteRef}:${trimmed}`], {
       cwd: gitCwd,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
       maxBuffer: 10 * 1024 * 1024,
     });
-    return parseElekConfig(text, warn, { throwOnParseError: true });
+    return { config: parseElekConfig(text, warn, { throwOnParseError: true }), loaded: true };
   } catch (err) {
     if (err instanceof ElekConfigParseError) throw err;
     warn(`Could not load base branch config from ${trimmed} on ${baseRef}: ${(err as Error).message}`);
-    return emptyConfig();
+    return { config: emptyConfig(), loaded: false };
   }
 }
 
