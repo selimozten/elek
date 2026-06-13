@@ -257,7 +257,7 @@ async function run(): Promise<void> {
     lastUpdate = now;
     lastBody = body;
     try {
-      await updateTrackingComment(octokit, context, commentId, body, activeModelLabel);
+      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
     } catch (err) {
       console.warn("progress update failed:", (err as Error).message);
     }
@@ -404,11 +404,11 @@ async function run(): Promise<void> {
     ].join("\n");
 
     try {
-      await updateTrackingComment(octokit, context, commentId, reviewBody, activeModelLabel);
+      await updateTrackingComment(octokit, context, commentId, reviewBody, modelLabel);
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
-        await postComment(octokit, context, reviewBody, activeModelLabel);
+        await postComment(octokit, context, reviewBody, modelLabel);
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
