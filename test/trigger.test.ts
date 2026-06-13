@@ -15,6 +15,7 @@ const baseInputs: ActionInputs = {
   systemPrompt: "",
   maxTurns: 20,
   tools: "",
+  configPath: ".elek.yml",
   branchPrefix: "elek/",
   actorFilter: "",
   allowedBots: "",
@@ -23,6 +24,7 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  severityThreshold: "",
   showCost: true,
   costRates: "",
 };

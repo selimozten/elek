@@ -12,6 +12,8 @@ export interface ActionInputs {
   systemPrompt: string;
   maxTurns: number;
   tools: string;
+  /** Repo-local config file path, e.g. .elek.yml. */
+  configPath: string;
   baseBranch?: string;
   branchPrefix: string;
   actorFilter: string;
@@ -30,6 +32,8 @@ export interface ActionInputs {
   reviewModels: string;
   /** Optional model spec for final validation/synthesis. */
   validatorModel: string;
+  /** Optional prompt-level severity threshold for reported findings. */
+  severityThreshold: "" | "critical" | "important" | "minor";
   /** Show estimated review cost in logs, outputs, and comments. */
   showCost: boolean;
   /**

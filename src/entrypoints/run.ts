@@ -21,6 +21,13 @@ import { join } from "path";
 import { execSync } from "child_process";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
+import {
+  applyConfigDefaults,
+  formatConfigAuditLog,
+  loadBaseBranchElekConfig,
+  loadElekConfig,
+  mergeBasePolicyWithWorkspaceGuidance,
+} from "../config.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
@@ -64,7 +71,7 @@ async function run(): Promise<void> {
   core.setOutput("input_tokens", "0");
   core.setOutput("output_tokens", "0");
 
-  const inputs = parseInputs();
+  const parsedInputs = parseInputs();
   const context = parseEntityContext();
 
   if (!context) {
@@ -78,7 +85,7 @@ async function run(): Promise<void> {
   );
 
   // ── Phase 1: Trigger detection ───────────────────────────────────────
-  const userRequest = detectTrigger(context, inputs);
+  const userRequest = detectTrigger(context, parsedInputs);
 
   if (!userRequest) {
     console.log("No trigger detected — exiting cleanly");
@@ -87,18 +94,13 @@ async function run(): Promise<void> {
     return;
   }
 
-  if (!isActorAllowed(context, inputs)) {
+  if (!isActorAllowed(context, parsedInputs)) {
     console.log(`Actor @${context.actor} not allowed — exiting`);
     core.setOutput("conclusion", "skipped");
     core.setOutput("summary", `Actor @${context.actor} not authorized`);
     return;
   }
 
-  console.log(
-    `Triggered: "${userRequest.substring(0, 120)}${userRequest.length > 120 ? "..." : ""}"`,
-  );
-
-  // ── Phase 2: Setup ───────────────────────────────────────────────────
   const githubToken = process.env.GITHUB_TOKEN;
   if (!githubToken) {
     core.setFailed("GITHUB_TOKEN not available");
@@ -106,6 +108,71 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
+  configureGitAuth(githubToken, context);
+
+  let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
+  let canLoadBasePolicy = !context.isPR || Boolean(context.pr?.baseRef);
+  if (context.isPR && !context.pr?.baseRef) {
+    try {
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: context.entityNumber,
+      });
+      configBaseRef = pr.base?.ref || configBaseRef;
+      canLoadBasePolicy = Boolean(pr.base?.ref);
+      if (context.pr) {
+        context.pr = {
+          title: pr.title || context.pr.title,
+          body: pr.body || context.pr.body,
+          headRef: pr.head?.ref || context.pr.headRef,
+          baseRef: pr.base?.ref || context.pr.baseRef,
+          headSha: pr.head?.sha || context.pr.headSha,
+          baseSha: pr.base?.sha || context.pr.baseSha,
+        };
+      }
+    } catch (err) {
+      canLoadBasePolicy = false;
+      console.warn(`[config] Could not resolve PR base ref; skipping base branch policy: ${(err as Error).message}`);
+    }
+  }
+
+  const workspaceConfig = loadElekConfig(parsedInputs.configPath, (message) => {
+    console.warn(`[config] ${message}`);
+  });
+  const baseConfig = context.isPR
+    ? canLoadBasePolicy
+      ? loadBaseBranchElekConfig(
+        parsedInputs.configPath,
+        configBaseRef,
+        (message) => console.warn(`[config] ${message}`),
+      )
+      : { config: { ignorePaths: [], instructions: [] }, loaded: false }
+    : undefined;
+  const repoConfig = baseConfig
+    ? mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig)
+    : workspaceConfig;
+  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
+  const effectiveRepoConfig = {
+    ...repoConfig,
+    severityThreshold: inputs.severityThreshold || repoConfig.severityThreshold,
+  };
+  console.log(formatConfigAuditLog(
+    parsedInputs.configPath,
+    effectiveRepoConfig,
+    inputs,
+    context.isPR
+      ? baseConfig?.loaded
+        ? "base-branch-policy+checked-out-guidance"
+        : "checked-out-guidance-only"
+      : undefined,
+  ));
+
+  console.log(
+    `Triggered: "${userRequest.substring(0, 120)}${userRequest.length > 120 ? "..." : ""}"`,
+  );
+
+  // ── Phase 2: Setup ───────────────────────────────────────────────────
   const modelLabel = modelLabelFor(inputs);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
@@ -122,9 +189,6 @@ async function run(): Promise<void> {
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
   const piInputs = { ...inputs, tools: piTools };
-
-  // Configure git for potential code changes
-  configureGitAuth(githubToken, context);
 
   // Determine base branch
   const baseBranch =
@@ -163,6 +227,7 @@ async function run(): Promise<void> {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
     tools: piTools,
+    repoConfig: effectiveRepoConfig,
   });
 
   // Write prompt to file
@@ -279,6 +344,7 @@ async function run(): Promise<void> {
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
   const useReviewPlan = reviewPlanSupport.enabled;
+  console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
   const runCosts: ReviewCost[] = [];
 
   let finalInputs = piInputs;
@@ -328,6 +394,7 @@ async function run(): Promise<void> {
           userRequest,
           lens: job.lens,
           modelLabel: job.model.label,
+          repoConfig: effectiveRepoConfig,
         });
         const lensInputs = {
           ...piInputs,
@@ -372,6 +439,7 @@ async function run(): Promise<void> {
       jobRunLink,
       commentId,
       reports,
+      repoConfig: effectiveRepoConfig,
     });
     writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
   }

@@ -124,7 +124,7 @@ The `review_strategy` input controls orchestration quality:
 
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
-| `solo` (default) | 1 final reviewer | Fast, cheap default review. |
+| `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
 | `crosscheck` | 2 read-only lenses + 1 final validator | Best default for serious PR review. |
 | `council` | 4 read-only lenses + 1 final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
 
@@ -217,9 +217,11 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
-| `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
+| `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
+| `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
+| `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
@@ -238,6 +240,48 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
 | `base_branch` | _(repo default)_ | Override the comparison base |
 | `branch_prefix` | `elek/` | Prefix for branches the action creates |
+
+## Repo Config
+
+Add `.elek.yml` to keep review defaults and repo-specific policy next to the
+code. Workflow inputs still win when they are set explicitly.
+
+```yaml
+review_strategy: crosscheck
+review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+validator_model: deepseek/deepseek-v4-pro
+cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
+severity_threshold: important
+
+ignore_paths:
+  - docs/**
+  - "*.md"
+
+instructions:
+  - Treat auth and permission changes as security-sensitive.
+  - Require tests for parser and config changes.
+```
+
+Supported keys: `review_strategy`, `review_models`, `validator_model`,
+`cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
+`cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
+the workflow input.
+`severity_threshold` accepts `critical`, `important`, or `minor`. Severity
+and ignore-path policy are prompt instructions for the reviewer, not a
+server-side filter. If an existing config file has malformed YAML, elek fails
+the run instead of silently dropping repo policy.
+
+On pull requests, policy fields (`review_strategy`, `review_models`,
+`validator_model`, `cost_rates`, and `severity_threshold`) are loaded from the
+base branch when available. Guidance fields (`ignore_paths` and `instructions`)
+come from the checked-out branch so contributors can propose review guidance
+changes without controlling cost or severity policy. Each run logs the loaded
+config source plus effective strategy/model/severity choices. If elek cannot
+resolve a PR comment trigger's actual base branch, it skips base-branch policy
+loading for that run instead of guessing from the default branch; policy fields
+from the checked-out workspace are not used as a fallback. For `issue_comment`
+triggers, "checked-out branch" is whatever the workflow checked out, usually
+the default branch unless the workflow explicitly checks out the PR head.
 
 ### API keys
 

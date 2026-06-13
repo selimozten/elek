@@ -20,6 +20,7 @@ const baseInputs: ActionInputs = {
   systemPrompt: "",
   maxTurns: 20,
   tools: "",
+  configPath: ".elek.yml",
   branchPrefix: "elek/",
   actorFilter: "",
   allowedBots: "",
@@ -28,6 +29,7 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  severityThreshold: "",
   showCost: true,
   costRates: "",
 };
@@ -198,8 +200,16 @@ describe("review strategy", () => {
         focus: "Correctness and security.",
       },
       modelLabel: "deepseek/deepseek-v4-pro",
+      repoConfig: {
+        severityThreshold: "important",
+        ignorePaths: ["docs/**"],
+        instructions: ["Treat auth changes as security-sensitive."],
+      },
     });
 
+    expect(prompt).toContain("<elek_config>");
+    expect(prompt).toContain("severity_threshold: important");
+    expect(prompt).toContain("- Treat auth changes as security-sensitive.");
     expect(prompt).toContain("Your lens: Risk Review");
     expect(prompt).toContain("Focus: Correctness and security.");
     expect(prompt).toContain("Available tools: `read`, `grep`, `find`, `ls`");
@@ -251,8 +261,15 @@ describe("review strategy", () => {
           conclusion: "failure",
         },
       ],
+      repoConfig: {
+        severityThreshold: "important",
+        ignorePaths: ["docs/**"],
+        instructions: ["Treat auth changes as security-sensitive."],
+      },
     });
 
+    expect(prompt).toContain("<elek_config>");
+    expect(prompt).toContain("ignore_paths:");
     expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
     expect(prompt).toContain("Do not surface low-confidence findings.");
     expect(prompt).toContain("Fix: the smallest concrete change required");

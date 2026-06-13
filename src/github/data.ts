@@ -1,10 +1,11 @@
 /**
  * GitHub data fetching and prompt building.
  */
-import type { GitHubEntityContext } from "../types";
-import { getGitDiff } from "./git";
-import { mcpToolGuidance } from "./mcp-guidance";
-import { reviewContractBullets, reviewFindingTemplate } from "../review/contract";
+import type { GitHubEntityContext } from "../types.js";
+import { getGitDiff } from "./git.js";
+import { mcpToolGuidance } from "./mcp-guidance.js";
+import { reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
+import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 
 type MinimalOctokit = {
   rest: {
@@ -104,7 +105,7 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
-  options: { useMcp?: boolean; allowEdit?: boolean; tools?: string } = {},
+  options: { useMcp?: boolean; allowEdit?: boolean; tools?: string; repoConfig?: ElekConfig } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
@@ -186,6 +187,14 @@ export function buildPrompt(
   if (commentId) parts.push(`comment_id: ${commentId}`);
   parts.push("</metadata>");
   parts.push("");
+
+  const configBlock = options.repoConfig ? formatConfigPromptBlock(options.repoConfig) : [];
+  if (configBlock.length > 0) {
+    parts.push("<elek_config>");
+    parts.push(...configBlock);
+    parts.push("</elek_config>");
+    parts.push("");
+  }
 
   // ── User Request ──
   parts.push("<user_request>");

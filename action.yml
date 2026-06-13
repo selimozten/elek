@@ -78,6 +78,10 @@ inputs:
     description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
     default: ""
+  config_path:
+    description: "Repo-local elek config file path. Set to 'none', 'off', or 'false' to disable. Default: .elek.yml"
+    required: false
+    default: ".elek.yml"
   base_branch:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false
@@ -113,13 +117,13 @@ inputs:
   review_strategy:
     description: >
       Review orchestration strategy:
-        solo (default) — one model reviews and posts.
+        solo (resolved when unset) — one model reviews and posts.
         crosscheck — two independent read-only review lenses, then a final
           validator/synthesizer posts only high-confidence findings.
         council — four independent read-only lenses for larger/high-risk PRs,
           then final validation/synthesis.
     required: false
-    default: "solo"
+    default: ""
   review_models:
     description: >
       Optional comma-separated model specs for crosscheck/council reviewer
@@ -131,6 +135,10 @@ inputs:
     description: >
       Optional model spec for final validation/synthesis. Example:
       deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
+    required: false
+    default: ""
+  severity_threshold:
+    description: "Prompt-level minimum finding severity to surface: critical, important, or minor. Empty uses .elek.yml or no threshold."
     required: false
     default: ""
   show_cost:
@@ -223,6 +231,7 @@ runs:
         INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_TOOLS: ${{ inputs.tools }}
+        INPUT_CONFIG_PATH: ${{ inputs.config_path }}
         INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
         INPUT_BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         INPUT_ACTOR_FILTER: ${{ inputs.actor_filter }}
@@ -232,6 +241,7 @@ runs:
         INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
         INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
         INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
+        INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}
 

@@ -143,6 +143,59 @@ Non-solo strategies currently require `mode: review`. If `crosscheck` or
 `council` is configured with `review+edit` or `agent`, elek runs a solo review
 and logs a warning.
 
+## Repo config
+
+Use `.elek.yml` when every workflow in the repository should share the same
+review policy. This keeps workflow YAML small and lets teams tune review
+behavior alongside the code.
+
+```yaml
+review_strategy: crosscheck
+review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+validator_model: deepseek/deepseek-v4-pro
+cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
+severity_threshold: important
+
+ignore_paths:
+  - docs/**
+  - "*.md"
+
+instructions:
+  - Treat auth and permission changes as security-sensitive.
+  - Require tests for parser and config changes.
+```
+
+Supported keys:
+
+| Key | Behavior |
+|---|---|
+| `review_strategy` | Default strategy when the workflow input is unset |
+| `review_models` | Default reviewer model list |
+| `validator_model` | Default final validation model |
+| `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
+| `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
+| `ignore_paths` | Skip a finding only when all of its evidence lies inside these paths; still surface issues that leak impact outside them |
+| `instructions` | Extra repo-specific review policy inserted into every prompt |
+
+Workflow inputs override `.elek.yml` when explicitly set. To disable config
+loading, set `config_path: none`, `off`, or `false`. Severity thresholds and
+ignore paths are review instructions, not a server-side comment filter. If an
+existing config file has malformed YAML, elek fails the run instead of silently
+dropping repo policy.
+
+Security note: on pull requests, elek loads policy fields (`review_strategy`,
+`review_models`, `validator_model`, `cost_rates`, and `severity_threshold`)
+from the base branch when available. Guidance fields (`ignore_paths` and
+`instructions`) come from the checked-out branch, so contributors can propose
+review guidance changes without controlling cost or severity policy. Each run
+logs the loaded config source plus effective strategy/model/severity choices.
+If elek cannot resolve a PR comment trigger's actual base branch, it skips
+base-branch policy loading for that run instead of guessing from the default
+branch; policy fields from the checked-out workspace are not used as a
+fallback. For `issue_comment` triggers, "checked-out branch" is whatever the
+workflow checked out, usually the default branch unless the workflow explicitly
+checks out the PR head.
+
 ## Cost visibility
 
 Cost reporting is on by default. elek estimates tokens from prompt/output text

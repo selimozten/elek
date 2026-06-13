@@ -1,7 +1,8 @@
-import type { ActionInputs } from "../types";
-import type { GitHubData } from "../github/data";
-import { mcpToolGuidance } from "../github/mcp-guidance";
-import { reviewContractBullets, reviewFindingTemplate } from "./contract";
+import type { ActionInputs } from "../types.js";
+import type { GitHubData } from "../github/data.js";
+import { mcpToolGuidance } from "../github/mcp-guidance.js";
+import { reviewContractBullets, reviewFindingTemplate } from "./contract.js";
+import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -65,20 +66,7 @@ const COUNCIL_EXTRA_LENSES: ReviewLens[] = [
 ];
 
 export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
-  switch ((raw || "solo").trim().toLowerCase()) {
-    case "crosscheck":
-    case "cross-check":
-    case "dual":
-    case "duo":
-      return "crosscheck";
-    case "council":
-    case "swarm":
-    case "panel":
-      return "council";
-    case "solo":
-    default:
-      return "solo";
-  }
+  return (normalizeReviewStrategy(raw) as ReviewStrategy | undefined) ?? "solo";
 }
 
 export function parseModelSpec(raw: string, defaults: Pick<ActionInputs, "provider" | "model">): ModelSpec {
@@ -167,10 +155,12 @@ export function buildLensPrompt(params: {
   userRequest: string;
   lens: ReviewLens;
   modelLabel: string;
+  repoConfig?: ElekConfig;
 }): string {
-  const { data, userRequest, lens, modelLabel } = params;
+  const { data, userRequest, lens, modelLabel, repoConfig } = params;
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
+  const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
   return [
     `You are an independent read-only reviewer for elek.`,
     ``,
@@ -207,6 +197,7 @@ export function buildLensPrompt(params: {
     data.body || "(no description)",
     `</body>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<user_request>`,
     userRequest || `Review this ${entityLabel}.`,
     `</user_request>`,
@@ -242,8 +233,10 @@ export function buildSynthesisPrompt(params: {
   jobRunLink: string;
   commentId?: number;
   reports: Array<{ lens: ReviewLens; modelLabel: string; output: string; conclusion: "success" | "failure" }>;
+  repoConfig?: ElekConfig;
 }): string {
-  const { data, userRequest, modelLabel, jobRunLink, commentId, reports } = params;
+  const { data, userRequest, modelLabel, jobRunLink, commentId, reports, repoConfig } = params;
+  const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
   const reportBlock = reports
     .map((r) =>
       [
@@ -289,6 +282,7 @@ export function buildSynthesisPrompt(params: {
     data.body || "(no description)",
     `</body>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<user_request>`,
     userRequest || "Review this pull request.",
     `</user_request>`,

@@ -23,6 +23,7 @@
     "@octokit/rest": "22.0.1",
     "pi-mcp-adapter": "2.10.0",
     "tsx": "4.22.4",
+    "yaml": "2.9.0",
     "zod": "3.25.76"
   },
   "devDependencies": {

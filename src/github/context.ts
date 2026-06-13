@@ -4,12 +4,22 @@
  */
 import * as core from "@actions/core";
 import { readFileSync } from "fs";
-import type { GitHubEntityContext, ActionInputs } from "../types";
+import type { GitHubEntityContext, ActionInputs } from "../types.js";
 
 function parseBooleanInput(value: string, defaultValue: boolean): boolean {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return defaultValue;
   return !["false", "0", "off", "no"].includes(normalized);
+}
+
+function parseSeverityInput(value: string): ActionInputs["severityThreshold"] {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "critical" || normalized === "important" || normalized === "minor") {
+    return normalized;
+  }
+  core.warning(`Ignoring invalid severity_threshold input: ${normalized}`);
+  return "";
 }
 
 export function parseInputs(): ActionInputs {
@@ -22,15 +32,17 @@ export function parseInputs(): ActionInputs {
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseInt(core.getInput("max_turns") || "20", 10),
     tools: core.getInput("tools") || "",
+    configPath: core.getInput("config_path") || ".elek.yml",
     baseBranch: core.getInput("base_branch") || undefined,
     branchPrefix: core.getInput("branch_prefix") || "elek/",
     actorFilter: core.getInput("actor_filter") || "",
     allowedBots: core.getInput("allowed_bots") || "",
     stickyComment: parseBooleanInput(core.getInput("sticky_comment"), true),
     mode: core.getInput("mode") || "review",
-    reviewStrategy: core.getInput("review_strategy") || "solo",
+    reviewStrategy: core.getInput("review_strategy") || "",
     reviewModels: core.getInput("review_models") || "",
     validatorModel: core.getInput("validator_model") || "",
+    severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",
   };
