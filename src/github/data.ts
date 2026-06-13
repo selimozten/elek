@@ -1,10 +1,10 @@
 /**
  * GitHub data fetching and prompt building.
  */
-import type { GitHubEntityContext } from "../types";
-import { getGitDiff } from "./git";
-import { mcpToolGuidance } from "./mcp-guidance";
-import { reviewContractBullets, reviewFindingTemplate } from "../review/contract";
+import type { GitHubEntityContext } from "../types.js";
+import { getGitDiff } from "./git.js";
+import { mcpToolGuidance } from "./mcp-guidance.js";
+import { reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 
 type MinimalOctokit = {

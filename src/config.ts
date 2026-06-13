@@ -2,7 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "fs";
 import { resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
-import type { ActionInputs } from "./types";
+import type { ActionInputs } from "./types.js";
 
 export interface ElekConfig {
   reviewStrategy?: string;
@@ -230,7 +230,7 @@ export function loadBaseBranchElekConfig(
     warn(`Config path is not repo-local: ${trimmed}`);
     return emptyConfig();
   }
-  if (baseRef.startsWith("-") || !/^[A-Za-z0-9_./-]+$/.test(baseRef)) {
+  if (baseRef.startsWith("-") || baseRef.split(/[\\/]+/).includes("..") || !/^[A-Za-z0-9_./-]+$/.test(baseRef)) {
     warn(`Base ref is not safe for config loading: ${baseRef}`);
     return emptyConfig();
   }
@@ -246,11 +246,12 @@ export function loadBaseBranchElekConfig(
     const text = execFileSync("git", ["show", `origin/${baseRef}:${trimmed}`], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 10 * 1024 * 1024,
     });
     return parseElekConfig(text, warn, { throwOnParseError: true });
   } catch (err) {
     if (err instanceof ElekConfigParseError) throw err;
-    warn(`No base branch config found at ${trimmed} on ${baseRef}`);
+    warn(`Could not load base branch config from ${trimmed} on ${baseRef}: ${(err as Error).message}`);
     return emptyConfig();
   }
 }

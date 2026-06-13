@@ -101,6 +101,28 @@ async function run(): Promise<void> {
     return;
   }
 
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    core.setFailed("GITHUB_TOKEN not available");
+    return;
+  }
+
+  const octokit = github.getOctokit(githubToken);
+  let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
+  if (context.isPR && !context.pr?.baseRef) {
+    try {
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: context.entityNumber,
+      });
+      configBaseRef = pr.base?.ref || configBaseRef;
+      if (context.pr) context.pr.baseRef = configBaseRef;
+    } catch (err) {
+      console.warn(`[config] Could not resolve PR base ref; using ${configBaseRef}: ${(err as Error).message}`);
+    }
+  }
+
   const workspaceConfig = loadElekConfig(parsedInputs.configPath, (message) => {
     console.warn(`[config] ${message}`);
   });
@@ -108,7 +130,7 @@ async function run(): Promise<void> {
     ? mergeBasePolicyWithWorkspaceGuidance(
         loadBaseBranchElekConfig(
           parsedInputs.configPath,
-          context.pr?.baseRef || context.repo.defaultBranch,
+          configBaseRef,
           (message) => console.warn(`[config] ${message}`),
         ),
         workspaceConfig,
@@ -127,13 +149,6 @@ async function run(): Promise<void> {
   );
 
   // ── Phase 2: Setup ───────────────────────────────────────────────────
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (!githubToken) {
-    core.setFailed("GITHUB_TOKEN not available");
-    return;
-  }
-
-  const octokit = github.getOctokit(githubToken);
   const modelLabel = modelLabelFor(inputs);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;

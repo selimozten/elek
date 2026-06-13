@@ -364,7 +364,7 @@ instructions:
         ignorePaths: [],
         instructions: [],
       });
-      expect(warnings.at(-1)).toContain("No base branch config found");
+      expect(warnings.at(-1)).toContain("Could not load base branch config");
 
       expect(() => loadBaseBranchElekConfig(".elek.yml", "main")).toThrow(ElekConfigParseError);
 
@@ -375,6 +375,12 @@ instructions:
       expect(warnings.at(-1)).toContain("Config path is not repo-local");
 
       expect(loadBaseBranchElekConfig(".elek.yml", "-bad", (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings.at(-1)).toContain("Base ref is not safe");
+
+      expect(loadBaseBranchElekConfig(".elek.yml", "../main", (message) => warnings.push(message))).toEqual({
         ignorePaths: [],
         instructions: [],
       });
