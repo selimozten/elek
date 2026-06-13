@@ -106,6 +106,7 @@ describe("review strategy", () => {
     });
 
     expect(plan.strategy).toBe("crosscheck");
+    expect(plan.reusedModels).toBe(false);
     expect(plan.jobs.map((j) => j.lens.id)).toEqual(["risk", "design"]);
     expect(plan.jobs.map((j) => j.model.label)).toEqual([
       "deepseek/deepseek-v4-pro",
@@ -133,6 +134,7 @@ describe("review strategy", () => {
       "deepseek/deepseek-v4-pro",
       "zai/glm-5.1",
     ]);
+    expect(plan.reusedModels).toBe(true);
   });
 
   it("uses the provider default model when no reviewer model list is supplied", () => {
@@ -175,6 +177,22 @@ describe("review strategy", () => {
     expect(prompt).toContain("(no description)");
     expect(prompt).toContain("<comments>");
     expect(prompt).toContain("<review_comments>");
+  });
+
+  it("uses the correct fallback user request for issue lens prompts", () => {
+    const prompt = buildLensPrompt({
+      data: { ...dataFixture, type: "issue", diff: undefined, pr: undefined },
+      userRequest: "",
+      lens: {
+        id: "operations",
+        title: "Operational Review",
+        focus: "Rollout safety.",
+      },
+      modelLabel: "deepseek/deepseek-v4-pro",
+    });
+
+    expect(prompt).toContain("Review this issue.");
+    expect(prompt).toContain("(diff unavailable; inspect files from the workspace if needed)");
   });
 
   it("builds a synthesis prompt with candidate reports and visible comment context", () => {

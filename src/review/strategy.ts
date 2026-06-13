@@ -25,6 +25,7 @@ export interface ReviewPlan {
   strategy: ReviewStrategy;
   jobs: ReviewJob[];
   validator: ModelSpec;
+  reusedModels: boolean;
 }
 
 const CROSSCHECK_LENSES: ReviewLens[] = [
@@ -110,7 +111,7 @@ export function parseModelList(raw: string, defaults: Pick<ActionInputs, "provid
 export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   const strategy = resolveReviewStrategy(inputs.reviewStrategy);
   const validator = parseModelSpec(inputs.validatorModel, inputs);
-  if (strategy === "solo") return { strategy, jobs: [], validator };
+  if (strategy === "solo") return { strategy, jobs: [], validator, reusedModels: false };
 
   const lenses =
     strategy === "crosscheck"
@@ -119,12 +120,13 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
 
   const parsedModels = parseModelList(inputs.reviewModels, inputs);
   const models = parsedModels.length > 0 ? parsedModels : [parseModelSpec("", inputs)];
+  const reusedModels = lenses.length > models.length;
   const jobs = lenses.map((lens, i) => ({
     lens,
     model: models[i % models.length],
   }));
 
-  return { strategy, jobs, validator };
+  return { strategy, jobs, validator, reusedModels };
 }
 
 function changedFilesBlock(data: GitHubData, maxChars = 80_000): string {
@@ -142,6 +144,7 @@ export function buildLensPrompt(params: {
 }): string {
   const { data, userRequest, lens, modelLabel } = params;
   const isPR = data.type === "pr";
+  const entityLabel = isPR ? "pull request" : "issue";
   return [
     `You are an independent read-only reviewer for elek.`,
     ``,
@@ -174,7 +177,7 @@ export function buildLensPrompt(params: {
     `</body>`,
     ``,
     `<user_request>`,
-    userRequest || "Review this pull request.",
+    userRequest || `Review this ${entityLabel}.`,
     `</user_request>`,
     ``,
     `<changed_files>`,

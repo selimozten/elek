@@ -273,6 +273,11 @@ async function run(): Promise<void> {
         .map((j) => `${j.lens.id}:${j.model.label}`)
         .join(", ")} | validator: ${reviewPlan.validator.label}`,
     );
+    if (reviewPlan.reusedModels) {
+      console.warn(
+        `Review strategy has ${reviewPlan.jobs.length} lenses but fewer reviewer models; models will be reused across lenses.`,
+      );
+    }
 
     if (commentId) {
       try {
