@@ -161,4 +161,45 @@ cases:
       stdio: "pipe",
     })).toThrow("--suite requires a path");
   });
+
+  it("does not match benchmark keywords inside larger words", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-eval-word-test-"));
+    try {
+      const suitePath = join(dir, "suite.yml");
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(suitePath, `
+version: 1
+cases:
+  - id: short-keyword
+    repository: acme/app
+    number: 8
+    expected_findings:
+      - id: fix-word
+        keywords: [fix]
+    max_false_positives: 1
+`);
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        run: { durationSeconds: 1 },
+        entity: { number: 8 },
+        review: { finalModel: "model", executedStrategy: "solo" },
+        cost: { usd: 0 },
+        findings: [{
+          title: "Prefix handling",
+          severity: "minor",
+          confidence: "medium",
+          evidence: "prefix and suffix values are normalized",
+        }],
+      }));
+
+      expect(() => execFileSync("node", ["bin/elek-eval.mjs", "--suite", suitePath, summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: "pipe",
+      })).toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

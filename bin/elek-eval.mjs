@@ -123,7 +123,14 @@ function findingMatches(finding, expected) {
   if (!severityPasses(finding.severity, expected.min_severity ?? expected.minSeverity ?? expected.severity)) {
     return false;
   }
-  return keywords.every((keyword) => finding.text.includes(String(keyword).toLowerCase()));
+  return keywords.every((keyword) => keywordMatches(finding.text, String(keyword)));
+}
+
+function keywordMatches(text, keyword) {
+  const normalized = keyword.toLowerCase().trim();
+  if (!normalized) return false;
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9_])${escaped}($|[^a-z0-9_])`, "i").test(text);
 }
 
 function scoreSummary(summary, testCase, path) {

@@ -11,6 +11,7 @@ export interface ParsedReviewFinding {
 }
 
 const FINDING_HEADING = /^###\s+(.+)$/gm;
+// No "g" flag: each exec call must return the first heading in a fresh slice.
 const SECTION_OR_FINDING_HEADING = /^#{2,3}\s+/m;
 
 export function parseReviewFindings(text: string): ParsedReviewFinding[] {
