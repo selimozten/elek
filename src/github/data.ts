@@ -233,7 +233,7 @@ export function buildPrompt(
   parts.push("4. **Provide your review** — Be specific:");
   parts.push("   - Reference exact file paths and line numbers");
   parts.push("   - Use code blocks for suggestions");
-  parts.push("   - Prioritize by severity: 🔴 critical → 🟡 medium → 🟢 minor");
+  parts.push("   - Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
   parts.push("   - Follow the review finding contract for every finding.");
   parts.push(`   ${commentId ? "ALL feedback goes into your comment. Your console output is NOT visible to anyone." : ""}`);
   parts.push("");

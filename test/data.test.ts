@@ -163,6 +163,7 @@ describe("buildPrompt", () => {
 
     expect(out).toContain("### Review finding contract");
     expect(out).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
+    expect(out).toContain("Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
     expect(out).toContain("- Severity: critical|important|minor");
     expect(out).toContain("- Confidence: high|medium");
     expect(out).toContain("- Evidence: quote or summarize the concrete code path");

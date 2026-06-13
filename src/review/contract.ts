@@ -1,11 +1,3 @@
-export const REVIEW_CONTRACT_FIELDS = [
-  "Severity",
-  "Confidence",
-  "Evidence",
-  "Impact",
-  "Fix",
-] as const;
-
 export function reviewContractBullets(): string[] {
   return [
     "- Every finding must include severity, confidence, evidence, impact, and a concrete fix.",
@@ -19,7 +11,7 @@ export function reviewContractBullets(): string[] {
 
 export function reviewFindingTemplate(): string[] {
   return [
-    "### [critical|important|minor] Short title",
+    "### Short title",
     "- Severity: critical|important|minor",
     "- Confidence: high|medium",
     "- Path: `path/to/file`",
