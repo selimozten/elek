@@ -45,6 +45,7 @@ jobs:
         id: review
         uses: ./
         continue-on-error: true
+        timeout-minutes: 12
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
@@ -78,6 +79,7 @@ jobs:
         id: review
         uses: ./
         continue-on-error: true
+        timeout-minutes: 12
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
