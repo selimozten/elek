@@ -39,8 +39,8 @@ jobs:
 |---|---|---|---|
 | **Providers** | 11+ (any pi target) | usually one provider | usually one provider |
 | **Per-review cost** | ~$0.005 (deepseek) | often premium-model priced | varies by hosted stack |
-| **Inline review threads** | ✓ via MCP | varies | partial |
-| **Iterates on prior findings** | ✓ | varies | partial |
+| **Inline review threads** | ✓ via MCP | often supported | partial |
+| **Iterates on prior findings** | ✓ | often supported | partial |
 | **Structural safety** | ✓ no merge/approve/close paths | often broader PR API access | often broader repo access |
 | **Modules** | small TypeScript core | larger vendor stack | larger platform stack |
 | **Runtime** | Node 24 + tsx | provider CLI/runtime | provider CLI/runtime |
