@@ -152,6 +152,23 @@ knowledge_paths:
     }
   });
 
+  it("warns and skips invalid changed-line guard values", () => {
+    for (const value of ["-1", "1.5", "abc", "Infinity"]) {
+      const warnings: string[] = [];
+      const config = parseElekConfig([
+        `max_council_changed_lines: ${value}`,
+        `max_crosscheck_changed_lines: ${value}`,
+      ].join("\n"), (message) => warnings.push(message));
+
+      expect(config.maxCouncilChangedLines).toBeUndefined();
+      expect(config.maxCrosscheckChangedLines).toBeUndefined();
+      expect(warnings).toEqual([
+        `Ignoring invalid max_council_changed_lines: ${value}`,
+        `Ignoring invalid max_crosscheck_changed_lines: ${value}`,
+      ]);
+    }
+  });
+
   it("warns and skips non-mapping yaml documents", () => {
     const warnings: string[] = [];
 
