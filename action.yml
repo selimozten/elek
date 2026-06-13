@@ -21,11 +21,11 @@ inputs:
     required: false
     default: "anthropic"
   model:
-    description: "Model identifier (e.g. claude-sonnet-4-5, gpt-4o, gemini-2.5-pro). Leave empty for provider default."
+    description: "Model identifier (e.g. claude-sonnet-4-6, claude-opus-4-8, gpt-5.5, moonshotai/kimi-k2.7-code). Leave empty for provider default."
     required: false
     default: ""
   thinking:
-    description: "Thinking level: off, minimal, low, medium, high, xhigh"
+    description: "Portable pi thinking level: off, minimal, low, medium, high, xhigh. Provider adapters map to native efforts, e.g. Claude max."
     required: false
     default: "medium"
 
@@ -54,9 +54,6 @@ inputs:
   openrouter_api_key:
     description: "OpenRouter API key"
     required: false
-  zai_api_key:
-    description: "Z.AI API key (for GLM models)"
-    required: false
 
   # ── GitHub Auth ──
   github_token:
@@ -78,9 +75,9 @@ inputs:
     required: false
     default: "20"
   tools:
-    description: "Comma-separated tool allowlist. Default: read,write,edit,bash,grep,find,ls"
+    description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
-    default: "read,write,edit,bash,grep,find,ls"
+    default: ""
   base_branch:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false
@@ -126,8 +123,8 @@ inputs:
   review_models:
     description: >
       Optional comma-separated model specs for crosscheck/council reviewer
-      lenses. Examples: deepseek/deepseek-v4-pro,zai/glm-5.1. If omitted,
-      the primary provider/model is reused for every lens.
+      lenses. Examples: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code.
+      If omitted, the primary provider/model is reused for every lens.
     required: false
     default: ""
   validator_model:
@@ -199,7 +196,6 @@ runs:
         MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}
         XAI_API_KEY: ${{ inputs.xai_api_key }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
-        ZAI_API_KEY: ${{ inputs.zai_api_key }}
 
         # ── GitHub / Behavior ──
         GITHUB_TOKEN: ${{ inputs.github_token }}

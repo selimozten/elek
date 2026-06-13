@@ -123,7 +123,7 @@ bun test test/        # unit tests, ~89 of them
 bunx tsc --noEmit     # type check
 ```
 
-To dry-run pi from a debug workspace (requires DeepSeek/Z.AI API key set):
+To dry-run pi from a debug workspace (requires DeepSeek or OpenRouter API key set):
 ```bash
 PATH="$(pwd)/node_modules/.bin:$PATH" pi --mode json --provider deepseek \
   --thinking off --no-extensions --no-skills --no-context-files \
@@ -137,7 +137,7 @@ Two workflows in `.github/workflows/`:
 - `ci.yml` — `bun test test/` + `bunx tsc --noEmit` on every PR. 5-min
   timeout, `contents:read` perms only, concurrency-grouped. This is the
   hard merge gate for code changes.
-- `elek.yml` — runs the action on itself (deepseek-v4-pro + glm-5.1).
+- `elek.yml` — runs the action on itself (deepseek-v4-pro + OpenRouter Kimi).
   10-min timeout, concurrency cancels stale runs on new push, ignores
   docs-only changes. This is advisory because provider quota and transient
   model failures should not block a test-clean PR.

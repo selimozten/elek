@@ -107,4 +107,54 @@ describe("buildPrompt", () => {
     expect(noMcp).not.toContain("create_inline_comment");
     expect(noMcp).not.toContain("update_tracking_comment");
   });
+
+  it("does not tell review-only models to run commands or make edits", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      useMcp: true,
+      allowEdit: false,
+      tools: "read,grep,find,ls,mcp",
+    });
+
+    expect(out).toContain("Use the read, grep, find, and ls tools");
+    expect(out).toContain("Do not claim tests passed unless");
+    expect(out).not.toContain("Run relevant tests");
+    expect(out).not.toContain("Make changes using");
+    expect(out).not.toContain("git add");
+  });
+
+  it("tells review+edit models that elek handles git commands", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      useMcp: true,
+      allowEdit: true,
+      tools: "read,write,edit,grep,find,ls,mcp",
+    });
+
+    expect(out).toContain("Make focused edits using write/edit tools");
+    expect(out).toContain("elek will stage, commit, and push");
+    expect(out).not.toContain("git add");
+  });
+
+  it("keeps shell workflow guidance for legacy agent mode", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      useMcp: false,
+      allowEdit: true,
+      tools: "read,write,edit,bash,grep,find,ls",
+    });
+
+    expect(out).toContain("Run relevant tests when the tool surface allows it");
+    expect(out).toContain("Stage changes: `git add <files>`");
+  });
+
+  it("does not infer shell access from disabled MCP alone", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      useMcp: false,
+      allowEdit: true,
+      tools: "read,write,edit,grep,find,ls,mcp",
+    });
+
+    expect(out).toContain("Make focused edits using write/edit tools");
+    expect(out).toContain("elek will stage, commit, and push");
+    expect(out).not.toContain("git add");
+    expect(out).not.toContain("Run relevant tests");
+  });
 });

@@ -176,4 +176,9 @@ describe("parseInputs", () => {
     process.env.INPUT_BRANCH_PREFIX = "feature/automated-fixes/";
     expect(parseInputs().branchPrefix).toBe("feature/automated-fixes/");
   });
+
+  it("does not default tools to the legacy full-power allowlist", () => {
+    delete process.env.INPUT_TOOLS;
+    expect(parseInputs().tools).toBe("");
+  });
 });

@@ -23,7 +23,7 @@ import { execSync } from "child_process";
 import { parseInputs, parseEntityContext } from "../github/context.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
-import { resolveMode } from "../github/mode.js";
+import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
 import {
   configureGitAuth,
@@ -46,6 +46,7 @@ import {
   buildLensPrompt,
   buildSynthesisPrompt,
   resolveReviewPlan,
+  resolveReviewPlanSupport,
 } from "../review/strategy.js";
 import { sanitize } from "../mcp/handlers.js";
 
@@ -106,11 +107,11 @@ async function run(): Promise<void> {
   // fixed via stdio:["ignore",…] in pi.ts. ELEK_DISABLE_MCP=1 escape hatch
   // remains for emergency rollback.
   const mcpEnabled = resolvedMode.useMcpServer && process.env.ELEK_DISABLE_MCP !== "1";
+  const piTools = resolveEffectivePiTools(resolvedMode, inputs.tools, { mcpEnabled });
   console.log(
-    `Mode: ${resolvedMode.mode} | tools: ${resolvedMode.piTools} | mcp: ${mcpEnabled}`,
+    `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
-  // Override the tools input with the mode-resolved set so pi sees it.
-  inputs.tools = resolvedMode.piTools;
+  const piInputs = { ...inputs, tools: piTools };
 
   // Configure git for potential code changes
   configureGitAuth(githubToken, context);
@@ -151,6 +152,7 @@ async function run(): Promise<void> {
   let prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
+    tools: piTools,
   });
 
   // Write prompt to file
@@ -261,13 +263,20 @@ async function run(): Promise<void> {
   };
 
   const reviewPlan = resolveReviewPlan(inputs);
-  const useReviewPlan =
-    reviewPlan.strategy !== "solo" &&
-    context.isPR &&
-    resolvedMode.mode === "review";
+  const reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+    isPR: context.isPR,
+    mode: resolvedMode.mode,
+  });
+  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
+  const useReviewPlan = reviewPlanSupport.enabled;
 
-  let finalInputs = inputs;
+  let finalInputs = piInputs;
   if (useReviewPlan) {
+    const lensTools = resolveMode("review").piTools
+      .split(",")
+      .filter((tool) => tool !== "mcp")
+      .join(",");
+
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
@@ -309,10 +318,10 @@ async function run(): Promise<void> {
           modelLabel: job.model.label,
         });
         const lensInputs = {
-          ...inputs,
+          ...piInputs,
           provider: job.model.provider,
           model: job.model.model,
-          tools: "read,grep,find,ls",
+          tools: lensTools,
           mode: "review",
         };
         const lensResult = await runPi(
@@ -336,10 +345,11 @@ async function run(): Promise<void> {
     );
 
     finalInputs = {
-      ...inputs,
+      ...piInputs,
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
-      tools: resolvedMode.piTools,
+      tools: piTools,
+      mode: "review",
     };
     prompt = buildSynthesisPrompt({
       data,

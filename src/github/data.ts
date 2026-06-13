@@ -104,11 +104,19 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
-  options: { useMcp?: boolean; allowEdit?: boolean } = {},
+  options: { useMcp?: boolean; allowEdit?: boolean; tools?: string } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
   const baseBranch = data.pr?.baseRef || "main";
+  const canEdit = options.allowEdit === true;
+  const toolSet = new Set(
+    (options.tools || "")
+      .split(",")
+      .map((tool) => tool.trim())
+      .filter(Boolean),
+  );
+  const canRunShell = canEdit && toolSet.has("bash");
 
   const parts: string[] = [];
 
@@ -201,7 +209,11 @@ export function buildPrompt(
   parts.push("1. **Analyze the context** — Read the body, diff, and any comments to understand what changed and why.");
   parts.push("   - Do not claim external packages, GitHub Actions, model IDs, or APIs do not exist unless you can verify it from current repo files, package-manager output, or workflow error logs.");
   if (isPR) {
-    parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
+    if (canRunShell) {
+      parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
+    } else {
+      parts.push(`   - The PR base branch is \`${baseBranch}\`. Use the \`<changed_files>\` block plus read/search tools to inspect changes.`);
+    }
     parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);
   }
   parts.push("");
@@ -212,7 +224,11 @@ export function buildPrompt(
   parts.push("   - **Style**: consistency with codebase conventions, naming, structure");
   parts.push("   - **Tests**: missing test coverage for new code paths");
   parts.push("");
-  parts.push("3. **Use tools to gather context** — Read files referenced in the diff. Run relevant tests if configured.");
+  if (canRunShell) {
+    parts.push("3. **Use tools to gather context** — Read files referenced in the diff. Run relevant tests when the tool surface allows it.");
+  } else {
+    parts.push("3. **Use tools to gather context** — Use the read, grep, find, and ls tools to inspect files referenced in the diff. Do not claim tests passed unless the prompt, comments, or workflow logs provide that evidence.");
+  }
   parts.push("");
   parts.push("4. **Provide your review** — Be specific:");
   parts.push("   - Reference exact file paths and line numbers");
@@ -222,13 +238,22 @@ export function buildPrompt(
   parts.push("");
 
   // ── If making changes ──
-  parts.push("### If implementing changes");
+  parts.push(canEdit ? "### If implementing changes" : "### Editing boundary");
   parts.push("");
-  parts.push("- Make changes using the provided tools (read, write, edit, bash)");
-  parts.push("- Stage changes: `git add <files>`");
-  parts.push(`- Commit with a descriptive message: \`git commit -m "descriptive message"\``);
-  parts.push("- Push to the remote branch");
-  parts.push("- Reference the original issue/PR in your commit message");
+  if (!canEdit) {
+    parts.push("- Do not modify files, run commands, stage, commit, or push. Leave review feedback only.");
+  } else if (canRunShell) {
+    parts.push("- Make changes using the provided tools.");
+    parts.push("- Stage changes: `git add <files>`");
+    parts.push(`- Commit with a descriptive message: \`git commit -m "descriptive message"\``);
+    parts.push("- Push to the remote branch");
+    parts.push("- Reference the original issue/PR in your commit message");
+  } else {
+    parts.push("- Make focused edits using write/edit tools only when the requested fix is mechanical and low-risk.");
+    parts.push("- Do not run git commands or claim tests passed unless logs already show that evidence.");
+    parts.push("- elek will stage, commit, and push any non-lockfile changes after the run.");
+    parts.push("- Reference the original issue/PR in your review comment.");
+  }
   parts.push("");
 
   // ── Output format ──

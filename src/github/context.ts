@@ -15,7 +15,7 @@ export function parseInputs(): ActionInputs {
     prompt: core.getInput("prompt") || "",
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseInt(core.getInput("max_turns") || "20", 10),
-    tools: core.getInput("tools") || "read,write,edit,bash,grep,find,ls",
+    tools: core.getInput("tools") || "",
     baseBranch: core.getInput("base_branch") || undefined,
     branchPrefix: core.getInput("branch_prefix") || "elek/",
     actorFilter: core.getInput("actor_filter") || "",

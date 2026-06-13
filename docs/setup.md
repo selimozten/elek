@@ -3,7 +3,7 @@
 ## Requirements
 
 - A GitHub repository
-- One provider API key (DeepSeek, Z.AI, OpenAI, Anthropic, …)
+- One provider API key (DeepSeek, OpenRouter, OpenAI, Anthropic, ...)
 - Repo admin access (to add secrets)
 
 ## 1. Add the API key
@@ -13,7 +13,6 @@
 | Provider | Secret name |
 |---|---|
 | DeepSeek | `DEEPSEEK_API_KEY` |
-| Z.AI | `ZAI_API_KEY` |
 | Anthropic | `ANTHROPIC_API_KEY` |
 | OpenAI | `OPENAI_API_KEY` |
 | Google | `GOOGLE_API_KEY` |
@@ -65,6 +64,23 @@ jobs:
 1. Open a PR or push a commit. The review should appear within ~3 minutes.
 2. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
 
+## Model and reasoning levels
+
+Use current provider model IDs directly. Common review choices:
+
+| Provider | Model | Notes |
+|---|---|---|
+| DeepSeek | `deepseek-v4-pro` | Low-cost primary reviewer |
+| OpenRouter | `moonshotai/kimi-k2.7-code` | Independent second reviewer |
+| OpenAI | `gpt-5.5` | Strong reasoning reviewer or validator |
+| Anthropic | `claude-sonnet-4-6` | Balanced premium validator |
+| Anthropic | `claude-opus-4-8` | Highest-capability validator for critical PRs |
+
+`thinking` uses pi's portable levels: `off`, `minimal`, `low`, `medium`,
+`high`, and `xhigh`. Provider adapters map those to native effort controls
+where needed; for Claude models, the top effort maps to Claude's native `max`
+reasoning effort when supported.
+
 ## Triggers
 
 | Trigger | Behavior |
@@ -91,6 +107,10 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 | `review+edit` | + `write,edit` | ✓ | pushes to `elek/*` branch | "Review and propose fixes" |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
+`review+edit` does not give the model shell access. The model can make file
+edits with write/edit tools; elek stages, commits, and pushes those changes to
+the generated branch after the review run succeeds.
+
 ## Review strategies
 
 `review_strategy` controls how many independent review passes run before the
@@ -100,11 +120,11 @@ visible review is posted:
 - uses: selimozten/elek@v1
   with:
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    zai_api_key: ${{ secrets.ZAI_API_KEY }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
     provider: deepseek
     model: deepseek-v4-pro
     review_strategy: crosscheck
-    review_models: deepseek/deepseek-v4-pro,zai/glm-5.1
+    review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
     validator_model: deepseek/deepseek-v4-pro
 ```
 
@@ -116,6 +136,10 @@ visible review is posted:
 
 Candidate reviewers cannot post comments. They run without MCP access; only the
 final validator can call elek's review tools.
+
+Non-solo strategies currently require `mode: review`. If `crosscheck` or
+`council` is configured with `review+edit` or `agent`, elek runs a solo review
+and logs a warning.
 
 ## Permissions
 

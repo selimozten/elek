@@ -85,8 +85,8 @@ jobs:
           thinking: high
           branch_prefix: elek/deepseek/
 
-  zai:
-    name: glm-5.1
+  kimi:
+    name: openrouter-kimi-k2.7-code
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -94,11 +94,11 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
-          zai_api_key: ${{ secrets.ZAI_API_KEY }}
-          provider: zai
-          model: glm-5.1
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: openrouter
+          model: moonshotai/kimi-k2.7-code
           thinking: high
-          branch_prefix: elek/zai/
+          branch_prefix: elek/kimi/
 ```
 
 ## Review + propose fixes
@@ -123,8 +123,9 @@ jobs:
           mode: review+edit
           prompt: |
             Review this PR. For mechanical issues (typos, obvious bugs,
-            missing imports), push a fix to the elek/* branch and link it
-            in your review. For design questions, just review.
+            missing imports), make a focused file edit. elek will commit and
+            push the generated branch after the run succeeds. For design
+            questions, just review.
 ```
 
 ## Issue triage
@@ -199,17 +200,24 @@ Or allow specific bots:
       Reference exact file paths and line numbers.
 ```
 
-## Per-language review
+## Path-filtered review
 
-Different paths, different prompts:
+Use GitHub's workflow path filters when a repository needs different review
+prompts for different parts of the tree. For example, a TypeScript-focused
+workflow can run only when TypeScript-related files change:
 
 ```yaml
 on:
-  pull_request: { types: [opened, synchronize] }
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "package.json"
+      - "tsconfig.json"
 
 jobs:
   ts-review:
-    if: contains(github.event.pull_request.changed_files, '.ts')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.3
@@ -218,42 +226,6 @@ jobs:
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           prompt: "TypeScript-focused review: types, null handling, async correctness, exhaustiveness."
-
-  go-review:
-    if: contains(github.event.pull_request.changed_files, '.go')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          prompt: "Go review: error handling, goroutine leaks, context propagation, defer order."
-```
-
-## Scheduled repo health check
-
-```yaml
-on:
-  schedule:
-    - cron: "0 9 * * 1"   # Monday 09:00 UTC
-
-permissions: { issues: write }
-
-jobs:
-  health:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.3
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          prompt: |
-            Weekly health check. Open a single tracking issue summarizing:
-            - Stale issues (no activity 30d+)
-            - PRs blocked on review > 7d
-            - Doc gaps you spotted while reading the diff history
-            - Top 3 dependency-update candidates
 ```
 
 ## Pin the action
