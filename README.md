@@ -49,13 +49,21 @@ jobs:
 
 ## Quick start
 
+Fast path from your repository root:
+
+```bash
+npx --package github:selimozten/elek elek-init --provider deepseek
+```
+
+This creates `.github/workflows/elek.yml` and `.elek.yml`.
+
 1. Add a provider API key to repo secrets (`Settings → Secrets and variables → Actions`):
 
    ```
    DEEPSEEK_API_KEY  # or OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / etc.
    ```
 
-2. Drop this in `.github/workflows/elek.yml`:
+2. Commit the generated files, or drop this in `.github/workflows/elek.yml` manually:
 
    ```yaml
    name: elek
@@ -77,7 +85,7 @@ jobs:
      review:
        if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
        runs-on: ubuntu-latest
-       timeout-minutes: 10
+       timeout-minutes: 15
        steps:
          - uses: actions/checkout@v6.0.3
            with: { fetch-depth: 0 }
@@ -90,6 +98,14 @@ jobs:
    ```
 
 3. Open a PR. Within ~3 minutes you'll see a tracking comment with a live progress checklist, then the final review (top-level summary + inline threads on changed lines).
+
+Useful initializer variants:
+
+```bash
+npx --package github:selimozten/elek elek-init --provider openrouter --model moonshotai/kimi-k2.7-code
+npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
+npx --package github:selimozten/elek elek-init --no-config
+```
 
 The final comment includes an estimated token/cost line by default:
 

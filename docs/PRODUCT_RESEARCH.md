@@ -39,6 +39,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - Estimated token/cost reporting through `show_cost`, `cost_rates`, and outputs.
 - Cost controls through `max_cost_usd`, including conservative downgrades from
   expensive multi-lens reviews when known prompt/input estimates exceed budget.
+- Zero-dependency `elek-init` setup helper that creates a starter workflow and
+  repo review policy.
 
 ### Next
 
@@ -46,10 +48,9 @@ elek should not compete by becoming a general coding agent. The winning lane is:
    reproducible path or contradict changed code.
 2. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
    when a PR is too large.
-3. Setup command: generate a starter workflow and recommended secrets checklist.
-4. Repo knowledge: include selected project docs such as `AGENTS.md`,
+3. Repo knowledge: include selected project docs such as `AGENTS.md`,
    `CONTRIBUTING.md`, `docs/adr/**`, and configured guidelines in the prompt.
-5. Metrics: emit review duration, comments posted/skipped, model labels, and
+4. Metrics: emit review duration, comments posted/skipped, model labels, and
    cost as a machine-readable JSON summary artifact.
 
 ## Model evaluation plan
