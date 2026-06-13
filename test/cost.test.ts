@@ -5,6 +5,7 @@ import {
   estimateRunCost,
   estimateTokens,
   formatCostLine,
+  formatTokenCount,
   formatUsd,
   modelLabelFor,
   parseCostRateOverrides,
@@ -142,5 +143,21 @@ describe("review cost estimates", () => {
   it("formats tiny costs without rounding up to a misleading cent value", () => {
     expect(formatUsd(0)).toBe("$0.0000");
     expect(formatUsd(0.00001)).toBe("<$0.0001");
+    expect(formatUsd(0.0001)).toBe("$0.0001");
+    expect(formatUsd(-0.01)).toBe("$0.0000");
+  });
+
+  it("formats token counts for readable comment output", () => {
+    expect(formatTokenCount(1234567)).toBe("1,234,567");
+  });
+
+  it("uses a non-estimated cost label when exact usage is available", () => {
+    expect(formatCostLine({
+      inputTokens: 1000,
+      outputTokens: 250,
+      costUsd: 0.01,
+      estimated: false,
+      runs: [],
+    })).toBe("Review cost: $0.0100 (1,000 in / 250 out tokens)");
   });
 });

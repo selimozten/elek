@@ -133,13 +133,14 @@ export function estimateRunCost(args: {
 
 export function aggregateCosts(runs: ReviewCost[]): ReviewCostTotal {
   return runs.reduce<ReviewCostTotal>(
-    (total, run) => ({
-      inputTokens: total.inputTokens + run.inputTokens,
-      outputTokens: total.outputTokens + run.outputTokens,
-      costUsd: total.costUsd + run.costUsd,
-      estimated: total.estimated || run.estimated || run.source === "unknown",
-      runs: [...total.runs, run],
-    }),
+    (total, run) => {
+      total.inputTokens += run.inputTokens;
+      total.outputTokens += run.outputTokens;
+      total.costUsd += run.costUsd;
+      total.estimated = total.estimated || run.estimated || run.source === "unknown";
+      total.runs.push(run);
+      return total;
+    },
     { inputTokens: 0, outputTokens: 0, costUsd: 0, estimated: false, runs: [] },
   );
 }
@@ -156,9 +157,10 @@ export function costFromPiResult(result: PiRunResult): ReviewCost {
 }
 
 export function formatUsd(costUsd: number): string {
-  if (costUsd === 0) return "$0.0000";
-  if (costUsd < 0.0001) return "<$0.0001";
-  return `$${costUsd.toFixed(4)}`;
+  const safeCost = Math.max(0, costUsd);
+  if (safeCost === 0) return "$0.0000";
+  if (safeCost < 0.0001) return "<$0.0001";
+  return `$${safeCost.toFixed(4)}`;
 }
 
 export function formatTokenCount(tokens: number): string {

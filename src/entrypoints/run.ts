@@ -389,10 +389,16 @@ async function run(): Promise<void> {
       source: "unknown",
     },
   };
+  const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
   try {
     writeMcpConfig();
     result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });
-    runCosts.push(costFromPiResult(result));
+    runCosts[finalCostIndex] = costFromPiResult(result);
+  } catch (err) {
+    result = {
+      ...result,
+      output: `Review execution failed: ${(err as Error).message}`,
+    };
   } finally {
     // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
     if (mcpConfigPath) {
