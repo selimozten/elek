@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="elek reviewing">
   <style>
+    .back { fill: #f7f2ea; }
+
     .ring {
       fill: none;
       stroke: #c76d50;
@@ -27,6 +29,7 @@
 
     .node { fill: #c76d50; }
   </style>
+  <rect class="back" x="8" y="8" width="112" height="112" rx="28"/>
   <circle class="ring" cx="64" cy="64" r="53">
     <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 64 64" to="360 64 64" dur="1.25s" repeatCount="indefinite"/>
   </circle>

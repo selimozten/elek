@@ -459,7 +459,7 @@ async function run(): Promise<void> {
   // Post PR review if no tracking comment
   if (context.isPR && !commentId) {
     try {
-      await createPRReview(octokit, context, safeOutput, result.conclusion);
+      await createPRReview(octokit, context, safeOutput, result.conclusion, modelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }

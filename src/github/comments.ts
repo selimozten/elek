@@ -168,12 +168,13 @@ export async function createPRReview(
   context: GitHubEntityContext,
   output: string,
   conclusion: "success" | "failure",
+  modelLabel: string,
 ): Promise<void> {
   await octokit.rest.pulls.createReview({
     owner: context.repo.owner,
     repo: context.repo.repo,
     pull_number: context.entityNumber,
-    body: formatReviewBody(output, conclusion, context),
+    body: formatReviewBody(output, conclusion, context, modelLabel),
     event: "COMMENT",
   });
 
@@ -227,12 +228,14 @@ function formatReviewBody(
   output: string,
   conclusion: "success" | "failure",
   context: GitHubEntityContext,
+  modelLabel: string,
 ): string {
-  const icon = conclusion === "success" ? "✅" : "⚠️";
   const runLink = jobRunLink(context);
 
   return [
-    `${icon} **Review complete**`,
+    conclusion === "success"
+      ? spinnerHeader(modelLabel, "analysis complete")
+      : spinnerHeader(modelLabel, "encountered an issue"),
     "",
     output,
     "",
