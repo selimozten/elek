@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "bin": {
+    "elek-analytics": "./bin/elek-analytics.mjs",
     "elek-benchmark": "./bin/elek-benchmark.mjs",
     "elek-eval": "./bin/elek-eval.mjs",
     "elek-init": "./bin/elek-init.mjs"

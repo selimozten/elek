@@ -286,6 +286,15 @@ upload step when you want to compare models or review strategies across CI
 runs. If the runner cannot write the optional file, `review_summary_path` is
 set to an empty string while `review_summary_json` is still emitted.
 
+Aggregate saved summaries to compare strategies, models, repositories, cost,
+latency, findings, and inline comment outcomes:
+
+```bash
+npx --package github:selimozten/elek elek-analytics --group-by model artifacts/*/elek-review-summary.json
+```
+
+Add `--json` to feed dashboards or release reports.
+
 ## Model evaluation
 
 Use `elek-eval` to score saved `elek-review-summary.json` files against your

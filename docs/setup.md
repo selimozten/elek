@@ -259,6 +259,14 @@ model labels, parsed findings, per-model token/cost estimates, pricing source,
 and inline comment counts. Upload that path as an artifact in your workflow
 when you want to compare model quality, speed, and cost across PRs.
 
+Aggregate saved summaries by strategy, model, or repository:
+
+```bash
+npx --package github:selimozten/elek elek-analytics --group-by strategy artifacts/*/elek-review-summary.json
+```
+
+Use `--json` when sending the aggregate report to dashboards or release notes.
+
 For models without built-in price hints, pass your provider's current USD price
 per 1M input/output tokens:
 
