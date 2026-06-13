@@ -318,7 +318,50 @@ describe("elek-analytics", () => {
       expect(output).toContain("findings/run");
       expect(output).toContain("inline issues");
       expect(output).toContain("regressions");
+      expect(output).toContain("$0.002000 (+$0.001000)");
       expect(output).toContain("solo");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("compares asymmetric trend groups without marking new groups as regressions", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-asymmetric-trend-test-"));
+    try {
+      const baseline = writeSummary(dir, "baseline.json");
+      const current = writeSummary(dir, "current.json", {
+        review: { executedStrategy: "crosscheck", finalModel: "openrouter/moonshotai/kimi-k2.7-code" },
+        cost: { usd: 0.004, inputTokens: 3000, outputTokens: 400 },
+        run: { conclusion: "success", durationSeconds: 30 },
+      });
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--json",
+        "--baseline",
+        baseline,
+        "--current",
+        current,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.comparisons).toEqual([
+        expect.objectContaining({
+          key: "crosscheck",
+          baseline: expect.objectContaining({ runs: 0, avgCostUsd: 0, avgDurationSeconds: 0 }),
+          current: expect.objectContaining({ runs: 1, avgCostUsd: 0.004, avgDurationSeconds: 30 }),
+          regressions: [],
+        }),
+        expect.objectContaining({
+          key: "solo",
+          baseline: expect.objectContaining({ runs: 1, avgCostUsd: 0.001, avgDurationSeconds: 10 }),
+          current: expect.objectContaining({ runs: 0, avgCostUsd: 0, avgDurationSeconds: 0 }),
+          regressions: [],
+        }),
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

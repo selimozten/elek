@@ -156,7 +156,7 @@ function compareReports(baseline, current) {
 
 function inlineIssueRate(group) {
   const total = group.inlinePosted + group.inlineSkipped + group.inlineFailed;
-  return total === 0 ? 0 : round((group.inlineSkipped + group.inlineFailed) / total);
+  return total === 0 ? 0 : (group.inlineSkipped + group.inlineFailed) / total;
 }
 
 function describeRegressions(delta, before, after) {
@@ -167,11 +167,11 @@ function describeRegressions(delta, before, after) {
   if (before.runs > 0 && after.runs > 0 && delta.inlineIssueRate >= 0.05) {
     regressions.push(`inline issue rate up ${formatPercent(delta.inlineIssueRate)}`);
   }
-  if (meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
+  if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
     regressions.push(`average latency up ${formatSeconds(delta.avgDurationSeconds)}`);
   }
-  if (meaningfulIncrease(before.avgCostUsd, after.avgCostUsd, 0.001, 0.2)) {
-    regressions.push(`average cost up ${formatUsd(delta.avgCostUsd)}`);
+  if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgCostUsd, after.avgCostUsd, 0.001, 0.2)) {
+    regressions.push(`average cost up ${formatSignedUsd(delta.avgCostUsd)}`);
   }
   if (before.runs > 0 && after.runs > 0 && delta.findingsPerRun >= 1) {
     regressions.push(`finding volume up ${delta.findingsPerRun}/run`);
@@ -248,8 +248,8 @@ function formatPercent(value) {
 }
 
 function formatSignedPercent(value) {
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${Math.round(value * 100)} pts`;
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.round(Math.abs(value) * 100)} pts`;
 }
 
 function formatSeconds(value) {
@@ -258,8 +258,12 @@ function formatSeconds(value) {
 }
 
 function formatUsd(value) {
-  const sign = value > 0 ? "+" : "";
-  return `${sign}$${round(value, 6).toFixed(6)}`;
+  return `$${round(value, 6).toFixed(6)}`;
+}
+
+function formatSignedUsd(value) {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}$${round(Math.abs(value), 6).toFixed(6)}`;
 }
 
 function printTable(report) {
@@ -301,7 +305,7 @@ function printComparisonTable(report) {
       `${Math.round(item.current.successRate * 100)}% (${formatSignedPercent(item.delta.successRate)})`,
       `${item.current.findingsPerRun} (${signedNumber(item.delta.findingsPerRun)})`,
       `${Math.round(inlineIssueRate(item.current) * 100)}% (${formatSignedPercent(item.delta.inlineIssueRate)})`,
-      `${formatUsd(item.current.avgCostUsd)} (${formatUsd(item.delta.avgCostUsd)})`,
+      `${formatUsd(item.current.avgCostUsd)} (${formatSignedUsd(item.delta.avgCostUsd)})`,
       `${item.current.avgDurationSeconds}s (${formatSeconds(item.delta.avgDurationSeconds)})`,
       item.regressions.length === 0 ? "-" : item.regressions.join("; "),
     ]),
