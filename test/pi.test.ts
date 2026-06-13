@@ -11,6 +11,7 @@ const baseInputs: ActionInputs = {
   systemPrompt: "",
   maxTurns: 20,
   tools: "read,grep,find,ls",
+  configPath: ".elek.yml",
   branchPrefix: "elek/",
   actorFilter: "",
   allowedBots: "",

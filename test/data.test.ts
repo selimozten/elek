@@ -171,4 +171,21 @@ describe("buildPrompt", () => {
     expect(out).toContain("Do not surface low-confidence findings.");
     expect(out).not.toContain("**Fix:**");
   });
+
+  it("includes repo config policy when supplied", () => {
+    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+      repoConfig: {
+        severityThreshold: "important",
+        ignorePaths: ["docs/**"],
+        instructions: ["Treat auth changes as security-sensitive."],
+      },
+    });
+
+    expect(out).toContain("<elek_config>");
+    expect(out).toContain("severity_threshold: important");
+    expect(out).toContain("ignore_paths:");
+    expect(out).toContain("- docs/**");
+    expect(out).toContain("- Treat auth changes as security-sensitive.");
+    expect(out).toContain("</elek_config>");
+  });
 });

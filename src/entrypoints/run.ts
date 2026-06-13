@@ -21,6 +21,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
+import { applyConfigDefaults, loadElekConfig } from "../config.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
@@ -64,7 +65,11 @@ async function run(): Promise<void> {
   core.setOutput("input_tokens", "0");
   core.setOutput("output_tokens", "0");
 
-  const inputs = parseInputs();
+  const parsedInputs = parseInputs();
+  const repoConfig = loadElekConfig(parsedInputs.configPath, (message) => {
+    console.warn(`[config] ${message}`);
+  });
+  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
   const context = parseEntityContext();
 
   if (!context) {
@@ -163,6 +168,7 @@ async function run(): Promise<void> {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
     tools: piTools,
+    repoConfig,
   });
 
   // Write prompt to file
@@ -328,6 +334,7 @@ async function run(): Promise<void> {
           userRequest,
           lens: job.lens,
           modelLabel: job.model.label,
+          repoConfig,
         });
         const lensInputs = {
           ...piInputs,
@@ -372,6 +379,7 @@ async function run(): Promise<void> {
       jobRunLink,
       commentId,
       reports,
+      repoConfig,
     });
     writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
   }

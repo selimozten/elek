@@ -132,6 +132,34 @@ jobs:
           cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
 ```
 
+## Repo-local review policy
+
+`.elek.yml`:
+
+```yaml
+review_strategy: crosscheck
+review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+validator_model: deepseek/deepseek-v4-pro
+severity_threshold: important
+
+ignore_paths:
+  - docs/**
+
+instructions:
+  - Treat auth and permission changes as security-sensitive.
+```
+
+Workflow:
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    provider: deepseek
+    model: deepseek-v4-pro
+```
+
 ## Review + propose fixes
 
 The model can push fixes to an `elek/*` branch when something is mechanical (rename, add missing test, simple refactor).

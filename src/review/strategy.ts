@@ -2,6 +2,7 @@ import type { ActionInputs } from "../types";
 import type { GitHubData } from "../github/data";
 import { mcpToolGuidance } from "../github/mcp-guidance";
 import { reviewContractBullets, reviewFindingTemplate } from "./contract";
+import { formatConfigPromptBlock, type ElekConfig } from "../config";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -167,10 +168,12 @@ export function buildLensPrompt(params: {
   userRequest: string;
   lens: ReviewLens;
   modelLabel: string;
+  repoConfig?: ElekConfig;
 }): string {
-  const { data, userRequest, lens, modelLabel } = params;
+  const { data, userRequest, lens, modelLabel, repoConfig } = params;
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
+  const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
   return [
     `You are an independent read-only reviewer for elek.`,
     ``,
@@ -211,6 +214,7 @@ export function buildLensPrompt(params: {
     userRequest || `Review this ${entityLabel}.`,
     `</user_request>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<changed_files>`,
     "```diff",
     changedFilesBlock(data),
@@ -242,8 +246,10 @@ export function buildSynthesisPrompt(params: {
   jobRunLink: string;
   commentId?: number;
   reports: Array<{ lens: ReviewLens; modelLabel: string; output: string; conclusion: "success" | "failure" }>;
+  repoConfig?: ElekConfig;
 }): string {
-  const { data, userRequest, modelLabel, jobRunLink, commentId, reports } = params;
+  const { data, userRequest, modelLabel, jobRunLink, commentId, reports, repoConfig } = params;
+  const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
   const reportBlock = reports
     .map((r) =>
       [
@@ -293,6 +299,7 @@ export function buildSynthesisPrompt(params: {
     userRequest || "Review this pull request.",
     `</user_request>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<changed_files>`,
     "```diff",
     changedFilesBlock(data, 60_000),

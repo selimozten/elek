@@ -19,6 +19,7 @@ const ENV_KEYS = [
   "GITHUB_REPOSITORY",
   "GITHUB_REPOSITORY_OWNER",
   "INPUT_BRANCH_PREFIX",
+  "INPUT_CONFIG_PATH",
   "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
@@ -183,6 +184,16 @@ describe("parseInputs", () => {
   it("does not default tools to the legacy full-power allowlist", () => {
     delete process.env.INPUT_TOOLS;
     expect(parseInputs().tools).toBe("");
+  });
+
+  it("defaults to the repository config file path", () => {
+    delete process.env.INPUT_CONFIG_PATH;
+    expect(parseInputs().configPath).toBe(".elek.yml");
+  });
+
+  it("leaves review_strategy unset so repo config can provide a default", () => {
+    delete process.env.INPUT_REVIEW_STRATEGY;
+    expect(parseInputs().reviewStrategy).toBe("");
   });
 
   it("enables cost reporting by default", () => {

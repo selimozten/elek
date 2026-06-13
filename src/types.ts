@@ -12,6 +12,8 @@ export interface ActionInputs {
   systemPrompt: string;
   maxTurns: number;
   tools: string;
+  /** Repo-local config file path, e.g. .elek.yml. */
+  configPath: string;
   baseBranch?: string;
   branchPrefix: string;
   actorFilter: string;

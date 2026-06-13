@@ -217,6 +217,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
+| `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none` to disable |
 | `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
@@ -238,6 +239,30 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
 | `base_branch` | _(repo default)_ | Override the comparison base |
 | `branch_prefix` | `elek/` | Prefix for branches the action creates |
+
+## Repo Config
+
+Add `.elek.yml` to keep review defaults and repo-specific policy next to the
+code. Workflow inputs still win when they are set explicitly.
+
+```yaml
+review_strategy: crosscheck
+review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+validator_model: deepseek/deepseek-v4-pro
+severity_threshold: important
+
+ignore_paths:
+  - docs/**
+  - "*.md"
+
+instructions:
+  - Treat auth and permission changes as security-sensitive.
+  - Require tests for parser and config changes.
+```
+
+Supported keys: `review_strategy`, `review_models`, `validator_model`,
+`cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
+`severity_threshold` accepts `critical`, `important`, or `minor`.
 
 ### API keys
 

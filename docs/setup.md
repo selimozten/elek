@@ -143,6 +143,42 @@ Non-solo strategies currently require `mode: review`. If `crosscheck` or
 `council` is configured with `review+edit` or `agent`, elek runs a solo review
 and logs a warning.
 
+## Repo config
+
+Use `.elek.yml` when every workflow in the repository should share the same
+review policy. This keeps workflow YAML small and lets teams tune review
+behavior alongside the code.
+
+```yaml
+review_strategy: crosscheck
+review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+validator_model: deepseek/deepseek-v4-pro
+severity_threshold: important
+
+ignore_paths:
+  - docs/**
+  - "*.md"
+
+instructions:
+  - Treat auth and permission changes as security-sensitive.
+  - Require tests for parser and config changes.
+```
+
+Supported keys:
+
+| Key | Behavior |
+|---|---|
+| `review_strategy` | Default strategy when the workflow input is unset |
+| `review_models` | Default reviewer model list |
+| `validator_model` | Default final validation model |
+| `cost_rates` | Default price overrides |
+| `severity_threshold` | `critical`, `important`, or `minor` |
+| `ignore_paths` | Paths the prompt tells reviewers to ignore unless risk escapes the path |
+| `instructions` | Extra repo-specific review policy inserted into every prompt |
+
+Workflow inputs override `.elek.yml` when explicitly set. To disable config
+loading, set `config_path: none`.
+
 ## Cost visibility
 
 Cost reporting is on by default. elek estimates tokens from prompt/output text

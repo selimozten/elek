@@ -78,6 +78,10 @@ inputs:
     description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
     default: ""
+  config_path:
+    description: "Repo-local elek config file path. Set to 'none' to disable. Default: .elek.yml"
+    required: false
+    default: ".elek.yml"
   base_branch:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false
@@ -119,7 +123,7 @@ inputs:
         council — four independent read-only lenses for larger/high-risk PRs,
           then final validation/synthesis.
     required: false
-    default: "solo"
+    default: ""
   review_models:
     description: >
       Optional comma-separated model specs for crosscheck/council reviewer
@@ -223,6 +227,7 @@ runs:
         INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_TOOLS: ${{ inputs.tools }}
+        INPUT_CONFIG_PATH: ${{ inputs.config_path }}
         INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
         INPUT_BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         INPUT_ACTOR_FILTER: ${{ inputs.actor_filter }}
