@@ -16,18 +16,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.0",
-    "@mariozechner/pi-coding-agent": "latest",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@octokit/rest": "^21.0.0",
-    "pi-mcp-adapter": "^2.5.3",
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
+    "@earendil-works/pi-coding-agent": "^0.79.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@octokit/rest": "^22.0.1",
+    "pi-mcp-adapter": "^2.9.0",
     "tsx": "^4.19.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
   },
   "keywords": [
     "github-actions",
