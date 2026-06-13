@@ -32,7 +32,7 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
@@ -54,7 +54,7 @@ jobs:
   review:
     if: ${{ github.event.issue.pull_request && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
@@ -85,7 +85,7 @@ jobs:
   deepseek:
     name: deepseek-v4-pro
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
@@ -100,7 +100,7 @@ jobs:
   kimi:
     name: openrouter-kimi-k2.7-code
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }

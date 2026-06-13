@@ -85,7 +85,7 @@ This creates `.github/workflows/elek.yml` and `.elek.yml`.
      review:
        if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
        runs-on: ubuntu-latest
-       timeout-minutes: 10
+       timeout-minutes: 15
        steps:
          - uses: actions/checkout@v6.0.3
            with: { fetch-depth: 0 }

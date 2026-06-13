@@ -47,6 +47,8 @@ const DEFAULTS = {
   force: false,
 };
 
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
 export function parseArgs(argv) {
   const options = { ...DEFAULTS };
   const positional = [];
@@ -73,6 +75,7 @@ export function parseArgs(argv) {
       "--provider",
       "--model",
       "--secret",
+      "--thinking",
       "--strategy",
       "--max-cost-usd",
       "--action-ref",
@@ -91,6 +94,9 @@ export function parseArgs(argv) {
           break;
         case "--secret":
           options.secret = value;
+          break;
+        case "--thinking":
+          options.thinking = value;
           break;
         case "--strategy":
           options.strategy = value;
@@ -130,20 +136,35 @@ export function finalizeOptions(options) {
   if (options.maxCostUsd && (!Number.isFinite(Number(options.maxCostUsd)) || Number(options.maxCostUsd) <= 0)) {
     throw new Error("--max-cost-usd must be a positive number");
   }
+  const secret = options.secret ?? providerDefaults.secret;
+  const thinking = options.thinking ?? providerDefaults.thinking;
+  assertValidSecretName(secret);
+  if (!THINKING_LEVELS.has(thinking)) {
+    throw new Error("--thinking must be one of: off, minimal, low, medium, high, xhigh, max");
+  }
   assertSafeOutputPath(options.workflowPath, "--workflow");
   assertSafeOutputPath(options.configPath, "--config-path");
   return {
     ...options,
     model: options.model ?? providerDefaults.model,
-    secret: options.secret ?? providerDefaults.secret,
-    thinking: options.thinking ?? providerDefaults.thinking,
+    secret,
+    thinking,
     keyInput: providerDefaults.keyInput,
   };
+}
+
+export function assertValidSecretName(value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value) || value.toUpperCase().startsWith("GITHUB_")) {
+    throw new Error("--secret must be a valid GitHub Actions secret name");
+  }
 }
 
 export function assertSafeOutputPath(value, flag) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${flag} must be a non-empty relative path`);
+  }
+  if (value !== value.trim()) {
+    throw new Error(`${flag} must not contain leading or trailing whitespace`);
   }
   if (value.includes("\0") || /[\r\n]/.test(value)) {
     throw new Error(`${flag} must not contain control characters`);
@@ -255,6 +276,7 @@ Options:
   --provider <name>       deepseek, openrouter, anthropic, openai, google
   --model <id>            provider model id
   --secret <name>         GitHub Actions secret name for the provider key
+  --thinking <level>      off, minimal, low, medium, high, xhigh, or max
   --strategy <name>       solo, crosscheck, or council
   --max-cost-usd <n>      add a soft cost cap to .elek.yml
   --config                write .elek.yml, enabled by default

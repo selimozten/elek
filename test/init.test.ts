@@ -13,11 +13,12 @@ import {
 
 describe("elek-init", () => {
   it("uses low-friction defaults for a first review workflow", () => {
-    const options = parseArgs([]);
+    const options = parseArgs(["--provider=deepseek"]);
 
     expect(options.provider).toBe("deepseek");
     expect(options.model).toBe("deepseek-v4-pro");
     expect(options.secret).toBe("DEEPSEEK_API_KEY");
+    expect(options.thinking).toBe("high");
     expect(options.strategy).toBe("solo");
     expect(options.writeConfig).toBe(true);
   });
@@ -30,6 +31,10 @@ describe("elek-init", () => {
       "moonshotai/kimi-k2.7-code",
       "--secret",
       "OPENROUTER_API_KEY",
+      "--thinking",
+      "max",
+      "--action-ref",
+      "owner/elek@v2",
     ]));
 
     expect(workflow).toContain("pull_request: { types: [opened, synchronize, reopened] }");
@@ -46,6 +51,8 @@ describe("elek-init", () => {
     expect(workflow).toContain("openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}");
     expect(workflow).toContain("provider: openrouter");
     expect(workflow).toContain("model: moonshotai/kimi-k2.7-code");
+    expect(workflow).toContain("thinking: max");
+    expect(workflow).toContain("uses: owner/elek@v2");
     expect(workflow).toContain("config_path: .elek.yml");
     expect(workflow).not.toContain("contents: write");
   });
@@ -77,7 +84,7 @@ describe("elek-init", () => {
   });
 
   it("can write only the workflow when config is disabled", () => {
-    const options = parseArgs(["--no-config"]);
+    const options = parseArgs(["--no-config", "--config", "--no-config"]);
     const files = planFiles(options);
 
     expect(files.map((file) => file.path)).toEqual([".github/workflows/elek.yml"]);
@@ -87,15 +94,22 @@ describe("elek-init", () => {
   it("writes planned files and refuses to overwrite without --force", () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-init-test-"));
     try {
-      const options = parseArgs(["--strategy", "crosscheck", "--max-cost-usd", "0.10"]);
+      const options = parseArgs([
+        "--strategy",
+        "crosscheck",
+        "--max-cost-usd",
+        "0.10",
+        "--workflow",
+        ".github/workflows/review.yml",
+      ]);
       const written = writePlannedFiles(options, dir);
 
-      expect(written).toEqual([".github/workflows/elek.yml", ".elek.yml"]);
-      expect(existsSync(join(dir, ".github/workflows/elek.yml"))).toBe(true);
+      expect(written).toEqual([".github/workflows/review.yml", ".elek.yml"]);
+      expect(existsSync(join(dir, ".github/workflows/review.yml"))).toBe(true);
       expect(readFileSync(join(dir, ".elek.yml"), "utf8")).toContain("max_cost_usd: 0.10");
       expect(() => writePlannedFiles(options, dir)).toThrow("already exists");
       expect(writePlannedFiles({ ...options, force: true }, dir)).toEqual([
-        ".github/workflows/elek.yml",
+        ".github/workflows/review.yml",
         ".elek.yml",
       ]);
     } finally {
@@ -107,6 +121,9 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--provider", "unknown"])).toThrow("Unsupported provider");
     expect(() => parseArgs(["--strategy", "many"])).toThrow("Unsupported strategy");
     expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
+    expect(() => parseArgs(["--secret", "MY-SECRET"])).toThrow("valid GitHub Actions secret name");
+    expect(() => parseArgs(["--secret", "GITHUB_TOKEN"])).toThrow("valid GitHub Actions secret name");
+    expect(() => parseArgs(["--thinking", "huge"])).toThrow("off, minimal, low, medium, high, xhigh, max");
   });
 
   it("rejects output paths outside the repository", () => {
@@ -114,10 +131,12 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--config-path", ".github/../elek.yml"])).toThrow("inside the repository root");
     expect(() => parseArgs(["--workflow", "/tmp/elek.yml"])).toThrow("relative to the repository root");
     expect(() => parseArgs(["--config-path", "bad\npath.yml"])).toThrow("control characters");
+    expect(() => parseArgs(["--workflow", " .github/workflows/elek.yml"])).toThrow("leading or trailing whitespace");
   });
 
   it("documents config file controls", () => {
     expect(helpText()).toContain("--config");
     expect(helpText()).toContain("--no-config");
+    expect(helpText()).toContain("--thinking");
   });
 });
