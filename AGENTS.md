@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Instructions for coding agents (Claude Code, pi, Cursor, OpenAI Codex, etc.)
+Instructions for coding agents working in this repository.
 working in this repository. Read before editing.
 
 ## What this is

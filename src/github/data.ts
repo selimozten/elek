@@ -1,6 +1,6 @@
 /**
  * GitHub data fetching and prompt building.
- * Structured prompt format inspired by Claude Code Action's XML-tagged approach.
+ * GitHub data fetching and prompt building.
  */
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
@@ -93,7 +93,7 @@ export async function fetchGitHubData(
 }
 
 /**
- * Build a structured prompt for pi — same quality level as Claude Code Action.
+ * Build a structured prompt for pi with clear sections and capability boundaries.
  *
  * Uses XML-style tags for sections, step-by-step workflow instructions,
  * and clear capability boundaries so the model produces consistent results.
