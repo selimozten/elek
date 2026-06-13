@@ -78,8 +78,8 @@ export async function fetchGitHubData(
       // Include EVERY comment, including our own prior bot reviews — the
       // model needs to see its previous findings so it can iterate on them
       // (acknowledge what's been addressed, flag what's still outstanding).
-      // Same pattern as claude-code-action: feed full context, let the model
-      // reason about its own history rather than us pre-processing it.
+      // Feed full context so the model can reason about its own history
+      // rather than us pre-processing it.
       base.comments = (comments as Array<{ body?: string; user?: { login?: string } }>)
         .filter((c) => !!c.body)
         .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
