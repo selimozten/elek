@@ -10,6 +10,7 @@ package-lock.json
 # Local env / debug artifacts
 .env
 .env.local
+.elek-analytics-*/
 .elek-benchmark-*/
 .elek-eval-*/
 /tmp/
