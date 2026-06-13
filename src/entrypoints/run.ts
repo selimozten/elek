@@ -53,12 +53,17 @@ import {
   aggregateCosts,
   costFromPiResult,
   formatCostLine,
+  modelLabelFor,
   type ReviewCost,
 } from "../review/cost.js";
 import { sanitize } from "../mcp/handlers.js";
 
 async function run(): Promise<void> {
   // ── Phase 0: Parse inputs & context ──────────────────────────────────
+  core.setOutput("cost_usd", "0.000000");
+  core.setOutput("input_tokens", "0");
+  core.setOutput("output_tokens", "0");
+
   const inputs = parseInputs();
   const context = parseEntityContext();
 
@@ -101,9 +106,7 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
-  const modelLabel = inputs.model
-    ? `${inputs.provider}/${inputs.model}`
-    : inputs.provider;
+  const modelLabel = modelLabelFor(inputs);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 

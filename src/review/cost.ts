@@ -28,6 +28,7 @@ const BUILTIN_RATES: Record<string, Omit<ModelRates, "source">> = {
   "openrouter/deepseek/deepseek-v4-pro": { inputPerMillion: 0.435, outputPerMillion: 0.87 },
   "openrouter/moonshotai/kimi-k2.7-code": { inputPerMillion: 0.95, outputPerMillion: 4 },
 };
+const overrideCache = new Map<string, Record<string, Omit<ModelRates, "source">>>();
 
 export function modelLabelFor(inputs: Pick<ActionInputs, "provider" | "model">): string {
   if (!inputs.model) return inputs.provider;
@@ -85,9 +86,15 @@ export function parseCostRateOverrides(
 
 export function resolveRates(modelLabel: string, overrides: string): ModelRates {
   const normalized = modelLabel.toLowerCase();
-  const override = parseCostRateOverrides(overrides, (entry, reason) => {
-    console.warn(`Ignoring invalid cost_rates entry "${entry}": ${reason}`);
-  })[normalized];
+  let parsedOverrides = overrideCache.get(overrides);
+  if (!parsedOverrides) {
+    parsedOverrides = parseCostRateOverrides(overrides, (entry, reason) => {
+      console.warn(`Ignoring invalid cost_rates entry "${entry}": ${reason}`);
+    });
+    overrideCache.set(overrides, parsedOverrides);
+  }
+
+  const override = parsedOverrides[normalized];
   if (override) return { ...override, source: "override" };
 
   const builtin = BUILTIN_RATES[normalized];
