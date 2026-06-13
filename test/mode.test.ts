@@ -3,7 +3,7 @@
  * Pure mapping; no side effects.
  */
 import { describe, it, expect } from "bun:test";
-import { resolveMode } from "../src/github/mode";
+import { resolveMode, resolvePiTools } from "../src/github/mode";
 
 describe("resolveMode", () => {
   it("review (default) restricts pi tools to read-only + the mcp proxy", () => {
@@ -35,5 +35,27 @@ describe("resolveMode", () => {
     const m = resolveMode("nonsense");
     expect(m.piTools.split(",").sort()).toEqual(["find", "grep", "ls", "mcp", "read"]);
     expect(m.useMcpServer).toBe(true);
+  });
+});
+
+describe("resolvePiTools", () => {
+  it("ignores tools overrides in review mode", () => {
+    const mode = resolveMode("review");
+    expect(resolvePiTools(mode, "read,bash")).toBe("read,grep,find,ls,mcp");
+  });
+
+  it("ignores tools overrides in review+edit mode", () => {
+    const mode = resolveMode("review+edit");
+    expect(resolvePiTools(mode, "read,bash")).toBe("read,write,edit,grep,find,ls,mcp");
+  });
+
+  it("allows tools overrides in legacy agent mode", () => {
+    const mode = resolveMode("agent");
+    expect(resolvePiTools(mode, " read,grep ")).toBe("read,grep");
+  });
+
+  it("uses the agent preset when no tools override is supplied", () => {
+    const mode = resolveMode("agent");
+    expect(resolvePiTools(mode, "")).toBe("read,write,edit,bash,grep,find,ls");
   });
 });

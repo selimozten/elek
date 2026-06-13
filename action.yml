@@ -2,7 +2,7 @@ name: "elek — AI Code Review"
 description: >
   Model-agnostic AI code review for GitHub. Cross-check pull requests with
   independent review lenses while preserving a narrow review-only tool surface.
-  Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral, xAI,
+  Anthropic, OpenAI, Google, Bedrock, DeepSeek, Z.AI, Groq, Mistral, xAI,
   OpenRouter — bring your own key.
 branding:
   icon: "filter"
@@ -78,9 +78,9 @@ inputs:
     required: false
     default: "20"
   tools:
-    description: "Comma-separated tool allowlist. Default: read,write,edit,bash,grep,find,ls"
+    description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
-    default: "read,write,edit,bash,grep,find,ls"
+    default: ""
   base_branch:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false

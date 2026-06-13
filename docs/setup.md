@@ -91,6 +91,10 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 | `review+edit` | + `write,edit` | ✓ | pushes to `elek/*` branch | "Review and propose fixes" |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
+`review+edit` does not give the model shell access. The model can make file
+edits with write/edit tools; elek stages, commits, and pushes those changes to
+the generated branch after the review run succeeds.
+
 ## Review strategies
 
 `review_strategy` controls how many independent review passes run before the

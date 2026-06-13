@@ -36,7 +36,7 @@ jobs:
 | **Iterates on prior findings** | ✓ | ✓ | partial |
 | **Structural safety** | ✓ no merge/approve/close paths | ✗ has full PR API | ✗ has full PR API |
 | **Modules** | ~20 files | 50+ | 30+ |
-| **Runtime** | Node 20 + tsx | Bun + Claude CLI | Node + gcloud |
+| **Runtime** | Node 24 + tsx | Bun + Claude CLI | Node + gcloud |
 
 **Bias toward cheap, capable models.** DeepSeek-v4-Pro and GLM-5.1 are within striking distance of Sonnet 4.x on review tasks at ~10× lower cost. Run two of them in parallel for cross-validation; you'll still spend less than one Claude review.
 
@@ -94,6 +94,10 @@ The `mode` input controls the model's tool surface:
 | `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Code review only. Recommended. |
 | `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to an `elek/*` branch. |
 | `agent` | `+ bash` | ✗ | ✓ | Legacy, full power. Trusted workflows only. |
+
+Use `mode` to choose the tool surface. The low-level `tools` input is kept
+for compatibility and debugging; review modes still resolve to the safe mode
+presets.
 
 **The model can never approve, merge, or close** in any mode — those endpoints aren't plumbed in elek's MCP server. The `permissions:` block in your workflow is the backstop.
 
@@ -204,7 +208,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `thinking` | `medium` | `off` / `minimal` / `low` / `medium` / `high` / `xhigh` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
 | `max_turns` | `20` | Cap conversation turns |
-| `tools` | _(mode-resolved)_ | Override the tool allowlist (rarely needed) |
+| `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
 | `base_branch` | _(repo default)_ | Override the comparison base |
 | `branch_prefix` | `elek/` | Prefix for branches the action creates |
 

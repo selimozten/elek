@@ -48,3 +48,14 @@ export function resolveMode(raw: string | undefined): ResolvedMode {
       };
   }
 }
+
+export function resolvePiTools(
+  resolvedMode: ResolvedMode,
+  requestedTools: string | undefined,
+): string {
+  const trimmed = (requestedTools || "").trim();
+  if (resolvedMode.mode === "agent" && trimmed) {
+    return trimmed;
+  }
+  return resolvedMode.piTools;
+}
