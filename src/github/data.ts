@@ -199,6 +199,7 @@ export function buildPrompt(
   parts.push("Follow these steps:");
   parts.push("");
   parts.push("1. **Analyze the context** — Read the body, diff, and any comments to understand what changed and why.");
+  parts.push("   - Do not claim external packages, GitHub Actions, model IDs, or APIs do not exist unless you can verify it from current repo files, package-manager output, or workflow error logs.");
   if (isPR) {
     parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
     parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);

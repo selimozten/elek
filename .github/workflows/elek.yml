@@ -52,6 +52,9 @@ jobs:
           prompt: |
             Review this PR for correctness, security, performance, and style.
             Be specific — reference files and line numbers. Think step by step.
+            Do not claim external GitHub Action versions are unpublished unless
+            this run failed while resolving them; by the time this prompt runs,
+            checkout and this composite action have already resolved.
 
       - name: Report advisory review failure
         if: steps.review.outcome == 'failure'
@@ -80,6 +83,9 @@ jobs:
           prompt: |
             Review this PR for correctness, security, performance, and style.
             Be specific — reference files and line numbers. Think step by step.
+            Do not claim external GitHub Action versions are unpublished unless
+            this run failed while resolving them; by the time this prompt runs,
+            checkout and this composite action have already resolved.
 
       - name: Report advisory review failure
         if: steps.review.outcome == 'failure'
