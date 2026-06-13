@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writing a transient package lockfile.
 - Dependabot version-update policy now defers semver-major upgrades to manual
   migration PRs.
+- Runtime MCP adapter dependency updated to `pi-mcp-adapter` 2.10.0.
 
 ## [1.1.1] - 2026-06-13
 
