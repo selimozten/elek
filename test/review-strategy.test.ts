@@ -55,24 +55,24 @@ describe("review strategy", () => {
   });
 
   it("parses provider-qualified model specs as self-routing pi models", () => {
-    const spec = parseModelSpec("zai/glm-5.1", baseInputs);
+    const spec = parseModelSpec("openrouter/moonshotai/kimi-k2.7-code", baseInputs);
     expect(spec).toEqual({
-      provider: "zai",
-      model: "zai/glm-5.1",
-      label: "zai/glm-5.1",
+      provider: "openrouter",
+      model: "openrouter/moonshotai/kimi-k2.7-code",
+      label: "openrouter/moonshotai/kimi-k2.7-code",
     });
   });
 
   it("treats trailing-slash provider specs as provider defaults", () => {
-    expect(parseModelSpec("zai/", baseInputs)).toEqual({
-      provider: "zai",
+    expect(parseModelSpec("openrouter/", baseInputs)).toEqual({
+      provider: "openrouter",
       model: "",
-      label: "zai",
+      label: "openrouter",
     });
-    expect(parseModelSpec("zai//glm-5.1/", baseInputs)).toEqual({
-      provider: "zai",
-      model: "zai/glm-5.1",
-      label: "zai/glm-5.1",
+    expect(parseModelSpec("openrouter//moonshotai/kimi-k2.7-code/", baseInputs)).toEqual({
+      provider: "openrouter",
+      model: "openrouter/moonshotai/kimi-k2.7-code",
+      label: "openrouter/moonshotai/kimi-k2.7-code",
     });
   });
 
@@ -101,7 +101,7 @@ describe("review strategy", () => {
     const plan = resolveReviewPlan({
       ...baseInputs,
       reviewStrategy: "crosscheck",
-      reviewModels: "deepseek/deepseek-v4-pro,zai/glm-5.1",
+      reviewModels: "deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code",
       validatorModel: "deepseek/deepseek-v4-pro",
     });
 
@@ -110,7 +110,7 @@ describe("review strategy", () => {
     expect(plan.jobs.map((j) => j.lens.id)).toEqual(["risk", "design"]);
     expect(plan.jobs.map((j) => j.model.label)).toEqual([
       "deepseek/deepseek-v4-pro",
-      "zai/glm-5.1",
+      "openrouter/moonshotai/kimi-k2.7-code",
     ]);
     expect(plan.validator.label).toBe("deepseek/deepseek-v4-pro");
   });
@@ -119,7 +119,7 @@ describe("review strategy", () => {
     const plan = resolveReviewPlan({
       ...baseInputs,
       reviewStrategy: "council",
-      reviewModels: "deepseek/deepseek-v4-pro,zai/glm-5.1",
+      reviewModels: "deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code",
     });
 
     expect(plan.jobs.map((j) => j.lens.id)).toEqual([
@@ -130,9 +130,9 @@ describe("review strategy", () => {
     ]);
     expect(plan.jobs.map((j) => j.model.label)).toEqual([
       "deepseek/deepseek-v4-pro",
-      "zai/glm-5.1",
+      "openrouter/moonshotai/kimi-k2.7-code",
       "deepseek/deepseek-v4-pro",
-      "zai/glm-5.1",
+      "openrouter/moonshotai/kimi-k2.7-code",
     ]);
     expect(plan.reusedModels).toBe(true);
   });
@@ -152,9 +152,9 @@ describe("review strategy", () => {
   });
 
   it("drops empty model list entries", () => {
-    expect(parseModelList(" deepseek/a, ,zai/b ", baseInputs).map((m) => m.label)).toEqual([
+    expect(parseModelList(" deepseek/a, ,openrouter/b ", baseInputs).map((m) => m.label)).toEqual([
       "deepseek/a",
-      "zai/b",
+      "openrouter/b",
     ]);
   });
 
@@ -214,7 +214,7 @@ describe("review strategy", () => {
         },
         {
           lens: { id: "design", title: "Design Review", focus: "Maintainability." },
-          modelLabel: "zai/glm-5.1",
+          modelLabel: "openrouter/moonshotai/kimi-k2.7-code",
           output: "",
           conclusion: "failure",
         },

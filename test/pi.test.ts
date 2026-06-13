@@ -44,14 +44,18 @@ describe("buildPiArgs", () => {
 
   it("lets provider-qualified model specs route themselves", () => {
     const args = buildPiArgs(
-      { ...baseInputs, provider: "zai", model: "zai/glm-5.1" },
+      {
+        ...baseInputs,
+        provider: "openrouter",
+        model: "openrouter/moonshotai/kimi-k2.7-code",
+      },
       "/tmp/prompt.md",
       true,
     );
 
     expect(args).not.toContain("--provider");
     expect(args).toContain("--model");
-    expect(args).toContain("zai/glm-5.1");
+    expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
     expect(args).not.toContain("--no-extensions");
   });
 });

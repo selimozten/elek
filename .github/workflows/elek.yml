@@ -60,9 +60,9 @@ jobs:
         if: steps.review.outcome == 'failure'
         run: echo "::warning::Advisory DeepSeek review failed; inspect the tracking comment and run logs."
 
-  # ── Z.AI GLM-5.1 ──────────────────────────────────────────────────────
-  zai:
-    name: "glm-5.1 (Z.AI)"
+  # ── OpenRouter Kimi K2.7 Code ────────────────────────────────────────
+  kimi:
+    name: "openrouter-kimi-k2.7-code"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -75,11 +75,11 @@ jobs:
         uses: ./
         continue-on-error: true
         with:
-          zai_api_key: ${{ secrets.ZAI_API_KEY }}
-          provider: zai
-          model: glm-5.1
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: openrouter
+          model: moonshotai/kimi-k2.7-code
           thinking: high
-          branch_prefix: elek/zai/
+          branch_prefix: elek/kimi/
           prompt: |
             Review this PR for correctness, security, performance, and style.
             Be specific — reference files and line numbers. Think step by step.
@@ -89,4 +89,4 @@ jobs:
 
       - name: Report advisory review failure
         if: steps.review.outcome == 'failure'
-        run: echo "::warning::Advisory Z.AI review failed; inspect the tracking comment and run logs."
+        run: echo "::warning::Advisory OpenRouter Kimi review failed; inspect the tracking comment and run logs."

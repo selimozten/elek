@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Switch the secondary self-review workflow to OpenRouter Kimi K2.7 Code.
+- Keep the low-level `tools` input limited to legacy `agent` mode; review
+  modes always use their safe mode presets.
+- Refresh model examples to current Claude, OpenAI, OpenRouter, and DeepSeek
+  review choices, including provider-specific reasoning-effort notes.
+
+### Fixed
+
+- Align generated review prompts with the actual tool surface for `review`,
+  `review+edit`, and legacy `agent` modes.
+- Avoid telling `review+edit` models to run shell/git commands when MCP is
+  disabled but `bash` is still unavailable.
+
 ## [1.1.0] - 2026-06-13
 
 ### Added

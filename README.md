@@ -2,7 +2,7 @@
   <img src="assets/elek-wordmark.svg" width="430" alt="elek" />
 </p>
 
-> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/earendil-works/pi) supports — DeepSeek, Z.AI, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, OpenRouter.
+> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/earendil-works/pi) supports — DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI.
 
 [![ci](https://github.com/selimozten/elek/actions/workflows/ci.yml/badge.svg)](https://github.com/selimozten/elek/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -38,14 +38,14 @@ jobs:
 | **Modules** | ~20 files | 50+ | 30+ |
 | **Runtime** | Node 24 + tsx | Bun + Claude CLI | Node + gcloud |
 
-**Bias toward cheap, capable models.** DeepSeek-v4-Pro and GLM-5.1 are within striking distance of Sonnet 4.x on review tasks at ~10× lower cost. Run two of them in parallel for cross-validation; you'll still spend less than one Claude review.
+**Bias toward cheap, capable models.** DeepSeek-v4-Pro plus Kimi K2.7 Code through OpenRouter gives you two independent review passes without defaulting to one expensive model. Run them in parallel for cross-validation; reserve premium validators for the highest-risk PRs.
 
 ## Quick start
 
 1. Add a provider API key to repo secrets (`Settings → Secrets and variables → Actions`):
 
    ```
-   DEEPSEEK_API_KEY  # or ZAI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / etc.
+   DEEPSEEK_API_KEY  # or OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / etc.
    ```
 
 2. Drop this in `.github/workflows/elek.yml`:
@@ -128,7 +128,7 @@ with:
   provider: deepseek
   model: deepseek-v4-pro
   review_strategy: crosscheck
-  review_models: deepseek/deepseek-v4-pro,zai/glm-5.1
+  review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
   validator_model: deepseek/deepseek-v4-pro
 ```
 
@@ -150,15 +150,16 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
 
-  zai:
+  kimi:
+    name: openrouter-kimi-k2.7-code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
-          zai_api_key: ${{ secrets.ZAI_API_KEY }}
-          provider: zai
-          model: glm-5.1
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: openrouter
+          model: moonshotai/kimi-k2.7-code
 ```
 
 On the second push, each model reads the other's prior findings (kept in the comment thread) and opens its review with a status table — fixed / still present / no longer relevant — before listing new findings. Same pattern claude-code-action uses.
@@ -193,7 +194,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
 | `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
-| `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,zai/glm-5.1` |
+| `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
@@ -203,9 +204,9 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Input | Default | Examples |
 |---|---|---|
-| `provider` | `anthropic` | `deepseek`, `zai`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `xai`, `openrouter` |
-| `model` | _(provider default)_ | `deepseek-v4-pro`, `glm-5.1`, `claude-sonnet-4-5`, `gpt-4o`, `gemini-2.5-pro` |
-| `thinking` | `medium` | `off` / `minimal` / `low` / `medium` / `high` / `xhigh` |
+| `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `xai` |
+| `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/kimi-k2.7-code`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
+| `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh`; provider adapters map these to native efforts, e.g. Claude's maximum `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
 | `max_turns` | `20` | Cap conversation turns |
 | `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
@@ -222,7 +223,6 @@ Each provider has its own input; only set the one you use. Pi reads the matching
 | `openai_api_key` | `OPENAI_API_KEY` |
 | `google_api_key` | `GOOGLE_API_KEY` |
 | `deepseek_api_key` | `DEEPSEEK_API_KEY` |
-| `zai_api_key` | `ZAI_API_KEY` |
 | `groq_api_key` | `GROQ_API_KEY` |
 | `mistral_api_key` | `MISTRAL_API_KEY` |
 | `xai_api_key` | `XAI_API_KEY` |
@@ -265,11 +265,11 @@ Rough numbers for a typical mid-sized PR (~500 lines diff, 7-turn review):
 
 | Model | Cost | Notes |
 |---|---|---|
-| deepseek-v4-pro (thinking: high) | ~$0.005 | Strong reviewer, very cheap |
-| glm-5.1 (thinking: high) | ~$0.005 | Comparable to deepseek |
-| gpt-4o-mini | ~$0.01 | Fast, decent for triage |
-| claude-sonnet-4-5 (thinking: high) | ~$0.05 | Highest quality, ~10× the price |
-| gpt-4o | ~$0.10 | High quality |
+| deepseek-v4-pro (thinking: high) | low | Strong low-cost reviewer |
+| moonshotai/kimi-k2.7-code via OpenRouter | provider pricing | Independent reviewer through OpenRouter |
+| gpt-5.5 (thinking: medium/high/xhigh) | OpenAI pricing | Strong reasoning reviewer or validator |
+| claude-sonnet-4-6 (thinking: high) | Anthropic pricing | Balanced premium validator |
+| claude-opus-4-8 (thinking: xhigh, native Claude max) | Anthropic pricing | Highest-capability validator for critical PRs |
 
 Running two cheap models in parallel for cross-validation costs less than one Claude review.
 
