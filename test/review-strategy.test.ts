@@ -76,6 +76,19 @@ describe("review strategy", () => {
     });
   });
 
+  it("normalizes leading-slash model specs", () => {
+    expect(parseModelSpec("/deepseek-v4-pro", baseInputs)).toEqual({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      label: "deepseek/deepseek-v4-pro",
+    });
+    expect(parseModelSpec("/", baseInputs)).toEqual({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      label: "deepseek/deepseek-v4-pro",
+    });
+  });
+
   it("parses unqualified model specs against the primary provider", () => {
     expect(parseModelSpec("deepseek-v4-flash", baseInputs)).toEqual({
       provider: "deepseek",
@@ -188,6 +201,7 @@ describe("review strategy", () => {
     });
 
     expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
+    expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
     expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
     expect(prompt).toContain("`args` is a JSON STRING");
@@ -199,5 +213,25 @@ describe("review strategy", () => {
     expect(prompt).toContain("<review_comments>");
     expect(prompt).toContain("focus on regressions");
     expect(prompt).toContain("comment_id: 123");
+  });
+
+  it("uses a tighter diff budget for final synthesis prompts", () => {
+    const longData = {
+      ...dataFixture,
+      diff: `diff --git a/src/a.ts b/src/a.ts\n${"+x\n".repeat(40_000)}`,
+      comments: [],
+      reviewComments: [],
+    };
+
+    const prompt = buildSynthesisPrompt({
+      data: longData,
+      userRequest: "",
+      modelLabel: "deepseek/deepseek-v4-pro",
+      jobRunLink: "https://github.com/selimozten/elek/actions/runs/1",
+      reports: [],
+    });
+
+    expect(prompt).toContain("... diff truncated for prompt budget");
+    expect(prompt.length).toBeLessThan(70_000);
   });
 });

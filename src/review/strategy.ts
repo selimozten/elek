@@ -75,7 +75,7 @@ export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
 }
 
 export function parseModelSpec(raw: string, defaults: Pick<ActionInputs, "provider" | "model">): ModelSpec {
-  const spec = raw.trim();
+  const spec = raw.trim().replace(/^\/+/, "");
   if (!spec) {
     const label = defaults.model ? `${defaults.provider}/${defaults.model}` : defaults.provider;
     return { provider: defaults.provider, model: defaults.model, label };
@@ -127,10 +127,10 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   return { strategy, jobs, validator };
 }
 
-function changedFilesBlock(data: GitHubData): string {
+function changedFilesBlock(data: GitHubData, maxChars = 80_000): string {
   if (!data.diff) return "(diff unavailable; inspect files from the workspace if needed)";
-  return data.diff.length > 120_000
-    ? `${data.diff.slice(0, 120_000)}\n\n... diff truncated for prompt budget; use read/grep/find/ls tools for more context.`
+  return data.diff.length > maxChars
+    ? `${data.diff.slice(0, maxChars)}\n\n... diff truncated for prompt budget; use read/grep/find/ls tools for more context.`
     : data.diff;
 }
 
@@ -241,6 +241,9 @@ export function buildSynthesisPrompt(params: {
     `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available are elek review-comment tools.`,
     ``,
     `Use the MCP proxy for visible inline findings:`,
+    ``,
+    `### Available tools (via the \`mcp\` proxy)`,
+    ``,
     ...mcpToolGuidance(),
     ``,
     `<context>`,
@@ -262,7 +265,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data),
+    changedFilesBlock(data, 60_000),
     "```",
     `</changed_files>`,
     ``,
