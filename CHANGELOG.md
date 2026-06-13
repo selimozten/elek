@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Hard CI and CodeQL workflows now run on every pull request so branch
+  protection can require them without docs-only PRs waiting on skipped checks.
 - Self-review workflow concurrency now separates pull request and issue comment
   events so bot tracking comments cannot cancel in-flight PR reviews.
 - Composite action runtime installs now omit dev dependencies and avoid

@@ -132,15 +132,20 @@ PATH="$(pwd)/node_modules/.bin:$PATH" pi --mode json --provider deepseek \
 
 ## CI
 
-Two workflows in `.github/workflows/`:
+Four workflows in `.github/workflows/`:
 
 - `ci.yml` — `bun test test/` + `bunx tsc --noEmit` on every PR. 5-min
   timeout, `contents:read` perms only, concurrency-grouped. This is the
-  hard merge gate for code changes.
+  hard merge gate and intentionally runs on docs-only PRs too so branch
+  protection never waits on a skipped required check.
+- `codeql.yml` — CodeQL JavaScript/TypeScript code scanning on every PR,
+  main push, weekly schedule, and manual dispatch. This is also required by
+  branch protection.
 - `elek.yml` — runs the action on itself (deepseek-v4-pro + OpenRouter Kimi).
   10-min timeout, concurrency cancels stale runs on new push, ignores
   docs-only changes. This is advisory because provider quota and transient
   model failures should not block a test-clean PR.
+- `dependabot.yml` — grouped weekly dependency update automation.
 
 CI must pass before merging. Treat advisory elek findings as review feedback:
 fix actionable code findings, but do not block solely on provider quota or
