@@ -8,11 +8,14 @@ class UsageError extends Error {}
 function usage(exitCode = 0) {
   const stream = exitCode === 0 ? process.stdout : process.stderr;
   stream.write(`Usage: elek-analytics [--group-by strategy|model|repository] [--json] summary.json [...summary.json]
+       elek-analytics [--group-by strategy|model|repository] [--json] --baseline old.json [...] --current new.json [...]
 
 Aggregates saved elek-review-summary.json files into review quality, speed, and cost metrics.
 
 Options:
   --group-by <key>   Group rows by strategy, model, or repository. Default: strategy.
+  --baseline <path>  Add one or more baseline summary files for trend comparison.
+  --current <path>   Add one or more current summary files for trend comparison.
   --json             Emit machine-readable JSON.
   -h, --help         Show this help.
 `);
@@ -20,7 +23,8 @@ Options:
 }
 
 function parseArgs(argv) {
-  const args = { groupBy: "strategy", json: false, summaries: [] };
+  const args = { groupBy: "strategy", json: false, summaries: [], baseline: [], current: [] };
+  let target = "summaries";
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === "-h" || arg === "--help") usage(0);
@@ -33,13 +37,26 @@ function parseArgs(argv) {
         throw new UsageError("--group-by must be one of: strategy, model, repository");
       }
       args.groupBy = value;
+    } else if (arg === "--baseline") {
+      target = "baseline";
+    } else if (arg === "--current") {
+      target = "current";
     } else if (arg.startsWith("-")) {
       throw new UsageError(`Unknown option: ${arg}`);
     } else {
-      args.summaries.push(arg);
+      args[target].push(arg);
     }
   }
-  if (args.summaries.length === 0) throw new UsageError("at least one summary JSON path is required");
+  const comparing = args.baseline.length > 0 || args.current.length > 0;
+  if (comparing && args.summaries.length > 0) {
+    throw new UsageError("do not mix positional summaries with --baseline/--current");
+  }
+  if (comparing && (args.baseline.length === 0 || args.current.length === 0)) {
+    throw new UsageError("--baseline and --current both require at least one summary path");
+  }
+  if (!comparing && args.summaries.length === 0) {
+    throw new UsageError("at least one summary JSON path is required");
+  }
   return args;
 }
 
@@ -106,6 +123,68 @@ function aggregate(summaries, groupBy) {
   };
 }
 
+function compareReports(baseline, current) {
+  const baselineGroups = new Map(baseline.groups.map((group) => [group.key, group]));
+  const currentGroups = new Map(current.groups.map((group) => [group.key, group]));
+  const keys = [...new Set([...baselineGroups.keys(), ...currentGroups.keys()])].sort((a, b) => a.localeCompare(b));
+  return {
+    version: 1,
+    groupBy: current.groupBy,
+    baseline,
+    current,
+    comparisons: keys.map((key) => {
+      const before = baselineGroups.get(key) ?? finalizeGroup(emptyGroup(key));
+      const after = currentGroups.get(key) ?? finalizeGroup(emptyGroup(key));
+      const delta = {
+        runs: after.runs - before.runs,
+        successRate: round(after.successRate - before.successRate),
+        findingsPerRun: round(after.findingsPerRun - before.findingsPerRun),
+        inlineIssueRate: round(inlineIssueRate(after) - inlineIssueRate(before)),
+        avgCostUsd: round(after.avgCostUsd - before.avgCostUsd, 6),
+        avgDurationSeconds: round(after.avgDurationSeconds - before.avgDurationSeconds, 1),
+      };
+      return {
+        key,
+        baseline: before,
+        current: after,
+        delta,
+        regressions: describeRegressions(delta, before, after),
+      };
+    }),
+  };
+}
+
+function inlineIssueRate(group) {
+  const total = group.inlinePosted + group.inlineSkipped + group.inlineFailed;
+  return total === 0 ? 0 : round((group.inlineSkipped + group.inlineFailed) / total);
+}
+
+function describeRegressions(delta, before, after) {
+  const regressions = [];
+  if (before.runs > 0 && after.runs > 0 && delta.successRate <= -0.05) {
+    regressions.push(`success rate down ${formatPercent(Math.abs(delta.successRate))}`);
+  }
+  if (before.runs > 0 && after.runs > 0 && delta.inlineIssueRate >= 0.05) {
+    regressions.push(`inline issue rate up ${formatPercent(delta.inlineIssueRate)}`);
+  }
+  if (meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
+    regressions.push(`average latency up ${formatSeconds(delta.avgDurationSeconds)}`);
+  }
+  if (meaningfulIncrease(before.avgCostUsd, after.avgCostUsd, 0.001, 0.2)) {
+    regressions.push(`average cost up ${formatUsd(delta.avgCostUsd)}`);
+  }
+  if (before.runs > 0 && after.runs > 0 && delta.findingsPerRun >= 1) {
+    regressions.push(`finding volume up ${delta.findingsPerRun}/run`);
+  }
+  return regressions;
+}
+
+function meaningfulIncrease(before, after, absoluteFloor, ratioFloor) {
+  if (before <= 0) return after >= absoluteFloor;
+  const delta = after - before;
+  return delta >= absoluteFloor && delta / before >= ratioFloor;
+}
+
 function emptyGroup(key) {
   return {
     key,
@@ -164,6 +243,25 @@ function round(value, digits = 3) {
   return Math.round(value * factor) / factor;
 }
 
+function formatPercent(value) {
+  return `${Math.round(value * 100)} pts`;
+}
+
+function formatSignedPercent(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${Math.round(value * 100)} pts`;
+}
+
+function formatSeconds(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${round(value, 1)}s`;
+}
+
+function formatUsd(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}$${round(value, 6).toFixed(6)}`;
+}
+
 function printTable(report) {
   const rows = [
     ["group", "runs", "success", "findings", "posted/skip/fail", "cost", "avg cost", "avg secs"],
@@ -194,12 +292,44 @@ function printTable(report) {
   }
 }
 
+function printComparisonTable(report) {
+  const rows = [
+    ["group", "runs", "success", "findings/run", "inline issues", "avg cost", "avg secs", "regressions"],
+    ...report.comparisons.map((item) => [
+      item.key,
+      `${item.baseline.runs}->${item.current.runs}`,
+      `${Math.round(item.current.successRate * 100)}% (${formatSignedPercent(item.delta.successRate)})`,
+      `${item.current.findingsPerRun} (${signedNumber(item.delta.findingsPerRun)})`,
+      `${Math.round(inlineIssueRate(item.current) * 100)}% (${formatSignedPercent(item.delta.inlineIssueRate)})`,
+      `${formatUsd(item.current.avgCostUsd)} (${formatUsd(item.delta.avgCostUsd)})`,
+      `${item.current.avgDurationSeconds}s (${formatSeconds(item.delta.avgDurationSeconds)})`,
+      item.regressions.length === 0 ? "-" : item.regressions.join("; "),
+    ]),
+  ];
+  const widths = rows[0].map((_, column) => Math.max(...rows.map((row) => row[column].length)));
+  for (const row of rows) {
+    process.stdout.write(row.map((cell, column) => cell.padEnd(widths[column])).join("  ") + "\n");
+  }
+}
+
+function signedNumber(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value}`;
+}
+
 try {
   const args = parseArgs(process.argv.slice(2));
-  const summaries = args.summaries.map(readSummary);
-  const report = aggregate(summaries, args.groupBy);
+  const comparing = args.baseline.length > 0 || args.current.length > 0;
+  const report = comparing
+    ? compareReports(
+      aggregate(args.baseline.map(readSummary), args.groupBy),
+      aggregate(args.current.map(readSummary), args.groupBy),
+    )
+    : aggregate(args.summaries.map(readSummary), args.groupBy);
   if (args.json) {
     process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+  } else if (comparing) {
+    printComparisonTable(report);
   } else {
     printTable(report);
   }

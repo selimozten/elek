@@ -265,7 +265,17 @@ Aggregate saved summaries by strategy, model, or repository:
 npx --package github:selimozten/elek elek-analytics --group-by strategy artifacts/*/elek-review-summary.json
 ```
 
-Use `--json` when sending the aggregate report to dashboards or release notes.
+Compare a baseline artifact set against a current artifact set when you want
+to catch trend regressions before changing default models or strategies:
+
+```bash
+npx --package github:selimozten/elek elek-analytics --group-by model \
+  --baseline artifacts/before/*/elek-review-summary.json \
+  --current artifacts/after/*/elek-review-summary.json
+```
+
+Use `--json` when sending aggregate or comparison reports to dashboards,
+release notes, or scheduled quality checks.
 
 For models without built-in price hints, pass your provider's current USD price
 per 1M input/output tokens:

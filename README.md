@@ -293,7 +293,16 @@ latency, findings, and inline comment outcomes:
 npx --package github:selimozten/elek elek-analytics --group-by model artifacts/*/elek-review-summary.json
 ```
 
-Add `--json` to feed dashboards or release reports.
+Compare two saved artifact sets to spot regressions in success rate, finding
+volume, inline comment health, latency, and cost:
+
+```bash
+npx --package github:selimozten/elek elek-analytics --group-by model \
+  --baseline artifacts/before/*/elek-review-summary.json \
+  --current artifacts/after/*/elek-review-summary.json
+```
+
+Add `--json` to feed dashboards, release reports, or scheduled quality checks.
 
 ## Model evaluation
 
