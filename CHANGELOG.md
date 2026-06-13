@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Brand guide documenting logo assets, palette, voice, and usage rules.
+- Minimal social/brand card asset for repository and launch materials.
+
+### Changed
+
+- Refresh elek logo, wordmark, and tracking-comment spinner with a warmer,
+  more minimal identity system.
+- Tighten the README hero around the review-only positioning.
+- Render the elek mark and name in tracking/final review comment headers.
+- Document why default workflow comments still appear as `github-actions[bot]`
+  and how to use a GitHub App or bot token for a custom avatar.
+- Correct agent docs to distinguish GitHub Actions workflows from Dependabot
+  configuration.
+- Normalize the CodeQL analysis category name.
+
+### Removed
+
+- Unused legacy spinner assets from the pre-elek branding pass.
+
 ## [1.1.2] - 2026-06-13
 
 ### Added

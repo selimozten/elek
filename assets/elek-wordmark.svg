@@ -1,18 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 240" role="img" aria-label="elek">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 220" role="img" aria-labelledby="title desc">
+  <title id="title">elek</title>
+  <desc id="desc">elek wordmark with a minimal warm-toned review mark.</desc>
   <style>
-    :root { color: #0f172a; }
-    @media (prefers-color-scheme: dark) { :root { color: #f8fafc; } }
-    .mark { fill: none; stroke: currentColor; stroke-width: 20; stroke-linecap: round; stroke-linejoin: round; }
-    .accent { fill: #14b8a6; }
-    .word { fill: currentColor; font-family: ui-sans-serif, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 128px; font-weight: 760; letter-spacing: 0; }
-    .tag { fill: #64748b; font-family: ui-sans-serif, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 30px; font-weight: 560; letter-spacing: 0; }
+    .back { fill: #f7f2ea; }
+    .line {
+      fill: none;
+      stroke: #171412;
+      stroke-width: 18;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .accent {
+      fill: none;
+      stroke: #c76d50;
+      stroke-width: 18;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .node { fill: #c76d50; }
+
+    .word {
+      fill: #171412;
+      font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 118px;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+
+    .tag {
+      fill: #6f6760;
+      font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 29px;
+      font-weight: 560;
+      letter-spacing: 0;
+    }
   </style>
-  <g transform="translate(30 30)">
-    <path class="mark" d="M36 38h132M36 90h100M36 142h68"/>
-    <path class="mark" d="M168 38 104 142"/>
-    <circle class="accent" cx="164" cy="142" r="14"/>
+  <rect class="back" width="820" height="220" rx="30"/>
+  <g transform="translate(30 32)">
+    <path class="line" d="M22 40h112M22 86h78M22 132h112"/>
+    <path class="accent" d="M136 40 82 132"/>
+    <circle class="node" cx="136" cy="132" r="11"/>
   </g>
-  <text class="word" x="250" y="128">elek</text>
-  <text class="tag" x="258" y="178">cross-model code review</text>
+  <text class="word" x="212" y="121">elek</text>
+  <text class="tag" x="218" y="170">review-only ai for pull requests</text>
 </svg>

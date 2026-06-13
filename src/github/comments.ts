@@ -1,7 +1,7 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
  * Deduplicates by signature so the same comment is reused across pushes.
- * Uses the animated pi spinner from the action's home repo on `main`,
+ * Uses the animated elek spinner from the action's home repo on `main`,
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types";

@@ -1,13 +1,20 @@
 <p align="center">
-  <img src="assets/elek-wordmark.svg" width="430" alt="elek" />
+  <img src="assets/elek-wordmark.svg" width="390" alt="elek" />
 </p>
 
-> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/earendil-works/pi) supports — DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI.
+<p align="center">
+  <strong>Review-only AI for pull requests.</strong><br />
+  Cross-check changes with independent models while keeping every reviewer inside a narrow, non-destructive tool surface.
+</p>
 
-[![ci](https://github.com/selimozten/elek/actions/workflows/ci.yml/badge.svg)](https://github.com/selimozten/elek/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/selimozten/elek/actions/workflows/ci.yml"><img src="https://github.com/selimozten/elek/actions/workflows/ci.yml/badge.svg" alt="ci" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-171412.svg" alt="License: MIT" /></a>
+</p>
 
-elek is a GitHub Action that posts AI reviews on every PR — top-level summaries in the tracking comment plus inline review threads on the lines that need attention. It can run one reviewer, a two-lens cross-check, or a four-lens council. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+elek is a model-agnostic GitHub Action that posts AI reviews on every PR. It works with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, and more.
+
+It can run one reviewer, a two-lens cross-check, or a four-lens council. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
 
 ```yaml
 # .github/workflows/elek.yml

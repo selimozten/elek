@@ -16,6 +16,8 @@ describe("formatProgressComment", () => {
       link,
     );
 
+    expect(body).toContain("<strong>elek</strong>");
+    expect(body).toContain(modelLabel);
     expect(body).toContain("- [ ] Reading context…");
     expect(body).toContain("- [ ] Analyzing");
     expect(body).toContain("- [ ] Writing review");

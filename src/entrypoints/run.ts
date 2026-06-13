@@ -41,6 +41,7 @@ import {
 import { runPi } from "../pi.js";
 import type { ProgressEvent } from "../pi.js";
 import { formatProgressComment, type ProgressState } from "../github/progress.js";
+import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
 import {
   buildLensPrompt,
@@ -392,8 +393,8 @@ async function run(): Promise<void> {
   if (commentId) {
     const reviewBody = [
       result.conclusion === "success"
-        ? `🤖 **${modelLabel}** analysis complete`
-        : `⚠️ **${modelLabel}** encountered an issue`,
+        ? spinnerHeader(modelLabel, "analysis complete")
+        : spinnerHeader(modelLabel, "encountered an issue"),
       "",
       truncate(safeOutput),
       "",
@@ -471,8 +472,9 @@ async function run(): Promise<void> {
         octokit,
         context,
         [
-          result.conclusion === "success" ? "🤖" : "⚠️",
-          ` **${modelLabel}**`,
+          result.conclusion === "success"
+            ? spinnerHeader(modelLabel, "analysis complete")
+            : spinnerHeader(modelLabel, "encountered an issue"),
           "",
           truncate(safeOutput),
           "",

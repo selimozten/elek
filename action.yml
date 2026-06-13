@@ -6,7 +6,7 @@ description: >
   OpenRouter — bring your own key.
 branding:
   icon: "filter"
-  color: "green"
+  color: "gray-dark"
 
 inputs:
   # ── Trigger ──
