@@ -154,9 +154,12 @@ with:
   review_strategy: crosscheck
   review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
   validator_model: deepseek/deepseek-v4-pro
+  max_cost_usd: "0.05"
 ```
 
 For expensive models, a good pattern is cheap parallel reviewers plus one stronger validator.
+If the selected multi-lens strategy already exceeds `max_cost_usd` before
+output tokens are counted, elek downgrades to the next cheaper strategy.
 
 ## Cross-Model Review
 
@@ -224,6 +227,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
+| `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; multi-lens strategies downgrade when known input-side estimates already exceed it |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -251,6 +255,7 @@ review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
+max_cost_usd: 0.05
 severity_threshold: important
 
 ignore_paths:
@@ -263,7 +268,8 @@ instructions:
 ```
 
 Supported keys: `review_strategy`, `review_models`, `validator_model`,
-`cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
+`cost_rates`, `max_cost_usd`, `severity_threshold`, `ignore_paths`, and
+`instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
 the workflow input.
 `severity_threshold` accepts `critical`, `important`, or `minor`. Severity
@@ -272,11 +278,11 @@ server-side filter. If an existing config file has malformed YAML, elek fails
 the run instead of silently dropping repo policy.
 
 On pull requests, policy fields (`review_strategy`, `review_models`,
-`validator_model`, `cost_rates`, and `severity_threshold`) are loaded from the
-base branch when available. Guidance fields (`ignore_paths` and `instructions`)
-come from the checked-out branch so contributors can propose review guidance
-changes without controlling cost or severity policy. Each run logs the loaded
-config source plus effective strategy/model/severity choices. If elek cannot
+`validator_model`, `cost_rates`, `max_cost_usd`, and `severity_threshold`) are
+loaded from the base branch when available. Guidance fields (`ignore_paths` and
+`instructions`) come from the checked-out branch so contributors can propose
+review guidance changes without controlling cost or severity policy. Each run
+logs the loaded config source plus effective strategy/model/severity choices. If elek cannot
 resolve a PR comment trigger's actual base branch, it skips base-branch policy
 loading for that run instead of guessing from the default branch; policy fields
 from the checked-out workspace are not used as a fallback. For `issue_comment`
@@ -357,7 +363,14 @@ tokens:
 with:
   show_cost: true
   cost_rates: openai/gpt-5.5=1.25:10,anthropic/claude-sonnet-4-6=3:15
+  max_cost_usd: "0.10"
 ```
+
+`max_cost_usd` is a soft guard for strategy selection. elek estimates the
+known prompt/input-side cost before running multi-lens reviews; if that
+minimum estimate already exceeds the cap, it downgrades `council` to
+`crosscheck`, then `crosscheck` to `solo`. Provide `cost_rates` for custom
+models so the guard can enforce the cap.
 
 Running two cheap models in crosscheck mode often costs less than one premium
 validator while surfacing disagreements that a single pass misses.

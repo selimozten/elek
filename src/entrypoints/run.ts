@@ -55,11 +55,15 @@ import {
   buildSynthesisPrompt,
   resolveReviewPlan,
   resolveReviewPlanSupport,
+  selectReviewPlanWithinBudget,
+  type ReviewJob,
+  type ReviewPlan,
 } from "../review/strategy.js";
 import {
   aggregateCosts,
   costFromPiResult,
   formatCostLine,
+  estimatePromptOnlyCost,
   modelLabelFor,
   type ReviewCost,
 } from "../review/cost.js";
@@ -337,12 +341,77 @@ async function run(): Promise<void> {
     }
   };
 
-  const reviewPlan = resolveReviewPlan(inputs);
-  const reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+  let reviewPlan = resolveReviewPlan(inputs);
+  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
     isPR: context.isPR,
     mode: resolvedMode.mode,
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
+
+  const lensPromptCache = new Map<string, string>();
+  const lensPromptFor = (job: ReviewJob): string => {
+    const key = `${job.lens.id}\0${job.model.label}`;
+    const cached = lensPromptCache.get(key);
+    if (cached !== undefined) return cached;
+    const lensPrompt = buildLensPrompt({
+      data,
+      userRequest,
+      lens: job.lens,
+      modelLabel: job.model.label,
+      repoConfig: effectiveRepoConfig,
+    });
+    lensPromptCache.set(key, lensPrompt);
+    return lensPrompt;
+  };
+
+  const estimatePlannedInputCost = (plan: ReviewPlan): ReviewCost[] => {
+    // Defensive only: the budget selector stops before estimating solo plans.
+    if (plan.strategy === "solo") return [];
+
+    const lensCosts = plan.jobs.map((job) => estimatePromptOnlyCost({
+      modelLabel: job.model.label,
+      prompt: lensPromptFor(job),
+      costRates: inputs.costRates,
+    }));
+    const synthesisCost = estimatePromptOnlyCost({
+      modelLabel: plan.validator.label,
+      prompt: buildSynthesisPrompt({
+        data,
+        userRequest,
+        modelLabel: plan.validator.label,
+        jobRunLink,
+        commentId,
+        reports: plan.jobs.map((job) => ({
+          lens: job.lens,
+          modelLabel: job.model.label,
+          output: "(candidate report pending)",
+          conclusion: "success",
+        })),
+        repoConfig: effectiveRepoConfig,
+      }),
+      costRates: inputs.costRates,
+    });
+    return [...lensCosts, synthesisCost];
+  };
+
+  if (reviewPlanSupport.enabled && inputs.maxCostUsd !== undefined) {
+    const budgetedPlan = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: reviewPlan,
+      supportContext: { isPR: context.isPR, mode: resolvedMode.mode },
+      estimateCosts: estimatePlannedInputCost,
+    });
+    reviewPlan = budgetedPlan.plan;
+    reviewPlanSupport = budgetedPlan.support;
+    for (const event of budgetedPlan.events) {
+      if (event.level === "warn") {
+        console.warn(event.message);
+      } else {
+        console.log(event.message);
+      }
+    }
+  }
+
   const useReviewPlan = reviewPlanSupport.enabled;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
   const runCosts: ReviewCost[] = [];
@@ -389,13 +458,7 @@ async function run(): Promise<void> {
 
     const reports = await Promise.all(
       reviewPlan.jobs.map(async (job) => {
-        const lensPrompt = buildLensPrompt({
-          data,
-          userRequest,
-          lens: job.lens,
-          modelLabel: job.model.label,
-          repoConfig: effectiveRepoConfig,
-        });
+        const lensPrompt = lensPromptFor(job);
         const lensInputs = {
           ...piInputs,
           provider: job.model.provider,

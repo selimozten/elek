@@ -2,14 +2,17 @@ import { describe, expect, it } from "bun:test";
 import {
   buildLensPrompt,
   buildSynthesisPrompt,
+  downgradeReviewStrategy,
   parseModelList,
   parseModelSpec,
   resolveReviewPlan,
   resolveReviewPlanSupport,
   resolveReviewStrategy,
+  selectReviewPlanWithinBudget,
 } from "../src/review/strategy";
 import type { GitHubData } from "../src/github/data";
 import type { ActionInputs } from "../src/types";
+import type { ReviewCost } from "../src/review/cost";
 
 const baseInputs: ActionInputs = {
   triggerPhrase: "@pi",
@@ -32,6 +35,7 @@ const baseInputs: ActionInputs = {
   severityThreshold: "",
   showCost: true,
   costRates: "",
+  maxCostUsd: undefined,
 };
 
 const dataFixture: GitHubData = {
@@ -140,6 +144,104 @@ describe("review strategy", () => {
       "openrouter/moonshotai/kimi-k2.7-code",
     ]);
     expect(plan.reusedModels).toBe(true);
+  });
+
+  it("downgrades expensive strategies one step at a time", () => {
+    expect(downgradeReviewStrategy("council")).toBe("crosscheck");
+    expect(downgradeReviewStrategy("crosscheck")).toBe("solo");
+    expect(downgradeReviewStrategy("solo")).toBeUndefined();
+  });
+
+  it("keeps the requested strategy when no budget cap is configured", () => {
+    let estimates = 0;
+    const plan = resolveReviewPlan({ ...baseInputs, reviewStrategy: "council" });
+    const result = selectReviewPlanWithinBudget({
+      inputs: { ...baseInputs, reviewStrategy: "council" },
+      initialPlan: plan,
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: () => {
+        estimates++;
+        return [reviewCost(1)];
+      },
+    });
+
+    expect(result.plan.strategy).toBe("council");
+    expect(result.support.enabled).toBe(true);
+    expect(result.events).toEqual([]);
+    expect(estimates).toBe(0);
+  });
+
+  it("keeps the requested strategy when the known input estimate is within budget", () => {
+    const plan = resolveReviewPlan({ ...baseInputs, reviewStrategy: "crosscheck" });
+    const result = selectReviewPlanWithinBudget({
+      inputs: { ...baseInputs, reviewStrategy: "crosscheck", maxCostUsd: 0.05 },
+      initialPlan: plan,
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: () => [reviewCost(0.01)],
+    });
+
+    expect(result.plan.strategy).toBe("crosscheck");
+    expect(result.support.enabled).toBe(true);
+    expect(result.events.map((event) => event.level)).toEqual(["log"]);
+  });
+
+  it("downgrades one step when the downgraded strategy fits the budget", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "council", maxCostUsd: 0.05 };
+    const result = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: (plan) => [reviewCost(plan.strategy === "council" ? 0.10 : 0.01)],
+    });
+
+    expect(result.plan.strategy).toBe("crosscheck");
+    expect(result.support.enabled).toBe(true);
+    expect(result.events.some((event) => event.message.includes("downgrading to crosscheck"))).toBe(true);
+  });
+
+  it("downgrades to solo when every multi-lens strategy exceeds the budget", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "council", maxCostUsd: 0.05 };
+    const estimatedStrategies: string[] = [];
+    const result = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: (plan) => {
+        estimatedStrategies.push(plan.strategy);
+        return [reviewCost(0.10)];
+      },
+    });
+
+    expect(result.plan.strategy).toBe("solo");
+    expect(result.support.enabled).toBe(false);
+    expect(estimatedStrategies).toEqual(["council", "crosscheck"]);
+    expect(result.events.filter((event) => event.message.includes("downgrading")).length).toBe(2);
+  });
+
+  it("downgrades when the known priced portion already exceeds the budget despite unknown rates", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "crosscheck", maxCostUsd: 0.05 };
+    const result = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: () => [reviewCost(0.06), reviewCost(0, "unknown")],
+    });
+
+    expect(result.plan.strategy).toBe("solo");
+    expect(result.events.some((event) => event.message.includes("incomplete pricing"))).toBe(true);
+  });
+
+  it("warns but keeps the strategy when unknown rates leave the known portion within budget", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "crosscheck", maxCostUsd: 0.05 };
+    const result = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: () => [reviewCost(0.01), reviewCost(0, "unknown")],
+    });
+
+    expect(result.plan.strategy).toBe("crosscheck");
+    expect(result.events.map((event) => event.level)).toEqual(["warn", "log"]);
   });
 
   it("uses the provider default model when no reviewer model list is supplied", () => {
@@ -308,3 +410,14 @@ describe("review strategy", () => {
     expect(prompt.length).toBeLessThan(70_000);
   });
 });
+
+function reviewCost(costUsd: number, source: ReviewCost["source"] = "builtin"): ReviewCost {
+  return {
+    inputTokens: 100,
+    outputTokens: 0,
+    costUsd,
+    estimated: true,
+    modelLabel: "deepseek/deepseek-v4-pro",
+    source,
+  };
+}

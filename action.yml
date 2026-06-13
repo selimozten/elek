@@ -152,6 +152,13 @@ inputs:
       Prices are USD per 1M tokens.
     required: false
     default: ""
+  max_cost_usd:
+    description: >
+      Optional soft cap for estimated review cost in USD. If a multi-lens
+      strategy already exceeds this cap before output tokens, elek downgrades
+      to a cheaper strategy.
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -244,6 +251,7 @@ runs:
         INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}
+        INPUT_MAX_COST_USD: ${{ inputs.max_cost_usd }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}

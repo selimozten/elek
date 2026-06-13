@@ -171,3 +171,16 @@ export function formatCostLine(total: ReviewCostTotal): string {
   const prefix = total.estimated ? "Estimated review cost" : "Review cost";
   return `${prefix}: ${formatUsd(total.costUsd)} (${formatTokenCount(total.inputTokens)} in / ${formatTokenCount(total.outputTokens)} out tokens)`;
 }
+
+export function estimatePromptOnlyCost(args: {
+  modelLabel: string;
+  prompt: string;
+  costRates: string;
+}): ReviewCost {
+  return estimateRunCost({
+    modelLabel: args.modelLabel,
+    prompt: args.prompt,
+    output: "",
+    costRates: args.costRates,
+  });
+}

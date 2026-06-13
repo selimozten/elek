@@ -22,6 +22,17 @@ function parseSeverityInput(value: string): ActionInputs["severityThreshold"] {
   return "";
 }
 
+function parseMaxCostInput(value: string): number | undefined {
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    core.warning(`Ignoring invalid max_cost_usd input: ${normalized}`);
+    return undefined;
+  }
+  return parsed;
+}
+
 export function parseInputs(): ActionInputs {
   return {
     triggerPhrase: core.getInput("trigger_phrase") || "@pi",
@@ -45,6 +56,7 @@ export function parseInputs(): ActionInputs {
     severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",
+    maxCostUsd: parseMaxCostInput(core.getInput("max_cost_usd")),
   };
 }
 
