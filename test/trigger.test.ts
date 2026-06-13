@@ -15,7 +15,7 @@ const baseInputs: ActionInputs = {
   systemPrompt: "",
   maxTurns: 20,
   tools: "",
-  branchPrefix: "pi/",
+  branchPrefix: "elek/",
   actorFilter: "",
   allowedBots: "",
   stickyComment: true,

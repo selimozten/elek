@@ -88,7 +88,7 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 | `mode` | Tools | Inline comments | Edits | When to use |
 |---|---|---|---|---|
 | `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | All review-only workflows |
-| `review+edit` | + `write,edit` | ✓ | pushes to `pi/*` branch | "Review and propose fixes" |
+| `review+edit` | + `write,edit` | ✓ | pushes to `elek/*` branch | "Review and propose fixes" |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
 ## Review strategies
@@ -126,7 +126,7 @@ permissions:
   issues: write
 ```
 
-For `mode: review+edit` (pushing to `pi/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
+For `mode: review+edit` (pushing to `elek/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
 
 ## Actor filtering
 

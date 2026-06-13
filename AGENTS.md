@@ -119,7 +119,7 @@ This is the backstop layer if anyone ever adds the wrong code path.
 
 ```bash
 bun install
-bun test test/        # unit tests, ~75 of them
+bun test test/        # unit tests, ~77 of them
 bunx tsc --noEmit     # type check
 ```
 

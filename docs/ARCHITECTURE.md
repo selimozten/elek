@@ -35,7 +35,7 @@ The single end-to-end runner. Phases:
 2. **Trigger detection** — `@pi` mention in body/comment, label match, or
    explicit `prompt` input. Actor filter applied.
 3. **Setup** — Octokit client, mode resolution (`resolveMode`), git auth,
-   pi/* branch creation for PRs.
+   elek/* branch creation for PRs.
 4. **Tracking comment** — find existing by signature, reuse or create new.
 5. **Data fetch + prompt** — PR diff, issue body, all comments (including
    bot's own prior reviews so the model can iterate), build the structured
@@ -58,7 +58,7 @@ The single end-to-end runner. Phases:
    PR review comment after validating anchors against PR diff hunks when the
    GitHub file patches are available.
 11. **Optional code push** — if `mode: review+edit` or `agent` and the model
-    made local changes, commit and push to the pi/* branch.
+    made local changes, commit and push to the elek/* branch.
 
 ### `src/review/strategy.ts` — cross-model review planning
 

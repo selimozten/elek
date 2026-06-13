@@ -83,7 +83,7 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
-          branch_prefix: pi/deepseek/
+          branch_prefix: elek/deepseek/
 
   zai:
     name: glm-5.1
@@ -98,12 +98,12 @@ jobs:
           provider: zai
           model: glm-5.1
           thinking: high
-          branch_prefix: pi/zai/
+          branch_prefix: elek/zai/
 ```
 
 ## Review + propose fixes
 
-The model can push fixes to a `pi/*` branch when something is mechanical (rename, add missing test, simple refactor).
+The model can push fixes to an `elek/*` branch when something is mechanical (rename, add missing test, simple refactor).
 
 ```yaml
 permissions: { contents: write, pull-requests: write, issues: write }
@@ -123,7 +123,7 @@ jobs:
           mode: review+edit
           prompt: |
             Review this PR. For mechanical issues (typos, obvious bugs,
-            missing imports), push a fix to the pi/* branch and link it
+            missing imports), push a fix to the elek/* branch and link it
             in your review. For design questions, just review.
 ```
 

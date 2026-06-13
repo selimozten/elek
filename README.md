@@ -92,7 +92,7 @@ The `mode` input controls the model's tool surface:
 | `mode` | Tools | MCP | Edits | Use case |
 |---|---|---|---|---|
 | `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Code review only. Recommended. |
-| `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to a `pi/*` branch. |
+| `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to an `elek/*` branch. |
 | `agent` | `+ bash` | ✗ | ✓ | Legacy, full power. Trusted workflows only. |
 
 **The model can never approve, merge, or close** in any mode — those endpoints aren't plumbed in elek's MCP server. The `permissions:` block in your workflow is the backstop.
@@ -206,7 +206,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `max_turns` | `20` | Cap conversation turns |
 | `tools` | _(mode-resolved)_ | Override the tool allowlist (rarely needed) |
 | `base_branch` | _(repo default)_ | Override the comparison base |
-| `branch_prefix` | `pi/` | Prefix for branches the action creates |
+| `branch_prefix` | `elek/` | Prefix for branches the action creates |
 
 ### API keys
 
@@ -231,7 +231,7 @@ For AWS Bedrock: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as j
 | Output | Description |
 |---|---|
 | `conclusion` | `success` / `failure` / `skipped` |
-| `branch_name` | The `pi/*` branch created (if any) |
+| `branch_name` | The `elek/*` branch created (if any) |
 | `comment_id` | The tracking comment ID |
 | `session_id` | Pi session ID for resumption |
 | `summary` | First 1000 chars of the review |
@@ -245,7 +245,7 @@ permissions:
   issues: write            # post tracking comment
 ```
 
-For `mode: review+edit` (model pushes fixes to a `pi/*` branch), upgrade `contents: write`. The model still can't approve/merge — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
+For `mode: review+edit` (model pushes fixes to an `elek/*` branch), upgrade `contents: write`. The model still can't approve/merge — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
 
 ## Supported events
 

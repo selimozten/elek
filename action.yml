@@ -85,9 +85,9 @@ inputs:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false
   branch_prefix:
-    description: "Prefix for branches created by pi"
+    description: "Prefix for branches created by elek"
     required: false
-    default: "pi/"
+    default: "elek/"
   actor_filter:
     description: "Comma-separated usernames allowed to trigger. Empty = all humans."
     required: false
@@ -107,7 +107,7 @@ inputs:
           via the elek MCP server (inline comments + tracking comment). No
           bash, no write, no edit. Cannot approve, merge, or close.
         review+edit — also allows write/edit so the model can push fixes to
-          its own pi/* branch. Still no bash. Cannot approve/merge/close.
+          its own elek/* branch. Still no bash. Cannot approve/merge/close.
         agent — legacy: full tool surface (read,write,edit,bash,grep,find,ls)
           and no MCP injection. Use only for trusted workflows where the
           model needs shell access.

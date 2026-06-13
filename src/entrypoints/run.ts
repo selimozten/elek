@@ -119,7 +119,7 @@ async function run(): Promise<void> {
   const baseBranch =
     inputs.baseBranch || context.pr?.baseRef || context.repo.defaultBranch;
 
-  // Create a pi branch for code changes (PRs only)
+  // Create an elek work branch for code changes (PRs only)
   let piBranch: string | undefined;
   if (context.isPR) {
     piBranch = createPiBranch(context, inputs.branchPrefix);
@@ -400,7 +400,7 @@ async function run(): Promise<void> {
   // Then handle any code changes pi made (separate from the review comment)
   if (result.conclusion === "success" && piBranch) {
     try {
-      // Only count non-lockfile changes as pi's work
+      // Only count non-lockfile changes as elek's work
       // Filter in JS instead of grep -v to avoid exit code 1 when no matches
       const status = execSync("git status --porcelain", {
         encoding: "utf-8",
