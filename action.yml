@@ -134,7 +134,7 @@ inputs:
     required: false
     default: ""
   show_cost:
-    description: "Show estimated token usage and review cost in the final comment and outputs."
+    description: "Show estimated token usage and review cost in the final comment and console log. The cost_usd, input_tokens, and output_tokens action outputs are always populated."
     required: false
     default: "true"
   cost_rates:

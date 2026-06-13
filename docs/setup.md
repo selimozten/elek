@@ -166,7 +166,7 @@ per 1M input/output tokens:
     cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
 ```
 
-Disable the comment line while keeping outputs available:
+Disable the visible comment/log line while keeping outputs available:
 
 ```yaml
 show_cost: false

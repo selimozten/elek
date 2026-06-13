@@ -216,7 +216,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
-| `show_cost` | `true` | Show estimated token usage and review cost in comments + outputs |
+| `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
@@ -290,6 +290,10 @@ elek shows estimated review cost in the final comment and exposes the same data
 as action outputs. This is intentionally transparent rather than billing-grade:
 when pi exposes exact usage, elek can use it; today it estimates tokens from
 prompt/output text and applies model price hints.
+
+Set `show_cost: false` to hide the visible comment/log line. The `cost_usd`,
+`input_tokens`, and `output_tokens` action outputs are still populated for
+downstream workflow steps.
 
 Built-in price hints cover the recommended low-cost defaults:
 
