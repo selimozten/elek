@@ -192,6 +192,8 @@ export function parseElekConfig(
       continue;
     }
 
+    // Every KEY_MAP value must have a case here so new config fields cannot be
+    // silently ignored.
     switch (key) {
       case "ignorePaths":
       case "instructions":
@@ -239,6 +241,8 @@ export function parseElekConfig(
         }
         break;
       }
+      default:
+        break;
     }
   }
 
@@ -579,6 +583,11 @@ export function formatConfigAuditLog(
   const source = sourceOverride || (process.env.GITHUB_EVENT_NAME === "pull_request"
     ? "checked-out-pr-branch"
     : "checked-out-workspace");
+  const knowledgePaths = config.knowledgePaths === undefined
+    ? "(default)"
+    : config.knowledgePaths.length > 0
+      ? config.knowledgePaths.join(",")
+      : "(none)";
   const fields = [
     "[config] audit",
     `path=${disabled ? "(disabled)" : path}`,
@@ -589,7 +598,7 @@ export function formatConfigAuditLog(
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
     `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
-    `knowledge_paths=${(config.knowledgePaths ?? []).length > 0 ? (config.knowledgePaths ?? []).join(",") : "(default)"}`,
+    `knowledge_paths=${knowledgePaths}`,
     `knowledge_files=${(config.knowledge ?? []).length}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
     `instructions=${config.instructions.length}`,

@@ -664,6 +664,12 @@ instructions:
         "path=(disabled)",
       );
 
+      expect(formatConfigAuditLog(".elek.yml", {
+        knowledgePaths: [],
+        ignorePaths: [],
+        instructions: [],
+      })).toContain("knowledge_paths=(none)");
+
       expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
         ...baseInputs,
         reviewStrategy: "council",
