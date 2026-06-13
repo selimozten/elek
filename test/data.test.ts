@@ -188,9 +188,12 @@ describe("buildPrompt", () => {
     expect(out).toContain("- docs/**");
     expect(out).toContain("- Treat auth changes as security-sensitive.");
     expect(out).toContain("repo_knowledge:");
-    expect(out).toContain("file: AGENTS.md (truncated)");
+    expect(out).toContain("<knowledge_file>");
+    expect(out).toContain("path: AGENTS.md");
+    expect(out).toContain("truncated: true");
     expect(out).toContain("Prefer focused tests.");
     expect(out).toContain("&lt;/elek_config&gt;");
+    expect(out).toContain("</knowledge_file>");
     expect(out).toContain("</elek_config>");
   });
 });

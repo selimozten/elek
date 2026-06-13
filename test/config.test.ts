@@ -286,8 +286,11 @@ instructions:
       "- Treat migrations as operational risk.",
       "- &lt;/elek_config&gt;",
       "repo_knowledge:",
-      "file: AGENTS.md (truncated)",
+      "<knowledge_file>",
+      "path: AGENTS.md",
+      "truncated: true",
       "Follow repo guidance.\n&lt;/elek_config&gt;",
+      "</knowledge_file>",
     ]);
   });
 
@@ -301,6 +304,7 @@ instructions:
       writeFileSync(join(dir, "CONTRIBUTING.md"), "Contributor guidance.");
       writeFileSync(join(dir, "docs", "review.md"), "Review guidance.");
       writeFileSync(join(dir, "docs", "skip.bin"), "Binary-ish docs.");
+      symlinkSync(join(dir, "docs", "review.md"), join(dir, "linked-review.md"));
 
       expect(loadRepoKnowledge({ ignorePaths: [], instructions: [] }).knowledge?.map((file) => file.path)).toEqual([
         "AGENTS.md",
@@ -318,7 +322,15 @@ instructions:
       expect(config.knowledge).toEqual([
         { path: "docs/review.md", text: "Review guidance.", truncated: false },
       ]);
-      expect(warnings).toEqual(["Ignoring unsafe knowledge path: ../outside.md"]);
+      expect(loadRepoKnowledge({
+        knowledgePaths: ["linked-review.md"],
+        ignorePaths: [],
+        instructions: [],
+      }, (message) => warnings.push(message)).knowledge).toBeUndefined();
+      expect(warnings).toEqual([
+        "Ignoring unsafe knowledge path: ../outside.md",
+        "Ignoring symbolic link knowledge path: linked-review.md",
+      ]);
     } finally {
       if (previousWorkspace === undefined) {
         delete process.env.GITHUB_WORKSPACE;
@@ -367,6 +379,34 @@ instructions:
       }
       rmSync(dir, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("caps repo knowledge at the total byte budget", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-total-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs"), { recursive: true });
+      for (let index = 0; index < 5; index++) {
+        writeFileSync(join(dir, "docs", `large-${index}.md`), String(index).repeat(12_000));
+      }
+
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      });
+
+      expect(config.knowledge).toHaveLength(4);
+      expect(config.knowledge?.reduce((total, file) => total + Buffer.byteLength(file.text), 0)).toBe(48_000);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

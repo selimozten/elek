@@ -30,6 +30,17 @@ export interface ElekConfigLoadResult {
   loaded: boolean;
 }
 
+type ElekConfigKey =
+  | "reviewStrategy"
+  | "reviewModels"
+  | "validatorModel"
+  | "costRates"
+  | "maxCostUsd"
+  | "severityThreshold"
+  | "knowledgePaths"
+  | "ignorePaths"
+  | "instructions";
+
 export class ElekConfigParseError extends Error {
   constructor(message: string) {
     super(message);
@@ -37,7 +48,7 @@ export class ElekConfigParseError extends Error {
   }
 }
 
-const KEY_MAP: Record<string, keyof ElekConfig> = {
+const KEY_MAP: Record<string, ElekConfigKey> = {
   review_strategy: "reviewStrategy",
   review_models: "reviewModels",
   validator_model: "validatorModel",
@@ -163,6 +174,11 @@ function promptText(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function isInsideRoot(root: string, path: string): boolean {
+  const rootPrefix = root.endsWith(sep) ? root : root + sep;
+  return path === root || path.startsWith(rootPrefix);
+}
+
 export function parseElekConfig(
   text: string,
   warn: (message: string) => void = () => {},
@@ -241,8 +257,11 @@ export function parseElekConfig(
         }
         break;
       }
-      default:
+      default: {
+        const _exhaustive: never = key;
+        void _exhaustive;
         break;
+      }
     }
   }
 
@@ -279,7 +298,7 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
       return emptyConfig();
     }
     const realResolved = realpathSync(resolved);
-    if (realResolved !== root && !realResolved.startsWith(root + sep)) {
+    if (!isInsideRoot(root, realResolved)) {
       warn(`Config path resolves outside the workspace: ${trimmed}`);
       return emptyConfig();
     }
@@ -317,7 +336,7 @@ function repoPathForKnowledge(root: string, requestedPath: string, warn: (messag
     return undefined;
   }
   const resolved = resolve(root, trimmed);
-  if (resolved !== root && !resolved.startsWith(root + sep)) {
+  if (!isInsideRoot(root, resolved)) {
     warn(`Ignoring knowledge path outside workspace: ${requestedPath}`);
     return undefined;
   }
@@ -329,8 +348,13 @@ function collectKnowledgeCandidates(root: string, requestedPath: string, warn: (
   if (!resolved) return [];
 
   try {
+    const resolvedStat = lstatSync(resolved);
+    if (resolvedStat.isSymbolicLink()) {
+      warn(`Ignoring symbolic link knowledge path: ${requestedPath}`);
+      return [];
+    }
     const realResolved = realpathSync(resolved);
-    if (realResolved !== root && !realResolved.startsWith(root + sep)) {
+    if (!isInsideRoot(root, realResolved)) {
       warn(`Ignoring knowledge path outside workspace: ${requestedPath}`);
       return [];
     }
@@ -355,7 +379,7 @@ function collectKnowledgeCandidates(root: string, requestedPath: string, warn: (
         } catch {
           continue;
         }
-        if (realChild !== root && !realChild.startsWith(root + sep)) {
+        if (!isInsideRoot(root, realChild)) {
           warn(`Ignoring knowledge path outside workspace: ${relative(root, child)}`);
           continue;
         }
@@ -632,8 +656,11 @@ export function formatConfigPromptBlock(config: ElekConfig): string[] {
   if ((config.knowledge ?? []).length > 0) {
     lines.push("repo_knowledge:");
     for (const file of config.knowledge ?? []) {
-      lines.push(`file: ${promptText(file.path)}${file.truncated ? " (truncated)" : ""}`);
+      lines.push("<knowledge_file>");
+      lines.push(`path: ${promptText(file.path)}`);
+      lines.push(`truncated: ${file.truncated ? "true" : "false"}`);
       lines.push(promptText(file.text));
+      lines.push("</knowledge_file>");
     }
   }
   return lines;
