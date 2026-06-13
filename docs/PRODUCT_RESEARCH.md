@@ -43,6 +43,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   repo review policy.
 - Machine-readable review summary JSON with run duration, model labels,
   per-model cost, pricing source, and inline-comment posting counts.
+- Repo knowledge context through bounded `knowledge_paths`, with default
+  loading for common project guidance files.
 
 ### Next
 
@@ -50,9 +52,7 @@ elek should not compete by becoming a general coding agent. The winning lane is:
    reproducible path or contradict changed code.
 2. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
    when a PR is too large.
-3. Repo knowledge: include selected project docs such as `AGENTS.md`,
-   `CONTRIBUTING.md`, `docs/adr/**`, and configured guidelines in the prompt.
-4. Model evaluation harness: run seeded PR benchmarks and compare the summary
+3. Model evaluation harness: run seeded PR benchmarks and compare the summary
    JSON across models and review strategies.
 
 ## Model evaluation plan

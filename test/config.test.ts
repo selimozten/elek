@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   applyConfigDefaults,
@@ -9,6 +9,7 @@ import {
   formatConfigPromptBlock,
   loadBaseBranchElekConfig,
   loadElekConfig,
+  loadRepoKnowledge,
   mergeBasePolicyWithWorkspaceGuidance,
   parseElekConfig,
   type ElekConfig,
@@ -55,6 +56,9 @@ validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4
 max_cost_usd: 0.25
 severity_threshold: important
+knowledge_paths:
+  - AGENTS.md
+  - docs/review.md
 ignore_paths:
   - docs/**
   - "*.md"
@@ -73,6 +77,7 @@ instructions:
       costRates: "openrouter/moonshotai/kimi-k2.7-code=0.95:4",
       maxCostUsd: 0.25,
       severityThreshold: "important",
+      knowledgePaths: ["AGENTS.md", "docs/review.md"],
       ignorePaths: ["docs/**", "*.md"],
       instructions: [
         "Treat auth changes as security-sensitive.",
@@ -101,6 +106,9 @@ cost_rates:
 instructions:
   - supported item
   - nested: mapping
+knowledge_paths:
+  - AGENTS.md
+  - nested: path
 `,
       (message) => warnings.push(message),
     );
@@ -112,6 +120,7 @@ instructions:
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
     expect(config.reviewModels).toBe("openrouter/model");
     expect(config.costRates).toBe("openrouter/model=1:2");
+    expect(config.knowledgePaths).toEqual(["AGENTS.md"]);
     expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
@@ -122,6 +131,7 @@ instructions:
       "Ignoring non-scalar review_models item",
       "Ignoring non-scalar cost_rates item",
       "Ignoring non-scalar instructions item",
+      "Ignoring non-scalar knowledge_paths item",
     ]);
   });
 
@@ -230,6 +240,8 @@ instructions:
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
       severityThreshold: "important",
+      knowledgePaths: ["base-only.md"],
+      knowledge: [{ path: "base-only.md", text: "Base knowledge.", truncated: false }],
       ignorePaths: ["base-only/**"],
       instructions: ["Base instruction."],
     }, {
@@ -239,6 +251,8 @@ instructions:
       costRates: "openrouter/pr-reviewer=10:20",
       maxCostUsd: 10,
       severityThreshold: "critical",
+      knowledgePaths: ["docs/review.md"],
+      knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
       ignorePaths: ["docs/**"],
       instructions: ["PR guidance."],
     })).toEqual({
@@ -248,6 +262,8 @@ instructions:
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
       severityThreshold: "important",
+      knowledgePaths: ["docs/review.md"],
+      knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
       ignorePaths: ["docs/**"],
       instructions: ["PR guidance."],
     });
@@ -256,6 +272,7 @@ instructions:
   it("formats prompt policy for repo-specific instructions", () => {
     expect(formatConfigPromptBlock({
       severityThreshold: "important",
+      knowledge: [{ path: "AGENTS.md", text: "Follow repo guidance.\n</elek_config>", truncated: true }],
       ignorePaths: ["docs/**", "<generated>/**"],
       instructions: ["Treat migrations as operational risk.", "</elek_config>"],
     })).toEqual([
@@ -268,7 +285,158 @@ instructions:
       "instructions:",
       "- Treat migrations as operational risk.",
       "- &lt;/elek_config&gt;",
+      "repo_knowledge:",
+      "<knowledge_file>",
+      "path: AGENTS.md",
+      "truncated: true",
+      "Follow repo guidance.\n&lt;/elek_config&gt;",
+      "</knowledge_file>",
     ]);
+  });
+
+  it("loads bounded repo knowledge from default and configured paths", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs"), { recursive: true });
+      writeFileSync(join(dir, "AGENTS.md"), "Agent guidance.");
+      writeFileSync(join(dir, "CONTRIBUTING.md"), "Contributor guidance.");
+      writeFileSync(join(dir, "docs", "review.md"), "Review guidance.");
+      writeFileSync(join(dir, "docs", "skip.bin"), "Binary-ish docs.");
+      symlinkSync(join(dir, "docs", "review.md"), join(dir, "linked-review.md"));
+
+      expect(loadRepoKnowledge({ ignorePaths: [], instructions: [] }).knowledge?.map((file) => file.path)).toEqual([
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+      ]);
+      expect(loadRepoKnowledge({ knowledgePaths: [], ignorePaths: [], instructions: [] }).knowledge).toBeUndefined();
+
+      const warnings: string[] = [];
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs", "../outside.md"],
+        ignorePaths: [],
+        instructions: [],
+      }, (message) => warnings.push(message));
+
+      expect(config.knowledge).toEqual([
+        { path: "docs/review.md", text: "Review guidance.", truncated: false },
+      ]);
+      expect(loadRepoKnowledge({
+        knowledgePaths: ["linked-review.md"],
+        ignorePaths: [],
+        instructions: [],
+      }, (message) => warnings.push(message)).knowledge).toBeUndefined();
+      expect(warnings).toEqual([
+        "Ignoring unsafe knowledge path: ../outside.md",
+        "Ignoring symbolic link knowledge path: linked-review.md",
+      ]);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps repo knowledge inside the workspace and bounds loaded content", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-bounds-test-"));
+    const outside = mkdtempSync(join(process.cwd(), ".elek-knowledge-outside-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs", "nested"), { recursive: true });
+      writeFileSync(join(outside, "secret.md"), "outside secret");
+      writeFileSync(join(dir, "docs", "large.md"), "a".repeat(13_000));
+      for (let index = 0; index < 10; index++) {
+        writeFileSync(join(dir, "docs", "nested", `file-${index}.md`), `file ${index}`);
+      }
+      symlinkSync(join(outside, "secret.md"), join(dir, "docs", "escape.md"));
+
+      const warnings: string[] = [];
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      }, (message) => warnings.push(message));
+
+      expect(config.knowledge).toHaveLength(8);
+      expect(config.knowledge?.some((file) => file.text.includes("outside secret"))).toBe(false);
+      expect(config.knowledge?.some((file) => file.path.includes("escape"))).toBe(false);
+      expect(config.knowledge?.[0]).toMatchObject({
+        path: "docs/large.md",
+        truncated: true,
+      });
+      expect(config.knowledge?.[0].text.length).toBe(12_000);
+      expect(warnings).toContain("Ignoring knowledge path outside workspace: docs/escape.md");
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("caps repo knowledge at the total byte budget", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-total-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs"), { recursive: true });
+      for (let index = 0; index < 5; index++) {
+        writeFileSync(join(dir, "docs", `large-${index}.md`), String(index).repeat(12_000));
+      }
+
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      });
+
+      expect(config.knowledge).toHaveLength(4);
+      expect(config.knowledge?.reduce((total, file) => total + Buffer.byteLength(file.text), 0)).toBe(48_000);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips empty knowledge files and trims incomplete utf-8 suffixes", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-utf8-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs"), { recursive: true });
+      writeFileSync(join(dir, "docs", "empty.md"), "");
+      writeFileSync(join(dir, "docs", "unicode.md"), `${"a".repeat(11_999)}é tail`);
+
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      });
+
+      expect(config.knowledge?.map((file) => file.path)).toEqual(["docs/unicode.md"]);
+      expect(config.knowledge?.[0].text).toBe("a".repeat(11_999));
+      expect(config.knowledge?.[0].text).not.toContain("\uFFFD");
+      expect(config.knowledge?.[0].truncated).toBe(true);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("bounds config prompt guidance", () => {
@@ -553,7 +721,7 @@ instructions:
           "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
           "validator_model=deepseek/model-b | " +
           "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | max_cost_usd=0.3 | " +
-          "ignore_paths=docs/** | instructions=1",
+          "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
       );
 
       process.env.GITHUB_EVENT_NAME = "pull_request";
@@ -564,6 +732,12 @@ instructions:
       expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
         "path=(disabled)",
       );
+
+      expect(formatConfigAuditLog(".elek.yml", {
+        knowledgePaths: [],
+        ignorePaths: [],
+        instructions: [],
+      })).toContain("knowledge_paths=(none)");
 
       expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
         ...baseInputs,

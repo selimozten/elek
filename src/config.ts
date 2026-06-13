@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync, statSync } from "fs";
+import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "fs";
 import { isAbsolute, relative, resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
@@ -11,14 +11,35 @@ export interface ElekConfig {
   costRates?: string;
   maxCostUsd?: number;
   severityThreshold?: "critical" | "important" | "minor";
+  /** Repo-local docs to include in the review prompt. */
+  knowledgePaths?: string[];
+  /** Loaded repo knowledge files. Populated after config parsing. */
+  knowledge?: RepoKnowledgeFile[];
   ignorePaths: string[];
   instructions: string[];
+}
+
+export interface RepoKnowledgeFile {
+  path: string;
+  text: string;
+  truncated: boolean;
 }
 
 export interface ElekConfigLoadResult {
   config: ElekConfig;
   loaded: boolean;
 }
+
+type ElekConfigKey =
+  | "reviewStrategy"
+  | "reviewModels"
+  | "validatorModel"
+  | "costRates"
+  | "maxCostUsd"
+  | "severityThreshold"
+  | "knowledgePaths"
+  | "ignorePaths"
+  | "instructions";
 
 export class ElekConfigParseError extends Error {
   constructor(message: string) {
@@ -27,13 +48,14 @@ export class ElekConfigParseError extends Error {
   }
 }
 
-const KEY_MAP: Record<string, keyof ElekConfig> = {
+const KEY_MAP: Record<string, ElekConfigKey> = {
   review_strategy: "reviewStrategy",
   review_models: "reviewModels",
   validator_model: "validatorModel",
   cost_rates: "costRates",
   max_cost_usd: "maxCostUsd",
   severity_threshold: "severityThreshold",
+  knowledge_paths: "knowledgePaths",
   ignore_paths: "ignorePaths",
   instructions: "instructions",
 };
@@ -42,6 +64,12 @@ const SEVERITIES = new Set(["critical", "important", "minor"]);
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_PROMPT_LIST_ITEMS = 50;
 const MAX_PROMPT_ENTRY_CHARS = 500;
+const MAX_KNOWLEDGE_FILES = 8;
+const MAX_KNOWLEDGE_FILE_BYTES = 12_000;
+const MAX_KNOWLEDGE_TOTAL_BYTES = 48_000;
+const MAX_KNOWLEDGE_DEPTH = 4;
+const DEFAULT_KNOWLEDGE_PATHS = ["AGENTS.md", "CONTRIBUTING.md", "docs/ARCHITECTURE.md", "docs/adr"];
+const KNOWLEDGE_FILE_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".adoc", ".rst"]);
 const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
   solo: "solo",
   crosscheck: "crosscheck",
@@ -146,6 +174,11 @@ function promptText(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function isInsideRoot(root: string, path: string): boolean {
+  const rootPrefix = root.endsWith(sep) ? root : root + sep;
+  return path === root || path.startsWith(rootPrefix);
+}
+
 export function parseElekConfig(
   text: string,
   warn: (message: string) => void = () => {},
@@ -175,10 +208,15 @@ export function parseElekConfig(
       continue;
     }
 
+    // Every KEY_MAP value must have a case here so new config fields cannot be
+    // silently ignored.
     switch (key) {
       case "ignorePaths":
       case "instructions":
         config[key] = boundedPromptList(stringList(value, rawKey, warn), rawKey, warn);
+        break;
+      case "knowledgePaths":
+        config.knowledgePaths = boundedPromptList(stringList(value, rawKey, warn), rawKey, warn);
         break;
       case "reviewModels":
         config.reviewModels = modelList(value, rawKey, warn);
@@ -210,13 +248,18 @@ export function parseElekConfig(
         config.severityThreshold = severity as ElekConfig["severityThreshold"];
         break;
       }
-      default: {
+      case "validatorModel": {
         const scalar = stringValue(value);
         if (scalar) {
-          config[key] = scalar;
+          config.validatorModel = scalar;
         } else if (value != null) {
           warn(`Ignoring non-scalar ${rawKey} value`);
         }
+        break;
+      }
+      default: {
+        const _exhaustive: never = key;
+        void _exhaustive;
         break;
       }
     }
@@ -255,7 +298,7 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
       return emptyConfig();
     }
     const realResolved = realpathSync(resolved);
-    if (realResolved !== root && !realResolved.startsWith(root + sep)) {
+    if (!isInsideRoot(root, realResolved)) {
       warn(`Config path resolves outside the workspace: ${trimmed}`);
       return emptyConfig();
     }
@@ -268,6 +311,188 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     warn(`Could not read config file ${trimmed}: ${(err as Error).message}`);
     return emptyConfig();
   }
+}
+
+function workspaceRoot(warn: (message: string) => void): string | undefined {
+  try {
+    return realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
+  } catch (err) {
+    warn(`Workspace path not resolvable: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+function isKnowledgeFile(path: string): boolean {
+  const index = path.lastIndexOf(".");
+  const ext = index >= 0 ? path.slice(index).toLowerCase() : "";
+  return KNOWLEDGE_FILE_EXTENSIONS.has(ext);
+}
+
+function repoPathForKnowledge(root: string, requestedPath: string, warn: (message: string) => void): string | undefined {
+  const trimmed = requestedPath.trim();
+  if (!trimmed) return undefined;
+  if (isAbsolute(trimmed) || trimmed.split(/[\\/]+/).includes("..")) {
+    warn(`Ignoring unsafe knowledge path: ${requestedPath}`);
+    return undefined;
+  }
+  const resolved = resolve(root, trimmed);
+  if (!isInsideRoot(root, resolved)) {
+    warn(`Ignoring knowledge path outside workspace: ${requestedPath}`);
+    return undefined;
+  }
+  return resolved;
+}
+
+function collectKnowledgeCandidates(root: string, requestedPath: string, warn: (message: string) => void): string[] {
+  const resolved = repoPathForKnowledge(root, requestedPath, warn);
+  if (!resolved) return [];
+
+  try {
+    const resolvedStat = lstatSync(resolved);
+    if (resolvedStat.isSymbolicLink()) {
+      warn(`Ignoring symbolic link knowledge path: ${requestedPath}`);
+      return [];
+    }
+    const realResolved = realpathSync(resolved);
+    if (!isInsideRoot(root, realResolved)) {
+      warn(`Ignoring knowledge path outside workspace: ${requestedPath}`);
+      return [];
+    }
+    const stat = statSync(realResolved);
+    if (stat.isFile()) {
+      return isKnowledgeFile(realResolved) ? [realResolved] : [];
+    }
+    if (!stat.isDirectory()) return [];
+
+    const files: string[] = [];
+    const visit = (dir: string, depth: number): void => {
+      if (depth > MAX_KNOWLEDGE_DEPTH) {
+        warn(`Skipping knowledge directory deeper than ${MAX_KNOWLEDGE_DEPTH}: ${relative(root, dir)}`);
+        return;
+      }
+      for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        if (files.length >= MAX_KNOWLEDGE_FILES) return;
+        const child = resolve(dir, entry.name);
+        let realChild: string;
+        try {
+          realChild = realpathSync(child);
+        } catch {
+          continue;
+        }
+        if (!isInsideRoot(root, realChild)) {
+          warn(`Ignoring knowledge path outside workspace: ${relative(root, child)}`);
+          continue;
+        }
+        let childStat;
+        try {
+          childStat = lstatSync(child);
+        } catch {
+          continue;
+        }
+        if (childStat.isSymbolicLink()) continue;
+        if (childStat.isDirectory()) {
+          visit(realChild, depth + 1);
+        } else if (childStat.isFile() && isKnowledgeFile(realChild)) {
+          files.push(realChild);
+        }
+      }
+    };
+    visit(realResolved, 0);
+    return files;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      warn(`Could not read knowledge path ${requestedPath}: ${(err as Error).message}`);
+    }
+    return [];
+  }
+}
+
+function readFilePrefix(path: string, bytes: number): Buffer {
+  const fd = openSync(path, "r");
+  try {
+    const buffer = Buffer.alloc(bytes);
+    const read = readSync(fd, buffer, 0, bytes, 0);
+    return buffer.subarray(0, read);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function trimIncompleteUtf8Suffix(buffer: Buffer): Buffer {
+  if (buffer.length === 0) return buffer;
+
+  let start = buffer.length - 1;
+  while (start >= 0 && (buffer[start] & 0xc0) === 0x80) {
+    start -= 1;
+  }
+  if (start < 0) return Buffer.alloc(0);
+
+  const lead = buffer[start];
+  let expectedLength = 1;
+  if ((lead & 0x80) === 0) {
+    expectedLength = 1;
+  } else if ((lead & 0xe0) === 0xc0) {
+    expectedLength = 2;
+  } else if ((lead & 0xf0) === 0xe0) {
+    expectedLength = 3;
+  } else if ((lead & 0xf8) === 0xf0) {
+    expectedLength = 4;
+  } else {
+    return buffer.subarray(0, start);
+  }
+
+  if (buffer.length - start < expectedLength) {
+    return buffer.subarray(0, start);
+  }
+  return buffer;
+}
+
+export function loadRepoKnowledge(
+  config: ElekConfig,
+  warn: (message: string) => void = () => {},
+): ElekConfig {
+  const root = workspaceRoot(warn);
+  if (!root) return config;
+  const paths = config.knowledgePaths ?? DEFAULT_KNOWLEDGE_PATHS;
+  const seen = new Set<string>();
+  const files: RepoKnowledgeFile[] = [];
+  let totalBytes = 0;
+
+  for (const requestedPath of paths) {
+    for (const candidate of collectKnowledgeCandidates(root, requestedPath, warn)) {
+      if (files.length >= MAX_KNOWLEDGE_FILES) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+
+      const remainingBytes = Math.max(0, MAX_KNOWLEDGE_TOTAL_BYTES - totalBytes);
+      if (remainingBytes === 0) break;
+      let stat;
+      let sliced: Buffer;
+      let bytesToRead = 0;
+      try {
+        stat = statSync(candidate);
+        bytesToRead = Math.min(stat.size, MAX_KNOWLEDGE_FILE_BYTES, remainingBytes);
+        if (bytesToRead === 0) continue;
+        sliced = readFilePrefix(candidate, bytesToRead);
+      } catch (err) {
+        warn(`Could not read knowledge file ${relative(root, candidate)}: ${(err as Error).message}`);
+        continue;
+      }
+      sliced = trimIncompleteUtf8Suffix(sliced);
+      if (sliced.length === 0) continue;
+      const repoPath = relative(root, candidate).split(sep).join("/");
+      files.push({
+        path: repoPath,
+        text: sliced.toString("utf-8"),
+        truncated: stat.size > bytesToRead,
+      });
+      totalBytes += sliced.byteLength;
+    }
+    if (files.length >= MAX_KNOWLEDGE_FILES || totalBytes >= MAX_KNOWLEDGE_TOTAL_BYTES) break;
+  }
+
+  return files.length > 0 ? { ...config, knowledge: files } : config;
 }
 
 function normalizeBaseRef(baseRef: string): string | undefined {
@@ -379,6 +604,8 @@ export function mergeBasePolicyWithWorkspaceGuidance(
     costRates: basePolicy.costRates,
     maxCostUsd: basePolicy.maxCostUsd,
     severityThreshold: basePolicy.severityThreshold,
+    knowledgePaths: workspaceGuidance.knowledgePaths,
+    knowledge: workspaceGuidance.knowledge,
     ignorePaths: workspaceGuidance.ignorePaths,
     instructions: workspaceGuidance.instructions,
   };
@@ -412,6 +639,11 @@ export function formatConfigAuditLog(
   const source = sourceOverride || (process.env.GITHUB_EVENT_NAME === "pull_request"
     ? "checked-out-pr-branch"
     : "checked-out-workspace");
+  const knowledgePaths = config.knowledgePaths === undefined
+    ? "(default)"
+    : config.knowledgePaths.length > 0
+      ? config.knowledgePaths.join(",")
+      : "(none)";
   const fields = [
     "[config] audit",
     `path=${disabled ? "(disabled)" : path}`,
@@ -422,6 +654,8 @@ export function formatConfigAuditLog(
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
     `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
+    `knowledge_paths=${knowledgePaths}`,
+    `knowledge_files=${(config.knowledge ?? []).length}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
     `instructions=${config.instructions.length}`,
   ];
@@ -450,6 +684,16 @@ export function formatConfigPromptBlock(config: ElekConfig): string[] {
   if (config.instructions.length > 0) {
     lines.push("instructions:");
     lines.push(...config.instructions.map((instruction) => `- ${promptText(instruction)}`));
+  }
+  if ((config.knowledge ?? []).length > 0) {
+    lines.push("repo_knowledge:");
+    for (const file of config.knowledge ?? []) {
+      lines.push("<knowledge_file>");
+      lines.push(`path: ${promptText(file.path)}`);
+      lines.push(`truncated: ${file.truncated ? "true" : "false"}`);
+      lines.push(promptText(file.text));
+      lines.push("</knowledge_file>");
+    }
   }
   return lines;
 }

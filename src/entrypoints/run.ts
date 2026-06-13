@@ -26,6 +26,7 @@ import {
   formatConfigAuditLog,
   loadBaseBranchElekConfig,
   loadElekConfig,
+  loadRepoKnowledge,
   mergeBasePolicyWithWorkspaceGuidance,
 } from "../config.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
@@ -165,10 +166,13 @@ async function run(): Promise<void> {
   const repoConfig = baseConfig
     ? mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig)
     : workspaceConfig;
-  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
+  const repoConfigWithKnowledge = loadRepoKnowledge(repoConfig, (message) => {
+    console.warn(`[config] ${message}`);
+  });
+  const inputs = applyConfigDefaults(parsedInputs, repoConfigWithKnowledge);
   const effectiveRepoConfig = {
-    ...repoConfig,
-    severityThreshold: inputs.severityThreshold || repoConfig.severityThreshold,
+    ...repoConfigWithKnowledge,
+    severityThreshold: inputs.severityThreshold || repoConfigWithKnowledge.severityThreshold,
   };
   console.log(formatConfigAuditLog(
     parsedInputs.configPath,
