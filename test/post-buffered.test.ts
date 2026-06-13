@@ -51,6 +51,27 @@ describe("postBuffered", () => {
     expect([...lines.RIGHT].sort((a, b) => a - b)).toEqual([10, 11, 12, 13]);
   });
 
+  it("parses single-line hunks and deletion-only changes", () => {
+    const lines = commentableLinesForPatch(
+      [
+        "@@ -4 +4 @@",
+        "-old",
+        "@@ -10,2 +9,0 @@",
+        "-removed",
+        "-also removed",
+      ].join("\n"),
+    );
+
+    expect([...lines.LEFT].sort((a, b) => a - b)).toEqual([4, 10, 11]);
+    expect([...lines.RIGHT].sort((a, b) => a - b)).toEqual([]);
+  });
+
+  it("returns no commentable lines when patch text is unavailable", () => {
+    const lines = commentableLinesForPatch(undefined);
+    expect(lines.LEFT.size).toBe(0);
+    expect(lines.RIGHT.size).toBe(0);
+  });
+
   it("does nothing when the buffer is empty", async () => {
     const { deps, calls } = makeDeps();
     const summary = await postBuffered(deps);

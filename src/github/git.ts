@@ -43,7 +43,7 @@ export function configureGitAuth(githubToken: string, context: GitHubEntityConte
  * Create a new branch for elek's work.
  * Returns the branch name.
  */
-export function createPiBranch(
+export function createElekBranch(
   context: GitHubEntityContext,
   prefix: string,
 ): string {

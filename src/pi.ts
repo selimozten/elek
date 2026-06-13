@@ -296,7 +296,7 @@ function extractAssistantText(msg?: PiAssistantMessage): string {
 /**
  * Build the CLI arguments for pi.
  */
-function buildPiArgs(
+export function buildPiArgs(
   inputs: ActionInputs,
   promptFile: string,
   loadExtensions: boolean,

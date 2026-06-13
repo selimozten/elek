@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -212,7 +212,7 @@ jobs:
     if: contains(github.event.pull_request.changed_files, '.ts')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -223,7 +223,7 @@ jobs:
     if: contains(github.event.pull_request.changed_files, '.go')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -244,7 +244,7 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}

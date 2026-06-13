@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }   # required for accurate PR diffs
       - uses: selimozten/elek@v1
         with:
@@ -168,7 +168,7 @@ The most common cause: `pi --mode json` was hanging on stdin. Make sure you're o
 
 ### Empty PR diff
 
-`actions/checkout@v4` defaults to a shallow clone. Use `fetch-depth: 0`.
+`actions/checkout@v6.0.3` defaults to a shallow clone. Use `fetch-depth: 0`.
 
 ### "Tool not found" errors in the review
 

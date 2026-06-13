@@ -27,7 +27,7 @@ import { resolveMode } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
 import {
   configureGitAuth,
-  createPiBranch,
+  createElekBranch,
   commitChanges,
   pushBranch,
 } from "../github/git.js";
@@ -120,9 +120,9 @@ async function run(): Promise<void> {
     inputs.baseBranch || context.pr?.baseRef || context.repo.defaultBranch;
 
   // Create an elek work branch for code changes (PRs only)
-  let piBranch: string | undefined;
+  let workBranch: string | undefined;
   if (context.isPR) {
-    piBranch = createPiBranch(context, inputs.branchPrefix);
+    workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
   // Create tracking comment (with spinner, Claude-style)
@@ -398,7 +398,7 @@ async function run(): Promise<void> {
   }
 
   // Then handle any code changes pi made (separate from the review comment)
-  if (result.conclusion === "success" && piBranch) {
+  if (result.conclusion === "success" && workBranch) {
     try {
       // Only count non-lockfile changes as elek's work
       // Filter in JS instead of grep -v to avoid exit code 1 when no matches
@@ -419,14 +419,14 @@ async function run(): Promise<void> {
         .join("\n");
 
       if (relevantChanges.trim()) {
-        commitChanges(`pi: automated changes for #${context.entityNumber}`);
-        pushBranch(piBranch);
+        commitChanges(`chore(elek): automated changes for #${context.entityNumber}`);
+        pushBranch(workBranch);
 
         const changeNotice = [
           `🔨 **${modelLabel}** also made code changes:`,
           "",
-          `Branch: \`${piBranch}\``,
-          `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${piBranch})`,
+          `Branch: \`${workBranch}\``,
+          `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${workBranch})`,
         ].join("\n");
 
         try {
@@ -495,7 +495,7 @@ async function run(): Promise<void> {
 
   // ── Phase 6: Set outputs ─────────────────────────────────────────────
   core.setOutput("conclusion", result.conclusion);
-  core.setOutput("branch_name", piBranch || "");
+  core.setOutput("branch_name", workBranch || "");
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
   core.setOutput("summary", safeOutput.substring(0, 1000));

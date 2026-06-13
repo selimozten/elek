@@ -119,7 +119,7 @@ This is the backstop layer if anyone ever adds the wrong code path.
 
 ```bash
 bun install
-bun test test/        # unit tests, ~77 of them
+bun test test/        # unit tests, ~84 of them
 bunx tsc --noEmit     # type check
 ```
 
@@ -135,12 +135,16 @@ PATH="$(pwd)/node_modules/.bin:$PATH" pi --mode json --provider deepseek \
 Two workflows in `.github/workflows/`:
 
 - `ci.yml` — `bun test test/` + `bunx tsc --noEmit` on every PR. 5-min
-  timeout, `contents:read` perms only, concurrency-grouped.
+  timeout, `contents:read` perms only, concurrency-grouped. This is the
+  hard merge gate for code changes.
 - `elek.yml` — runs the action on itself (deepseek-v4-pro + glm-5.1).
   10-min timeout, concurrency cancels stale runs on new push, ignores
-  docs-only changes.
+  docs-only changes. This is advisory because provider quota and transient
+  model failures should not block a test-clean PR.
 
-Both must pass before merging.
+CI must pass before merging. Treat advisory elek findings as review feedback:
+fix actionable code findings, but do not block solely on provider quota or
+transient model failures.
 
 ## When making a change
 

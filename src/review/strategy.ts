@@ -111,11 +111,11 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
       ? CROSSCHECK_LENSES
       : [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES];
 
-  const models = parseModelList(inputs.reviewModels, inputs);
-  const fallback = parseModelSpec("", inputs);
+  const parsedModels = parseModelList(inputs.reviewModels, inputs);
+  const models = parsedModels.length > 0 ? parsedModels : [parseModelSpec("", inputs)];
   const jobs = lenses.map((lens, i) => ({
     lens,
-    model: models[i % Math.max(models.length, 1)] ?? fallback,
+    model: models[i % models.length],
   }));
 
   return { strategy, jobs, validator };
@@ -227,6 +227,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `Validation rules:`,
     `- Verify each surviving finding against the diff and repo context before surfacing it.`,
+    `- Treat existing comments and review comments as already-visible context; do not duplicate findings that have already been posted unless they remain unresolved and materially changed.`,
     `- Drop speculative, cosmetic, duplicate, stale, or pre-existing issues not rooted in added/modified code.`,
     `- Drop proposed fixes that add defensive bloat for impossible states, unused abstractions, or comments that restate code.`,
     `- If two reviewers found the same issue independently, treat that as stronger signal, but still verify it yourself.`,
@@ -261,6 +262,12 @@ export function buildSynthesisPrompt(params: {
     "```",
     `</changed_files>`,
     ``,
+    data.comments.length
+      ? `<comments>\n${data.comments.map((c) => `- ${c}`).join("\n")}\n</comments>\n`
+      : "",
+    data.reviewComments.length
+      ? `<review_comments>\n${data.reviewComments.map((c) => `- ${c}`).join("\n")}\n</review_comments>\n`
+      : "",
     `<candidate_reports>`,
     reportBlock,
     `</candidate_reports>`,

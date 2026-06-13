@@ -1,10 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import {
+  buildLensPrompt,
+  buildSynthesisPrompt,
   parseModelList,
   parseModelSpec,
   resolveReviewPlan,
   resolveReviewStrategy,
 } from "../src/review/strategy";
+import type { GitHubData } from "../src/github/data";
 import type { ActionInputs } from "../src/types";
 
 const baseInputs: ActionInputs = {
@@ -24,6 +27,20 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+};
+
+const dataFixture: GitHubData = {
+  type: "pr",
+  title: "Improve review orchestration",
+  body: "",
+  author: "alice",
+  diff: "diff --git a/src/a.ts b/src/a.ts\n+export const ok = true;",
+  comments: ["[github-actions]: prior summary"],
+  reviewComments: ["src/a.ts:1 prior inline finding"],
+  labels: [],
+  assignees: [],
+  entityNumber: 7,
+  pr: { headRef: "feature/review", baseRef: "main" },
 };
 
 describe("review strategy", () => {
@@ -92,10 +109,79 @@ describe("review strategy", () => {
     ]);
   });
 
+  it("uses the provider default model when no reviewer model list is supplied", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      model: "",
+      reviewStrategy: "crosscheck",
+      reviewModels: "",
+    });
+
+    expect(plan.jobs.map((j) => j.model)).toEqual([
+      { provider: "deepseek", model: "", label: "deepseek" },
+      { provider: "deepseek", model: "", label: "deepseek" },
+    ]);
+  });
+
   it("drops empty model list entries", () => {
     expect(parseModelList(" deepseek/a, ,zai/b ", baseInputs).map((m) => m.label)).toEqual([
       "deepseek/a",
       "zai/b",
     ]);
+  });
+
+  it("builds a lens prompt with the lens focus and diff context", () => {
+    const prompt = buildLensPrompt({
+      data: dataFixture,
+      userRequest: "",
+      lens: {
+        id: "risk",
+        title: "Risk Review",
+        focus: "Correctness and security.",
+      },
+      modelLabel: "deepseek/deepseek-v4-pro",
+    });
+
+    expect(prompt).toContain("Your lens: Risk Review");
+    expect(prompt).toContain("Focus: Correctness and security.");
+    expect(prompt).toContain("Review this pull request.");
+    expect(prompt).toContain("diff --git a/src/a.ts b/src/a.ts");
+    expect(prompt).toContain("(no description)");
+    expect(prompt).toContain("<comments>");
+    expect(prompt).toContain("<review_comments>");
+  });
+
+  it("builds a synthesis prompt with candidate reports and visible comment context", () => {
+    const prompt = buildSynthesisPrompt({
+      data: dataFixture,
+      userRequest: "focus on regressions",
+      modelLabel: "deepseek/deepseek-v4-pro",
+      jobRunLink: "https://github.com/selimozten/elek/actions/runs/1",
+      commentId: 123,
+      reports: [
+        {
+          lens: { id: "risk", title: "Risk Review", focus: "Correctness." },
+          modelLabel: "deepseek/deepseek-v4-pro",
+          output: "Potential issue in src/a.ts",
+          conclusion: "success",
+        },
+        {
+          lens: { id: "design", title: "Design Review", focus: "Maintainability." },
+          modelLabel: "zai/glm-5.1",
+          output: "",
+          conclusion: "failure",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
+    expect(prompt).toContain('<reviewer_report lens="risk" title="Risk Review"');
+    expect(prompt).toContain('<reviewer_report lens="design" title="Design Review"');
+    expect(prompt).toContain("Potential issue in src/a.ts");
+    expect(prompt).toContain("(no output)");
+    expect(prompt).toContain("<comments>");
+    expect(prompt).toContain("<review_comments>");
+    expect(prompt).toContain("focus on regressions");
+    expect(prompt).toContain("comment_id: 123");
   });
 });

@@ -17,7 +17,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -71,7 +71,7 @@ jobs:
        runs-on: ubuntu-latest
        timeout-minutes: 10
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@v6.0.3
            with: { fetch-depth: 0 }
          - uses: selimozten/elek@v1
            with:
@@ -139,7 +139,7 @@ jobs:
   deepseek:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -149,7 +149,7 @@ jobs:
   zai:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           zai_api_key: ${{ secrets.ZAI_API_KEY }}
