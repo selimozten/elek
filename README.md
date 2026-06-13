@@ -63,11 +63,12 @@ jobs:
      issues: write            # post tracking comment
 
    concurrency:
-     group: elek-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+     group: elek-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
      cancel-in-progress: true
 
    jobs:
      review:
+       if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
        runs-on: ubuntu-latest
        timeout-minutes: 10
        steps:

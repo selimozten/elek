@@ -15,9 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Weekly Dependabot maintenance for GitHub Actions and npm dependencies.
 - CI audit gate for high-severity runtime dependency advisories.
 - Exact top-level dependency pins for more predictable action installs.
+- CodeQL code scanning workflow for JavaScript/TypeScript security analysis.
 
 ### Changed
 
+- Self-review workflow concurrency now separates pull request and issue comment
+  events so bot tracking comments cannot cancel in-flight PR reviews.
 - Composite action runtime installs now omit dev dependencies and avoid
   writing a transient package lockfile.
 - Dependabot version-update policy now defers semver-major upgrades to manual
