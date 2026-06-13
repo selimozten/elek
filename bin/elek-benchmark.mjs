@@ -107,6 +107,12 @@ function buildCase(summary, args) {
   if (number === undefined || number === null || number === "") {
     throw new Error("summary is missing entity.number");
   }
+  if (typeof number !== "number" && typeof number !== "string") {
+    throw new Error("summary.entity.number must be a non-negative integer");
+  }
+  if (typeof number === "string" && number.trim() === "") {
+    throw new Error("summary.entity.number must be a non-negative integer");
+  }
   const numericNumber = Number(number);
   if (!Number.isInteger(numericNumber) || numericNumber < 0) {
     throw new Error("summary.entity.number must be a non-negative integer");
@@ -134,7 +140,7 @@ function expectedFinding(finding, index, usedIds) {
   const title = String(finding.title ?? `finding-${index + 1}`);
   const baseId = slug(title) || `finding-${index + 1}`;
   const expected = {
-    id: uniqueId(baseId, usedIds, index),
+    id: uniqueId(baseId, usedIds),
     keywords: suggestKeywords(finding),
   };
   const minSeverity = normalizeSeverity(finding.severity);
@@ -142,12 +148,12 @@ function expectedFinding(finding, index, usedIds) {
   return expected;
 }
 
-function uniqueId(baseId, usedIds, index) {
+function uniqueId(baseId, usedIds) {
   if (!usedIds.has(baseId)) {
     usedIds.add(baseId);
     return baseId;
   }
-  let suffix = index + 1;
+  let suffix = 1;
   let candidate = `${baseId}-${suffix}`;
   while (usedIds.has(candidate)) {
     suffix++;
