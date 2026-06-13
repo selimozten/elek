@@ -276,7 +276,9 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 The review summary JSON includes run duration, requested/executed strategy,
 model labels, per-model token/cost estimates, pricing source, and inline
 comment counts. Use `review_summary_path` with your own artifact upload step
-when you want to compare models or review strategies across CI runs.
+when you want to compare models or review strategies across CI runs. If the
+runner cannot write the optional file, `review_summary_path` is set to an
+empty string while `review_summary_json` is still emitted.
 
 ## Repo Config
 

@@ -348,7 +348,7 @@ export async function runPi(
         usage: {
           inputTokens: 0,
           outputTokens: 0,
-          estimated: true,
+          estimated: false,
           modelLabel: runModelLabel,
           source: "unknown",
         },

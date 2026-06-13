@@ -253,4 +253,49 @@ describe("review summary", () => {
     });
     expect(summary.cost.usd).toBe(0.00012);
   });
+
+  it("clamps and rounds duration and cost boundary values", () => {
+    const first = piResult({ durationSeconds: -1, costUsd: -1 });
+    const second = piResult({ durationSeconds: 0.05, costUsd: 0.0000005 });
+    const summary = buildReviewSummary({
+      context,
+      runId: "126",
+      jobRunLink: "https://github.com/acme/app/actions/runs/126",
+      conclusion: "success",
+      mode: "review",
+      requestedStrategy: "",
+      executedStrategy: "solo",
+      primaryModelLabel: "deepseek/deepseek-v4-pro",
+      finalModelLabel: "deepseek/deepseek-v4-pro",
+      startedAt: new Date("2026-06-13T10:00:00Z"),
+      finishedAt: new Date("2026-06-13T10:00:00.050Z"),
+      inlineComments: { posted: 0, skipped: 0, failed: 0 },
+      costTotal: aggregateCosts([{
+        inputTokens: first.usage.inputTokens,
+        outputTokens: first.usage.outputTokens,
+        costUsd: first.costUsd,
+        estimated: first.usage.estimated,
+        modelLabel: first.usage.modelLabel,
+        source: first.usage.source,
+      }, {
+        inputTokens: second.usage.inputTokens,
+        outputTokens: second.usage.outputTokens,
+        costUsd: second.costUsd,
+        estimated: second.usage.estimated,
+        modelLabel: second.usage.modelLabel,
+        source: second.usage.source,
+      }]),
+      runs: [
+        metricFromPiRun(first, "reviewer"),
+        metricFromPiRun(second, "validator"),
+      ],
+    });
+
+    expect(summary.run.durationSeconds).toBe(0.1);
+    expect(summary.cost.usd).toBe(0);
+    expect(summary.modelRuns[0].durationSeconds).toBe(0);
+    expect(summary.modelRuns[0].costUsd).toBe(0);
+    expect(summary.modelRuns[1].durationSeconds).toBe(0.1);
+    expect(summary.modelRuns[1].costUsd).toBe(0.000001);
+  });
 });
