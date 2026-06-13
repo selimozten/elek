@@ -410,6 +410,35 @@ instructions:
     }
   });
 
+  it("skips empty knowledge files and trims incomplete utf-8 suffixes", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-utf8-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      mkdirSync(join(dir, "docs"), { recursive: true });
+      writeFileSync(join(dir, "docs", "empty.md"), "");
+      writeFileSync(join(dir, "docs", "unicode.md"), `${"a".repeat(11_999)}é tail`);
+
+      const config = loadRepoKnowledge({
+        knowledgePaths: ["docs"],
+        ignorePaths: [],
+        instructions: [],
+      });
+
+      expect(config.knowledge?.map((file) => file.path)).toEqual(["docs/unicode.md"]);
+      expect(config.knowledge?.[0].text).toBe("a".repeat(11_999));
+      expect(config.knowledge?.[0].text).not.toContain("\uFFFD");
+      expect(config.knowledge?.[0].truncated).toBe(true);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("bounds config prompt guidance", () => {
     const warnings: string[] = [];
     const config = parseElekConfig([

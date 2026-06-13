@@ -419,6 +419,35 @@ function readFilePrefix(path: string, bytes: number): Buffer {
   }
 }
 
+function trimIncompleteUtf8Suffix(buffer: Buffer): Buffer {
+  if (buffer.length === 0) return buffer;
+
+  let start = buffer.length - 1;
+  while (start >= 0 && (buffer[start] & 0xc0) === 0x80) {
+    start -= 1;
+  }
+  if (start < 0) return Buffer.alloc(0);
+
+  const lead = buffer[start];
+  let expectedLength = 1;
+  if ((lead & 0x80) === 0) {
+    expectedLength = 1;
+  } else if ((lead & 0xe0) === 0xc0) {
+    expectedLength = 2;
+  } else if ((lead & 0xf0) === 0xe0) {
+    expectedLength = 3;
+  } else if ((lead & 0xf8) === 0xf0) {
+    expectedLength = 4;
+  } else {
+    return buffer.subarray(0, start);
+  }
+
+  if (buffer.length - start < expectedLength) {
+    return buffer.subarray(0, start);
+  }
+  return buffer;
+}
+
 export function loadRepoKnowledge(
   config: ElekConfig,
   warn: (message: string) => void = () => {},
@@ -444,11 +473,14 @@ export function loadRepoKnowledge(
       try {
         stat = statSync(candidate);
         bytesToRead = Math.min(stat.size, MAX_KNOWLEDGE_FILE_BYTES, remainingBytes);
+        if (bytesToRead === 0) continue;
         sliced = readFilePrefix(candidate, bytesToRead);
       } catch (err) {
         warn(`Could not read knowledge file ${relative(root, candidate)}: ${(err as Error).message}`);
         continue;
       }
+      sliced = trimIncompleteUtf8Suffix(sliced);
+      if (sliced.length === 0) continue;
       const repoPath = relative(root, candidate).split(sep).join("/");
       files.push({
         path: repoPath,
