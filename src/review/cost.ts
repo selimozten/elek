@@ -59,6 +59,10 @@ export function parseCostRateOverrides(
 
     const label = entry.slice(0, eq).trim().toLowerCase();
     const [inputRaw, outputRaw] = entry.slice(eq + 1).split(":");
+    if (!inputRaw?.trim() || !outputRaw?.trim()) {
+      onInvalid?.(entry, "prices must include both input and output values");
+      continue;
+    }
     const inputPerMillion = Number(inputRaw);
     const outputPerMillion = Number(outputRaw);
     if (!label) {
