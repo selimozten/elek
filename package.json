@@ -26,8 +26,8 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/node": "24.13.2",
-    "typescript": "5.9.3"
+    "@types/node": "25.9.3",
+    "typescript": "6.0.3"
   },
   "keywords": [
     "github-actions",
