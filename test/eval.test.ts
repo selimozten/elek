@@ -105,4 +105,60 @@ cases:
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("supports explicit --case scoring and ignores raw body-only keyword matches", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-eval-case-test-"));
+    try {
+      const suitePath = join(dir, "suite.yml");
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(suitePath, `
+version: 1
+cases:
+  - id: auth-regression
+    expected_findings:
+      - id: tenant-bypass
+        min_severity: critical
+        keywords: [tenant, session, bypass]
+    max_false_positives: 1
+`);
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "other/repo",
+        run: { durationSeconds: 1 },
+        entity: { number: 99 },
+        review: { finalModel: "model", executedStrategy: "solo" },
+        cost: { usd: 0 },
+        findings: [{
+          title: "Unrelated issue",
+          severity: "critical",
+          confidence: "high",
+          evidence: "a real but unrelated bug",
+          body: "tenant session bypass",
+        }],
+      }));
+
+      expect(() => execFileSync("node", [
+        "bin/elek-eval.mjs",
+        "--suite",
+        suitePath,
+        "--case",
+        "auth-regression",
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: "pipe",
+      })).toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports missing option values clearly", () => {
+    expect(() => execFileSync("node", ["bin/elek-eval.mjs", "--suite"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "pipe",
+    })).toThrow("--suite requires a path");
+  });
 });

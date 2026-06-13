@@ -4,6 +4,8 @@ import { parse as parseYaml } from "yaml";
 
 const SEVERITY_RANK = { unknown: 0, minor: 1, important: 2, critical: 3 };
 
+class UsageError extends Error {}
+
 function usage(exitCode = 0) {
   const stream = exitCode === 0 ? process.stdout : process.stderr;
   stream.write(`Usage: elek-eval --suite benchmark.yml [--case case-id] [--json] summary.json [...summary.json]
@@ -39,17 +41,21 @@ function parseArgs(argv) {
     if (arg === "--json") {
       args.json = true;
     } else if (arg === "--suite") {
-      args.suitePath = argv[++index] || "";
+      const value = argv[++index];
+      if (!value || value.startsWith("-")) throw new UsageError("--suite requires a path");
+      args.suitePath = value;
     } else if (arg === "--case") {
-      args.caseId = argv[++index] || "";
+      const value = argv[++index];
+      if (!value || value.startsWith("-")) throw new UsageError("--case requires a case id");
+      args.caseId = value;
     } else if (arg.startsWith("-")) {
-      throw new Error(`Unknown option: ${arg}`);
+      throw new UsageError(`Unknown option: ${arg}`);
     } else {
       args.summaries.push(arg);
     }
   }
-  if (!args.suitePath) throw new Error("--suite is required");
-  if (args.summaries.length === 0) throw new Error("at least one summary JSON path is required");
+  if (!args.suitePath) throw new UsageError("--suite is required");
+  if (args.summaries.length === 0) throw new UsageError("at least one summary JSON path is required");
   return args;
 }
 
@@ -72,8 +78,7 @@ function summaryCase(summary, suite, forcedCaseId) {
   }
   const repository = summary.repository;
   const number = summary.entity?.number;
-  return suite.cases.find((entry) => entry.repository === repository && Number(entry.number) === Number(number))
-    ?? suite.cases.find((entry) => entry.id === summary.evaluation?.caseId);
+  return suite.cases.find((entry) => entry.repository === repository && Number(entry.number) === Number(number));
 }
 
 function normalizeFindings(summary) {
@@ -95,7 +100,6 @@ function normalizeFindings(summary) {
       finding.evidence,
       finding.impact,
       finding.fix,
-      finding.body,
     ].filter(Boolean).join(" ").toLowerCase(),
   }));
 }
@@ -245,5 +249,6 @@ try {
   process.exit(totals.passed ? 0 : 1);
 } catch (err) {
   process.stderr.write(`elek-eval: ${err.message}\n`);
-  usage(1);
+  if (err instanceof UsageError) usage(1);
+  process.exit(1);
 }

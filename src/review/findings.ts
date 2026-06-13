@@ -11,6 +11,7 @@ export interface ParsedReviewFinding {
 }
 
 const FINDING_HEADING = /^###\s+(.+)$/gm;
+const SECTION_OR_FINDING_HEADING = /^#{2,3}\s+/m;
 
 export function parseReviewFindings(text: string): ParsedReviewFinding[] {
   const headings = [...text.matchAll(FINDING_HEADING)];
@@ -18,11 +19,12 @@ export function parseReviewFindings(text: string): ParsedReviewFinding[] {
 
   for (let index = 0; index < headings.length; index++) {
     const heading = headings[index];
-    const next = headings[index + 1];
     const title = (heading[1] ?? "").trim();
     const start = heading.index ?? 0;
     const bodyStart = start + heading[0].length;
-    const body = text.slice(bodyStart, next?.index ?? text.length).trim();
+    const rawBody = text.slice(bodyStart);
+    const nextHeading = SECTION_OR_FINDING_HEADING.exec(rawBody);
+    const body = rawBody.slice(0, nextHeading?.index ?? rawBody.length).trim();
     const fields = fieldsFromFindingBody(body);
     if (!fields.severity && !fields.confidence && !fields.evidence && !fields.impact && !fields.fix) {
       continue;
