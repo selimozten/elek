@@ -203,4 +203,54 @@ describe("review summary", () => {
       pricingSource: "unknown",
     });
   });
+
+  it("records solo reviews as one validator run", () => {
+    const validator = piResult({
+      durationSeconds: 4.44,
+      costUsd: 0.00012,
+      usage: {
+        inputTokens: 300,
+        outputTokens: 40,
+        estimated: true,
+        modelLabel: "deepseek/deepseek-v4-pro",
+        source: "builtin",
+      },
+    });
+    const summary = buildReviewSummary({
+      context,
+      runId: "125",
+      jobRunLink: "https://github.com/acme/app/actions/runs/125",
+      conclusion: "success",
+      mode: "review",
+      requestedStrategy: "",
+      executedStrategy: "solo",
+      primaryModelLabel: "deepseek/deepseek-v4-pro",
+      finalModelLabel: "deepseek/deepseek-v4-pro",
+      startedAt: new Date("2026-06-13T10:00:00Z"),
+      finishedAt: new Date("2026-06-13T10:00:04.440Z"),
+      commentId: 123,
+      inlineComments: { posted: 1, skipped: 0, failed: 0 },
+      costTotal: aggregateCosts([{
+        inputTokens: validator.usage.inputTokens,
+        outputTokens: validator.usage.outputTokens,
+        costUsd: validator.costUsd,
+        estimated: validator.usage.estimated,
+        modelLabel: validator.usage.modelLabel,
+        source: validator.usage.source,
+      }]),
+      runs: [metricFromPiRun(validator, "validator")],
+    });
+
+    expect(summary.review.executedStrategy).toBe("solo");
+    expect(summary.cost.runs).toHaveLength(1);
+    expect(summary.modelRuns).toHaveLength(1);
+    expect(summary.modelRuns[0]).toMatchObject({
+      role: "validator",
+      modelLabel: "deepseek/deepseek-v4-pro",
+      durationSeconds: 4.4,
+      inputTokens: 300,
+      outputTokens: 40,
+    });
+    expect(summary.cost.usd).toBe(0.00012);
+  });
 });

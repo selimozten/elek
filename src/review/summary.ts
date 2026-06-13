@@ -1,6 +1,6 @@
-import type { GitHubEntityContext, PiRunResult } from "../types";
-import type { ReviewCost, ReviewCostTotal } from "./cost";
-import type { PostSummary } from "../entrypoints/post-buffered";
+import type { GitHubEntityContext, PiRunResult } from "../types.js";
+import type { ReviewCost, ReviewCostTotal } from "./cost.js";
+import type { PostSummary } from "../entrypoints/post-buffered.js";
 
 export interface ReviewRunMetric {
   role: "reviewer" | "validator";

@@ -295,13 +295,14 @@ export async function runPi(
     });
 
     child.on("error", (err) => {
+      const elapsed = (Date.now() - startTime) / 1000;
       console.error(`pi spawn error:`, err.message);
       onProgress?.({ type: "done" });
       resolve({
         conclusion: "failure",
         output: err.message,
         turnsUsed: 0,
-        durationSeconds: 0,
+        durationSeconds: elapsed,
         costUsd: 0,
         usage: {
           inputTokens: 0,

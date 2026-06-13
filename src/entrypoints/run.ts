@@ -741,6 +741,7 @@ async function run(): Promise<void> {
     console.log(`Wrote review summary: ${reviewSummaryPath}`);
   } catch (err) {
     console.warn("Could not write review summary:", (err as Error).message);
+    core.setOutput("review_summary_path", "");
   }
   core.setOutput("review_summary_json", reviewSummaryJson);
 
