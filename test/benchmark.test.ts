@@ -168,6 +168,62 @@ describe("elek-benchmark", () => {
     }
   });
 
+  it("filters generic source file extensions from keyword suggestions", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-extension-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: 12 },
+        findings: [{
+          title: "Auth issue",
+          severity: "minor",
+          path: "src/auth.ts",
+        }],
+      }));
+
+      const output = execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite.cases[0].expected_findings[0].keywords).toEqual(["auth", "issue", "src"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects summaries missing required case fields", () => {
+    const cases = [
+      {
+        summary: { version: 1, entity: { number: 1 }, findings: [] },
+        message: "summary is missing repository",
+      },
+      {
+        summary: { version: 1, repository: "acme/app", entity: {}, findings: [] },
+        message: "summary is missing entity.number",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-required-test-"));
+      try {
+        const summaryPath = join(dir, "summary.json");
+        writeFileSync(summaryPath, JSON.stringify(testCase.summary));
+
+        expect(() => execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          stdio: "pipe",
+        })).toThrow(testCase.message);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("deduplicates generated expected finding ids", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-id-test-"));
     try {
@@ -213,11 +269,32 @@ describe("elek-benchmark", () => {
 
     expect(() => execFileSync("node", [
       "bin/elek-benchmark.mjs",
+      "--max-false-positives",
+      "1e2",
+      "summary.json",
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "pipe",
+    })).toThrow("--max-false-positives requires a non-negative integer");
+
+    expect(() => execFileSync("node", [
+      "bin/elek-benchmark.mjs",
       "--id",
     ], {
       cwd: process.cwd(),
       encoding: "utf8",
       stdio: "pipe",
     })).toThrow("--id requires a case id");
+  });
+
+  it("prints help for benchmark generation", () => {
+    const output = execFileSync("node", ["bin/elek-benchmark.mjs", "--help"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
+
+    expect(output).toContain("Usage: elek-benchmark");
+    expect(output).toContain("--clean");
   });
 });

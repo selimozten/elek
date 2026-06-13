@@ -38,6 +38,23 @@ const STOP_WORDS = new Set([
   "you",
 ]);
 
+const EXTENSION_WORDS = new Set([
+  "cjs",
+  "css",
+  "go",
+  "html",
+  "js",
+  "json",
+  "jsx",
+  "mjs",
+  "py",
+  "rs",
+  "tsx",
+  "ts",
+  "yaml",
+  "yml",
+]);
+
 function usage(exitCode = 0) {
   const stream = exitCode === 0 ? process.stdout : process.stderr;
   stream.write(`Usage: elek-benchmark [--id case-id] [--max-false-positives n] [--clean] summary.json
@@ -83,6 +100,9 @@ function parseArgs(argv) {
 }
 
 function parseNonNegativeInteger(value, label) {
+  if (!/^\d+$/.test(value)) {
+    throw new UsageError(`${label} requires a non-negative integer`);
+  }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new UsageError(`${label} requires a non-negative integer`);
@@ -182,6 +202,7 @@ function suggestKeywords(finding) {
   const unique = [];
   for (const word of words) {
     if (STOP_WORDS.has(word)) continue;
+    if (EXTENSION_WORDS.has(word)) continue;
     if (unique.includes(word)) continue;
     unique.push(word);
     if (unique.length >= 3) break;
