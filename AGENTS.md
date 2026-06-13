@@ -43,7 +43,7 @@ src/github/context.ts                 Parses the GitHub webhook payload.
 src/github/trigger.ts                 @pi mention detection, actor filtering.
 src/github/data.ts                    PR/issue data fetch + buildPrompt().
 src/github/comments.ts                Tracking-comment lifecycle.
-src/github/progress.ts                Live checklist body (claude-style).
+src/github/progress.ts                Live checklist body.
 src/github/spinner.ts                 Animated elek SVG header.
 src/github/mode.ts                    review / review+edit / agent presets.
 src/github/git.ts                     git auth + branch ops.
@@ -73,9 +73,8 @@ prose narration.
 **Professional branch and PR names.** Branches use product/work prefixes
 such as `feature/`, `fix/`, `docs/`, `refactor/`, `test/`, `ci/`, `chore/`,
 `security/`, or `release/`, followed by a lowercase kebab-case summary.
-Do not use agent, tool, vendor, or person prefixes such as `codex/`,
-`cursor/`, `claude/`, or a contributor handle. PR titles use Conventional
-Commit style, e.g. `feat(review): add cross-model validation`.
+Do not use agent, tool, vendor, or person prefixes. PR titles use
+Conventional Commit style, e.g. `feat(review): add cross-model validation`.
 
 **Structural safety > runtime checks.** The MCP server exposes exactly two
 tools: `create_inline_comment` and `update_tracking_comment`. There is no
