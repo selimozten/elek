@@ -78,6 +78,9 @@ describe("elek-init", () => {
     expect(config).toContain("review_strategy: crosscheck");
     expect(config).toContain("max_cost_usd: 0.05");
     expect(config).toContain("severity_threshold: important");
+    expect(config).toContain("knowledge_paths:");
+    expect(config).toContain("AGENTS.md");
+    expect(config).toContain("CONTRIBUTING.md");
     expect(config).toContain("ignore_paths:");
     expect(config).toContain("instructions:");
     expect(config).toContain("security-sensitive behavior changes");

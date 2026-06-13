@@ -235,6 +235,11 @@ export function renderConfig(options) {
   lines.push(
     "severity_threshold: important",
     "",
+    "knowledge_paths:",
+    "  - AGENTS.md",
+    "  - CONTRIBUTING.md",
+    "  - docs/ARCHITECTURE.md",
+    "",
     "ignore_paths:",
     "  - docs/**",
     "  - \"*.md\"",

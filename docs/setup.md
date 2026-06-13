@@ -186,6 +186,11 @@ cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-
 max_cost_usd: 0.05
 severity_threshold: important
 
+knowledge_paths:
+  - AGENTS.md
+  - CONTRIBUTING.md
+  - docs/ARCHITECTURE.md
+
 ignore_paths:
   - docs/**
   - "*.md"
@@ -205,6 +210,7 @@ Supported keys:
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | Soft cap; downgrade multi-lens reviews when known input-side estimates already exceed it |
 | `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
+| `knowledge_paths` | Repo-local docs or directories to include as bounded review context |
 | `ignore_paths` | Skip a finding only when all of its evidence lies inside these paths; still surface issues that leak impact outside them |
 | `instructions` | Extra repo-specific review policy inserted into every prompt |
 
@@ -217,10 +223,13 @@ dropping repo policy.
 Security note: on pull requests, elek loads policy fields (`review_strategy`,
 `review_models`, `validator_model`, `cost_rates`, `max_cost_usd`, and
 `severity_threshold`) from the base branch when available. Guidance fields
-(`ignore_paths` and `instructions`) come from the checked-out branch, so
-contributors can propose review guidance changes without controlling cost or
-severity policy. Each run logs the loaded config source plus effective
-strategy/model/severity choices.
+(`knowledge_paths`, `ignore_paths`, and `instructions`) come from the
+checked-out branch, so contributors can propose review guidance changes without
+controlling cost or severity policy. Each run logs the loaded config source
+plus effective strategy/model/severity choices.
+If `knowledge_paths` is unset, elek automatically tries `AGENTS.md`,
+`CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, and `docs/adr`. Files are loaded
+only from inside the workspace and are capped before they enter the prompt.
 If elek cannot resolve a PR comment trigger's actual base branch, it skips
 base-branch policy loading for that run instead of guessing from the default
 branch; policy fields from the checked-out workspace are not used as a

@@ -293,6 +293,11 @@ cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-
 max_cost_usd: 0.05
 severity_threshold: important
 
+knowledge_paths:
+  - AGENTS.md
+  - CONTRIBUTING.md
+  - docs/ARCHITECTURE.md
+
 ignore_paths:
   - docs/**
   - "*.md"
@@ -303,8 +308,8 @@ instructions:
 ```
 
 Supported keys: `review_strategy`, `review_models`, `validator_model`,
-`cost_rates`, `max_cost_usd`, `severity_threshold`, `ignore_paths`, and
-`instructions`.
+`cost_rates`, `max_cost_usd`, `severity_threshold`, `knowledge_paths`,
+`ignore_paths`, and `instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
 the workflow input.
 `severity_threshold` accepts `critical`, `important`, or `minor`. Severity
@@ -316,8 +321,14 @@ On pull requests, policy fields (`review_strategy`, `review_models`,
 `validator_model`, `cost_rates`, `max_cost_usd`, and `severity_threshold`) are
 loaded from the base branch when available. Guidance fields (`ignore_paths` and
 `instructions`) come from the checked-out branch so contributors can propose
-review guidance changes without controlling cost or severity policy. Each run
-logs the loaded config source plus effective strategy/model/severity choices. If elek cannot
+review guidance changes without controlling cost or severity policy.
+`knowledge_paths` is also checked-out guidance: it points elek at repo-local
+docs that should shape review judgment, such as agent instructions,
+contribution guidelines, architecture notes, or ADR folders. When unset, elek
+automatically tries `AGENTS.md`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`,
+and `docs/adr`. Loaded files are bounded by count and byte size before they
+enter the prompt. Each run logs the loaded config source plus effective
+strategy/model/severity choices. If elek cannot
 resolve a PR comment trigger's actual base branch, it skips base-branch policy
 loading for that run instead of guessing from the default branch; policy fields
 from the checked-out workspace are not used as a fallback. For `issue_comment`
