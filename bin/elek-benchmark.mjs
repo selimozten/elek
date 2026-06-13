@@ -112,13 +112,15 @@ function buildCase(summary, args) {
     throw new Error("summary.entity.number must be a non-negative integer");
   }
 
+  const usedFindingIds = new Set();
   const testCase = {
     id: args.id || slug(`${repository}-${number}`),
     repository,
     number: numericNumber,
     expected_findings: args.clean
       ? []
-      : normalizeFindings(summary).map((finding, index) => expectedFinding(finding, index)),
+      : normalizeFindings(summary).map((finding, index) =>
+        expectedFinding(finding, index, usedFindingIds)),
     max_false_positives: args.maxFalsePositives,
   };
 
@@ -128,15 +130,31 @@ function buildCase(summary, args) {
   };
 }
 
-function expectedFinding(finding, index) {
+function expectedFinding(finding, index, usedIds) {
   const title = String(finding.title ?? `finding-${index + 1}`);
+  const baseId = slug(title) || `finding-${index + 1}`;
   const expected = {
-    id: slug(title) || `finding-${index + 1}`,
+    id: uniqueId(baseId, usedIds, index),
     keywords: suggestKeywords(finding),
   };
   const minSeverity = normalizeSeverity(finding.severity);
   if (minSeverity) expected.min_severity = minSeverity;
   return expected;
+}
+
+function uniqueId(baseId, usedIds, index) {
+  if (!usedIds.has(baseId)) {
+    usedIds.add(baseId);
+    return baseId;
+  }
+  let suffix = index + 1;
+  let candidate = `${baseId}-${suffix}`;
+  while (usedIds.has(candidate)) {
+    suffix++;
+    candidate = `${baseId}-${suffix}`;
+  }
+  usedIds.add(candidate);
+  return candidate;
 }
 
 function normalizeSeverity(value) {

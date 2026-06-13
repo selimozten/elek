@@ -366,6 +366,37 @@ describe("elek-benchmark", () => {
     }
   });
 
+  it("deduplicates generated expected finding ids", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-benchmark-id-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        repository: "acme/app",
+        entity: { number: 11 },
+        findings: [
+          { title: "Issue", severity: "minor" },
+          { title: "Issue", severity: "minor" },
+          { title: "Issue 2", severity: "minor" },
+        ],
+      }));
+
+      const output = execFileSync("node", ["bin/elek-benchmark.mjs", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const suite = parseYaml(output);
+
+      expect(suite.cases[0].expected_findings.map((finding) => finding.id)).toEqual([
+        "issue",
+        "issue-2",
+        "issue-2-3",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("reports invalid benchmark generator options clearly", () => {
     expect(() => execFileSync("node", [
       "bin/elek-benchmark.mjs",
