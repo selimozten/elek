@@ -249,6 +249,7 @@ code. Workflow inputs still win when they are set explicitly.
 review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
+cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 severity_threshold: important
 
 ignore_paths:
@@ -262,6 +263,8 @@ instructions:
 
 Supported keys: `review_strategy`, `review_models`, `validator_model`,
 `cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
+`cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
+the workflow input.
 `severity_threshold` accepts `critical`, `important`, or `minor`. Severity
 and ignore-path policy are prompt instructions for the reviewer, not a
 server-side filter. If an existing config file has malformed YAML, elek fails

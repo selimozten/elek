@@ -93,7 +93,16 @@ function modelList(value: unknown, key: string, warn: (message: string) => void)
     }
     return items.length > 0 ? items.join(",") : undefined;
   }
-  return stringValue(value);
+  const scalar = stringValue(value);
+  if (!scalar && value != null) warn(`Ignoring non-scalar ${key} value`);
+  return scalar;
+}
+
+function promptText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export function parseElekConfig(
@@ -237,6 +246,7 @@ export function loadBaseBranchElekConfig(
     return parseElekConfig(text, warn, { throwOnParseError: true });
   } catch (err) {
     if (err instanceof ElekConfigParseError) throw err;
+    warn(`No base branch config found at ${trimmed} on ${baseRef}`);
     return emptyConfig();
   }
 }
@@ -307,12 +317,12 @@ export function formatConfigPromptBlock(config: ElekConfig): string[] {
   }
   if (config.ignorePaths.length > 0) {
     lines.push("ignore_paths:");
-    lines.push(...config.ignorePaths.map((path) => `- ${path}`));
-    lines.push("Do not surface findings for ignored paths unless they create a security or runtime issue outside the ignored path.");
+    lines.push(...config.ignorePaths.map((path) => `- ${promptText(path)}`));
+    lines.push("Skip findings whose evidence is entirely within ignored paths. Still surface findings in ignored paths if they cause a security or runtime issue elsewhere in the codebase.");
   }
   if (config.instructions.length > 0) {
     lines.push("instructions:");
-    lines.push(...config.instructions.map((instruction) => `- ${instruction}`));
+    lines.push(...config.instructions.map((instruction) => `- ${promptText(instruction)}`));
   }
   return lines;
 }
