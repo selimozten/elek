@@ -157,4 +157,16 @@ describe("buildPrompt", () => {
     expect(out).not.toContain("git add");
     expect(out).not.toContain("Run relevant tests");
   });
+
+  it("requires the review finding contract in the response format", () => {
+    const out = buildPrompt(baseData, "", "m", "j");
+
+    expect(out).toContain("### Review finding contract");
+    expect(out).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
+    expect(out).toContain("- Severity: critical|important|minor");
+    expect(out).toContain("- Confidence: high|medium");
+    expect(out).toContain("- Evidence: quote or summarize the concrete code path");
+    expect(out).toContain("- Fix: the smallest concrete change required");
+    expect(out).toContain("Do not surface low-confidence findings.");
+  });
 });

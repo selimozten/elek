@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `show_cost` and `cost_rates` inputs for transparent BYOK pricing.
 - Product research and roadmap notes comparing elek's direction with current
   AI review tools.
+- Shared review finding contract requiring severity, confidence, evidence,
+  impact, and a concrete fix for surfaced findings.
 
 ### Changed
 

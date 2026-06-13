@@ -42,16 +42,14 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 
 1. Configuration file: `.elek.yml` with path instructions, ignore patterns,
    severity thresholds, and model presets.
-2. Review contract: require every finding to include severity, confidence,
-   evidence, impact, and a concrete fix.
-3. Finding validation: ask the validator to reject findings that lack a
+2. Finding validation: ask the validator to reject findings that lack a
    reproducible path or contradict changed code.
-4. Cost controls: `max_cost_usd`, per-strategy budgets, and automatic fallback
+3. Cost controls: `max_cost_usd`, per-strategy budgets, and automatic fallback
    from `council` to `crosscheck` when a PR is too large.
-5. Setup command: generate a starter workflow and recommended secrets checklist.
-6. Repo knowledge: include selected project docs such as `AGENTS.md`,
+4. Setup command: generate a starter workflow and recommended secrets checklist.
+5. Repo knowledge: include selected project docs such as `AGENTS.md`,
    `CONTRIBUTING.md`, `docs/adr/**`, and configured guidelines in the prompt.
-7. Metrics: emit review duration, comments posted/skipped, model labels, and
+6. Metrics: emit review duration, comments posted/skipped, model labels, and
    cost as a machine-readable JSON summary artifact.
 
 ## Model evaluation plan
