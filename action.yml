@@ -163,7 +163,7 @@ runs:
       shell: bash
       run: |
         cd "$GITHUB_ACTION_PATH"
-        npm install
+        npm install --omit=dev --no-package-lock
         # Make node_modules/.bin available on PATH (pi, tsx) so pi-mcp-adapter
         # can find tsx when it spawns the MCP server child process.
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
