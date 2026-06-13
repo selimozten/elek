@@ -175,6 +175,9 @@ concurrency:
 
 ## Path filters (skip docs-only churn)
 
+Use path filters on advisory workflows only. Required checks should run on
+every PR so branch protection never waits on a skipped status check.
+
 ```yaml
 on:
   pull_request:

@@ -3,16 +3,8 @@ name: codeql
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
