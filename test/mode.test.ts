@@ -46,7 +46,15 @@ describe("resolvePiTools", () => {
 
   it("ignores tools overrides in review+edit mode", () => {
     const mode = resolveMode("review+edit");
-    expect(resolvePiTools(mode, "read,bash")).toBe("read,write,edit,grep,find,ls,mcp");
+    expect(resolvePiTools(mode, "read,bash").split(",").sort()).toEqual([
+      "edit",
+      "find",
+      "grep",
+      "ls",
+      "mcp",
+      "read",
+      "write",
+    ]);
   });
 
   it("allows tools overrides in legacy agent mode", () => {
