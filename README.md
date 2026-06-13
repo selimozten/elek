@@ -274,11 +274,39 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_summary_json` | Same summary as a single-line JSON output |
 
 The review summary JSON includes run duration, requested/executed strategy,
-model labels, per-model token/cost estimates, pricing source, and inline
-comment counts. Use `review_summary_path` with your own artifact upload step
-when you want to compare models or review strategies across CI runs. If the
-runner cannot write the optional file, `review_summary_path` is set to an
-empty string while `review_summary_json` is still emitted.
+model labels, parsed findings, per-model token/cost estimates, pricing source,
+and inline comment counts. Use `review_summary_path` with your own artifact
+upload step when you want to compare models or review strategies across CI
+runs. If the runner cannot write the optional file, `review_summary_path` is
+set to an empty string while `review_summary_json` is still emitted.
+
+## Model evaluation
+
+Use `elek-eval` to score saved `elek-review-summary.json` files against your
+own seeded PR benchmark suite:
+
+```bash
+npx --package github:selimozten/elek elek-eval --suite review-benchmark.yml artifacts/*/elek-review-summary.json
+```
+
+Example suite:
+
+```yaml
+version: 1
+cases:
+  - id: auth-regression
+    repository: owner/repo
+    number: 42
+    expected_findings:
+      - id: tenant-bypass
+        min_severity: critical
+        keywords: [tenant, session, bypass]
+    max_false_positives: 0
+```
+
+`elek-eval` reports recall, precision, false positives, duration, and cost per
+summary, then exits non-zero if a run misses expected findings or exceeds the
+false-positive budget. Add `--json` for machine-readable output.
 
 ## Repo Config
 

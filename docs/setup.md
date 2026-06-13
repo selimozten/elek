@@ -251,9 +251,9 @@ and action outputs include:
 
 `review_summary_path` points to `elek-review-summary.json` in the runner temp
 directory. The JSON includes total duration, requested/executed strategy,
-model labels, per-model token/cost estimates, pricing source, and inline
-comment counts. Upload that path as an artifact in your workflow when you want
-to compare model quality, speed, and cost across PRs.
+model labels, parsed findings, per-model token/cost estimates, pricing source,
+and inline comment counts. Upload that path as an artifact in your workflow
+when you want to compare model quality, speed, and cost across PRs.
 
 For models without built-in price hints, pass your provider's current USD price
 per 1M input/output tokens:
@@ -278,6 +278,35 @@ Disable the visible comment/log line while keeping outputs available:
 ```yaml
 show_cost: false
 ```
+
+## Model evaluation
+
+Save review summary artifacts from a fixed set of seeded PRs, then score them
+locally:
+
+```bash
+npx --package github:selimozten/elek elek-eval --suite review-benchmark.yml artifacts/*/elek-review-summary.json
+```
+
+Minimal benchmark suite:
+
+```yaml
+version: 1
+cases:
+  - id: auth-regression
+    repository: owner/repo
+    number: 42
+    expected_findings:
+      - id: tenant-bypass
+        min_severity: critical
+        keywords: [tenant, session, bypass]
+    max_false_positives: 0
+```
+
+Each summary is matched to a case by `repository` and PR/issue number, or you
+can pass `--case <id>` when scoring one case at a time. The evaluator reports
+recall, precision, false positives, duration, and cost; `--json` emits the
+same data for dashboards.
 
 ## Permissions
 

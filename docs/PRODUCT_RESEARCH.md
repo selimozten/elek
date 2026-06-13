@@ -45,6 +45,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   per-model cost, pricing source, and inline-comment posting counts.
 - Repo knowledge context through bounded `knowledge_paths`, with default
   loading for common project guidance files.
+- Model evaluation summary fields and `elek-eval` for scoring saved review
+  summaries against seeded PR benchmark suites.
 
 ### Next
 
@@ -52,8 +54,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
    reproducible path or contradict changed code.
 2. Per-strategy budgets and automatic fallback from `council` to `crosscheck`
    when a PR is too large.
-3. Model evaluation harness: run seeded PR benchmarks and compare the summary
-   JSON across models and review strategies.
+3. Benchmark fixture generator: create local seeded PR worktrees from a
+   declarative suite so model comparisons can run end-to-end.
 
 ## Model evaluation plan
 
@@ -66,7 +68,7 @@ Use a fixed benchmark suite of seeded PRs:
 - large refactor with no bug
 - docs-only change
 
-Run each model/strategy with the same prompt and score:
+Run each model/strategy with the same prompt and score with `elek-eval`:
 
 - valid high/medium findings
 - false positives

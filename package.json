@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "bin": {
-    "elek-init": "./bin/elek-init.mjs"
+    "elek-init": "./bin/elek-init.mjs",
+    "elek-eval": "./bin/elek-eval.mjs"
   },
   "dependencies": {
     "@actions/core": "3.0.1",
