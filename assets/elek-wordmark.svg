@@ -3,10 +3,21 @@
   <title id="title">elek</title>
   <desc id="desc">elek wordmark with a minimal warm-toned review mark.</desc>
   <style>
-    .back { fill: #f7f2ea; }
+    :root {
+      --elek-ink: #171412;
+      --elek-tag: #6f6760;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --elek-ink: #f7f2ea;
+        --elek-tag: #cfc3b7;
+      }
+    }
+
     .line {
       fill: none;
-      stroke: #171412;
+      stroke: var(--elek-ink);
       stroke-width: 18;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -23,7 +34,7 @@
     .node { fill: #c76d50; }
 
     .word {
-      fill: #171412;
+      fill: var(--elek-ink);
       font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 118px;
       font-weight: 700;
@@ -31,14 +42,13 @@
     }
 
     .tag {
-      fill: #6f6760;
+      fill: var(--elek-tag);
       font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 29px;
       font-weight: 600;
       letter-spacing: 0;
     }
   </style>
-  <rect class="back" width="820" height="220" rx="30"/>
   <g transform="translate(30 32)">
     <path class="line" d="M22 40h112M22 86h78M22 132h112"/>
     <path class="accent" d="M136 40 82 132"/>

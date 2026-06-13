@@ -19,9 +19,9 @@ describe("spinner branding", () => {
   });
 
   it("escapes model labels before rendering GitHub HTML", () => {
-    const html = spinnerHeader('openrouter/<bad>"model', "done > now");
+    const html = spinnerHeader('openrouter/<bad>"model\'x', "done > now");
 
-    expect(html).toContain("openrouter/&lt;bad&gt;&quot;model");
+    expect(html).toContain("openrouter/&lt;bad&gt;&quot;model&#39;x");
     expect(html).toContain("done &gt; now");
     expect(html).not.toContain('<bad>"model');
   });
