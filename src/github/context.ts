@@ -12,6 +12,16 @@ function parseBooleanInput(value: string, defaultValue: boolean): boolean {
   return !["false", "0", "off", "no"].includes(normalized);
 }
 
+function parseSeverityInput(value: string): ActionInputs["severityThreshold"] {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "critical" || normalized === "important" || normalized === "minor") {
+    return normalized;
+  }
+  core.warning(`Ignoring invalid severity_threshold input: ${normalized}`);
+  return "";
+}
+
 export function parseInputs(): ActionInputs {
   return {
     triggerPhrase: core.getInput("trigger_phrase") || "@pi",
@@ -32,6 +42,7 @@ export function parseInputs(): ActionInputs {
     reviewStrategy: core.getInput("review_strategy") || "",
     reviewModels: core.getInput("review_models") || "",
     validatorModel: core.getInput("validator_model") || "",
+    severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",
   };

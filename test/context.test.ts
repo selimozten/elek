@@ -210,6 +210,12 @@ describe("parseInputs", () => {
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
   });
 
+  it("parses severity_threshold when explicitly set", () => {
+    process.env.INPUT_SEVERITY_THRESHOLD = "IMPORTANT";
+
+    expect(parseInputs().severityThreshold).toBe("important");
+  });
+
   it("normalizes boolean-like action inputs", () => {
     process.env.INPUT_SHOW_COST = "OFF";
     process.env.INPUT_STICKY_COMMENT = "0";

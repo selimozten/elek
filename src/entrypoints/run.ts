@@ -111,6 +111,7 @@ async function run(): Promise<void> {
   configureGitAuth(githubToken, context);
 
   let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
+  let canLoadBasePolicy = !context.isPR || Boolean(context.pr?.baseRef);
   if (context.isPR && !context.pr?.baseRef) {
     try {
       const { data: pr } = await octokit.rest.pulls.get({
@@ -119,9 +120,11 @@ async function run(): Promise<void> {
         pull_number: context.entityNumber,
       });
       configBaseRef = pr.base?.ref || configBaseRef;
-      if (context.pr) context.pr.baseRef = configBaseRef;
+      canLoadBasePolicy = Boolean(pr.base?.ref);
+      if (context.pr && canLoadBasePolicy) context.pr.baseRef = configBaseRef;
     } catch (err) {
-      console.warn(`[config] Could not resolve PR base ref; using ${configBaseRef}: ${(err as Error).message}`);
+      canLoadBasePolicy = false;
+      console.warn(`[config] Could not resolve PR base ref; skipping base branch policy: ${(err as Error).message}`);
     }
   }
 
@@ -129,19 +132,25 @@ async function run(): Promise<void> {
     console.warn(`[config] ${message}`);
   });
   const baseConfig = context.isPR
-    ? loadBaseBranchElekConfig(
+    ? canLoadBasePolicy
+      ? loadBaseBranchElekConfig(
         parsedInputs.configPath,
         configBaseRef,
         (message) => console.warn(`[config] ${message}`),
       )
+      : { config: { ignorePaths: [], instructions: [] }, loaded: false }
     : undefined;
   const repoConfig = baseConfig
     ? mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig)
     : workspaceConfig;
   const inputs = applyConfigDefaults(parsedInputs, repoConfig);
+  const effectiveRepoConfig = {
+    ...repoConfig,
+    severityThreshold: inputs.severityThreshold || repoConfig.severityThreshold,
+  };
   console.log(formatConfigAuditLog(
     parsedInputs.configPath,
-    repoConfig,
+    effectiveRepoConfig,
     inputs,
     context.isPR
       ? baseConfig?.loaded
@@ -209,7 +218,7 @@ async function run(): Promise<void> {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
     tools: piTools,
-    repoConfig,
+    repoConfig: effectiveRepoConfig,
   });
 
   // Write prompt to file
@@ -375,7 +384,7 @@ async function run(): Promise<void> {
           userRequest,
           lens: job.lens,
           modelLabel: job.model.label,
-          repoConfig,
+          repoConfig: effectiveRepoConfig,
         });
         const lensInputs = {
           ...piInputs,
@@ -420,7 +429,7 @@ async function run(): Promise<void> {
       jobRunLink,
       commentId,
       reports,
-      repoConfig,
+      repoConfig: effectiveRepoConfig,
     });
     writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
   }

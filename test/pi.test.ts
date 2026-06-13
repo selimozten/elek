@@ -20,6 +20,7 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  severityThreshold: "",
   showCost: true,
   costRates: "",
 };

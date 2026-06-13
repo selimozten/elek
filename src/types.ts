@@ -32,6 +32,8 @@ export interface ActionInputs {
   reviewModels: string;
   /** Optional model spec for final validation/synthesis. */
   validatorModel: string;
+  /** Optional prompt-level severity threshold for reported findings. */
+  severityThreshold: "" | "critical" | "important" | "minor";
   /** Show estimated review cost in logs, outputs, and comments. */
   showCost: boolean;
   /**

@@ -336,6 +336,8 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
       !inputs.reviewModels && config.reviewModels ? config.reviewModels : inputs.reviewModels,
     validatorModel:
       !inputs.validatorModel && config.validatorModel ? config.validatorModel : inputs.validatorModel,
+    severityThreshold:
+      !inputs.severityThreshold && config.severityThreshold ? config.severityThreshold : inputs.severityThreshold,
     costRates: !inputs.costRates && config.costRates ? config.costRates : inputs.costRates,
   };
 }
@@ -366,6 +368,7 @@ export function formatConfigAuditLog(
     fields.push(`effective_review_strategy=${effective.reviewStrategy || "solo"}`);
     fields.push(`effective_review_models=${effective.reviewModels || "(primary model)"}`);
     fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
+    fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
   }
   return fields.join(" | ");
 }

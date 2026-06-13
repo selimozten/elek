@@ -137,6 +137,10 @@ inputs:
       deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
     required: false
     default: ""
+  severity_threshold:
+    description: "Prompt-level minimum finding severity to surface: critical, important, or minor. Empty uses .elek.yml or no threshold."
+    required: false
+    default: ""
   show_cost:
     description: "Show estimated token usage and review cost in the final comment and console log. The cost_usd, input_tokens, and output_tokens action outputs are always populated."
     required: false

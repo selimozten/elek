@@ -37,6 +37,7 @@ const baseInputs: ActionInputs = {
   reviewStrategy: "solo",
   reviewModels: "",
   validatorModel: "",
+  severityThreshold: "",
   showCost: true,
   costRates: "",
 };
@@ -127,6 +128,14 @@ instructions:
     expect(warnings).toEqual(["Ignoring config because the top-level YAML value is not a mapping"]);
   });
 
+  it("normalizes review strategy aliases in config", () => {
+    expect(parseElekConfig("review_strategy: cross-check\n").reviewStrategy).toBe("crosscheck");
+    expect(parseElekConfig("review_strategy: dual\n").reviewStrategy).toBe("crosscheck");
+    expect(parseElekConfig("review_strategy: duo\n").reviewStrategy).toBe("crosscheck");
+    expect(parseElekConfig("review_strategy: swarm\n").reviewStrategy).toBe("council");
+    expect(parseElekConfig("review_strategy: panel\n").reviewStrategy).toBe("council");
+  });
+
   it("supports standard YAML block scalars and array model lists", () => {
     const config = parseElekConfig(`
 review_models:
@@ -164,7 +173,15 @@ instructions:
       reviewStrategy: "council",
       reviewModels: "openrouter/model-a",
       validatorModel: "deepseek/model-b",
+      severityThreshold: "",
       costRates: "deepseek/model-b=1:2",
+    });
+
+    expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "", severityThreshold: "" }, {
+      ...config,
+      severityThreshold: "important",
+    })).toMatchObject({
+      severityThreshold: "important",
     });
 
     expect(applyConfigDefaults({
@@ -172,11 +189,13 @@ instructions:
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
       validatorModel: "explicit/validator",
+      severityThreshold: "critical",
       costRates: "explicit/model=3:4",
     }, config)).toMatchObject({
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
       validatorModel: "explicit/validator",
+      severityThreshold: "critical",
       costRates: "explicit/model=3:4",
     });
   });
@@ -250,6 +269,8 @@ instructions:
     expect(loadElekConfig("none")).toEqual({ ignorePaths: [], instructions: [] });
     expect(loadElekConfig("off")).toEqual({ ignorePaths: [], instructions: [] });
     expect(loadElekConfig("false")).toEqual({ ignorePaths: [], instructions: [] });
+    expect(loadElekConfig("  none  ")).toEqual({ ignorePaths: [], instructions: [] });
+    expect(loadElekConfig("OFF")).toEqual({ ignorePaths: [], instructions: [] });
   });
 
   it("returns empty config for missing or unreadable files", () => {
@@ -473,9 +494,10 @@ instructions:
         reviewStrategy: "council",
         reviewModels: "openrouter/model-a",
         validatorModel: "deepseek/model-b",
+        severityThreshold: "critical",
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
-          "effective_validator_model=deepseek/model-b",
+          "effective_validator_model=deepseek/model-b | effective_severity_threshold=critical",
       );
     } finally {
       if (previousEvent === undefined) {

@@ -188,7 +188,10 @@ Security note: on pull requests, elek loads policy fields (`review_strategy`,
 from the base branch when available. Guidance fields (`ignore_paths` and
 `instructions`) come from the checked-out branch, so contributors can propose
 review guidance changes without controlling cost or severity policy. Each run
-logs the loaded config source plus effective strategy/model choices.
+logs the loaded config source plus effective strategy/model/severity choices.
+If elek cannot resolve a PR comment trigger's actual base branch, it skips
+base-branch policy loading for that run instead of guessing from the default
+branch.
 
 ## Cost visibility
 

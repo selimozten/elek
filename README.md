@@ -221,6 +221,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
+| `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
@@ -275,7 +276,9 @@ On pull requests, policy fields (`review_strategy`, `review_models`,
 base branch when available. Guidance fields (`ignore_paths` and `instructions`)
 come from the checked-out branch so contributors can propose review guidance
 changes without controlling cost or severity policy. Each run logs the loaded
-config source plus effective strategy/model choices.
+config source plus effective strategy/model/severity choices. If elek cannot
+resolve a PR comment trigger's actual base branch, it skips base-branch policy
+loading for that run instead of guessing from the default branch.
 
 ### API keys
 
