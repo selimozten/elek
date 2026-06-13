@@ -12,8 +12,8 @@ import {
   mergeBasePolicyWithWorkspaceGuidance,
   parseElekConfig,
   type ElekConfig,
-} from "../src/config";
-import type { ActionInputs } from "../src/types";
+} from "../src/config.js";
+import type { ActionInputs } from "../src/types.js";
 
 function git(cwd: string, args: string[]): void {
   execFileSync("git", args, { cwd, stdio: "ignore" });

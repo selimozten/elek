@@ -241,6 +241,7 @@ runs:
         INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
         INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
         INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
+        INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}
 

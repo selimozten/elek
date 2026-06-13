@@ -174,7 +174,7 @@ Supported keys:
 | `validator_model` | Default final validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
 | `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
-| `ignore_paths` | Paths the prompt tells reviewers to ignore unless risk escapes the path |
+| `ignore_paths` | Paths where findings are skipped only when all evidence stays inside those paths |
 | `instructions` | Extra repo-specific review policy inserted into every prompt |
 
 Workflow inputs override `.elek.yml` when explicitly set. To disable config
