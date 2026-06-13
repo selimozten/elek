@@ -310,7 +310,7 @@ export function buildPiArgs(
   // `pi --model provider/model` is legal, but pairing that with a separate
   // `--provider` can make multi-provider review strategies ambiguous. When
   // the model is provider-qualified, let the model spec route itself.
-  if (!inputs.model.includes("/")) {
+  if (!inputs.model?.includes("/")) {
     args.push("--provider", inputs.provider);
   }
   if (!loadExtensions) {

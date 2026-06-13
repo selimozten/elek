@@ -31,6 +31,17 @@ describe("buildPiArgs", () => {
     expect(args).toContain("--no-extensions");
   });
 
+  it("defensively omits --model when model is undefined", () => {
+    const args = buildPiArgs(
+      { ...baseInputs, model: undefined as unknown as string },
+      "/tmp/prompt.md",
+      false,
+    );
+
+    expect(args).toContain("--provider");
+    expect(args).not.toContain("--model");
+  });
+
   it("lets provider-qualified model specs route themselves", () => {
     const args = buildPiArgs(
       { ...baseInputs, provider: "zai", model: "zai/glm-5.1" },

@@ -1,5 +1,6 @@
 import type { ActionInputs } from "../types";
 import type { GitHubData } from "../github/data";
+import { mcpToolGuidance } from "../github/mcp-guidance";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -83,7 +84,12 @@ export function parseModelSpec(raw: string, defaults: Pick<ActionInputs, "provid
   const slash = spec.indexOf("/");
   if (slash > 0) {
     const provider = spec.slice(0, slash);
-    return { provider, model: spec, label: spec };
+    const modelPart = spec.slice(slash + 1).replace(/^\/+|\/+$/g, "").trim();
+    if (!modelPart) {
+      return { provider, model: "", label: provider };
+    }
+    const model = `${provider}/${modelPart}`;
+    return { provider, model, label: model };
   }
 
   return {
@@ -235,9 +241,7 @@ export function buildSynthesisPrompt(params: {
     `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available are elek review-comment tools.`,
     ``,
     `Use the MCP proxy for visible inline findings:`,
-    `- \`elek_review_create_inline_comment\` for actionable line-anchored findings.`,
-    `- \`elek_review_update_tracking_comment\` only for this run's tracking comment.`,
-    `Tool args are JSON strings when called through pi's \`mcp\` proxy.`,
+    ...mcpToolGuidance(),
     ``,
     `<context>`,
     `${data.type === "pr" ? "PR" : "Issue"} Title: ${data.title}`,

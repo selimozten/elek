@@ -63,6 +63,19 @@ describe("review strategy", () => {
     });
   });
 
+  it("treats trailing-slash provider specs as provider defaults", () => {
+    expect(parseModelSpec("zai/", baseInputs)).toEqual({
+      provider: "zai",
+      model: "",
+      label: "zai",
+    });
+    expect(parseModelSpec("zai//glm-5.1/", baseInputs)).toEqual({
+      provider: "zai",
+      model: "zai/glm-5.1",
+      label: "zai/glm-5.1",
+    });
+  });
+
   it("parses unqualified model specs against the primary provider", () => {
     expect(parseModelSpec("deepseek-v4-flash", baseInputs)).toEqual({
       provider: "deepseek",
@@ -175,6 +188,9 @@ describe("review strategy", () => {
     });
 
     expect(prompt).toContain("Treat existing comments and review comments as already-visible context");
+    expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
+    expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
+    expect(prompt).toContain("`args` is a JSON STRING");
     expect(prompt).toContain('<reviewer_report lens="risk" title="Risk Review"');
     expect(prompt).toContain('<reviewer_report lens="design" title="Design Review"');
     expect(prompt).toContain("Potential issue in src/a.ts");

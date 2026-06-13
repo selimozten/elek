@@ -4,6 +4,7 @@
  */
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
+import { mcpToolGuidance } from "./mcp-guidance";
 
 type MinimalOctokit = {
   rest: {
@@ -188,22 +189,7 @@ export function buildPrompt(
   if (options.useMcp) {
     parts.push("## Available tools (via the `mcp` proxy)");
     parts.push("");
-    parts.push("You have an `mcp` proxy tool. Tool names are server-prefixed; ours are `elek_review_*`. Two operations:");
-    parts.push("");
-    parts.push('- `mcp({tool: "elek_review_create_inline_comment", args: "{\\"path\\":\\"...\\",\\"line\\":N,\\"body\\":\\"...\\"}"})`');
-    parts.push("  Post a finding on a specific line of the diff. For multi-line ranges, add `startLine`.");
-    parts.push("  Buffered by default — only sent at the end of the run. Set `confirmed: true` to post immediately.");
-    parts.push("  Use markdown suggestion blocks for actionable fixes:");
-    parts.push("    ```suggestion");
-    parts.push("    new code here");
-    parts.push("    ```");
-    parts.push("");
-    parts.push('- `mcp({tool: "elek_review_update_tracking_comment", args: "{\\"body\\":\\"...\\"}"})`');
-    parts.push("  Replace the body of your tracking comment. Use this to maintain a live todo checklist as you work.");
-    parts.push("");
-    parts.push("Note: `args` is a JSON STRING (not an object). If you forget the prefix, use `mcp({search: \"<keyword>\"})` to discover the right name.");
-    parts.push("");
-    parts.push("These are the ONLY ways your inline-comment output is visible. Console output is discarded.");
+    parts.push(...mcpToolGuidance());
     parts.push("");
   }
 
@@ -276,4 +262,3 @@ export function buildPrompt(
 
   return parts.join("\n");
 }
-
