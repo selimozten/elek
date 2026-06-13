@@ -35,6 +35,11 @@ const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
   panel: "council",
 };
 
+export function normalizeReviewStrategy(raw: string | undefined): string | undefined {
+  const strategy = raw?.trim().toLowerCase();
+  return strategy ? REVIEW_STRATEGY_ALIASES[strategy] : undefined;
+}
+
 function emptyConfig(): ElekConfig {
   return { ignorePaths: [], instructions: [] };
 }
@@ -67,11 +72,17 @@ function stringList(value: unknown, key: string, warn: (message: string) => void
   return scalar ? [scalar] : [];
 }
 
-function modelList(value: unknown): string | undefined {
+function modelList(value: unknown, key: string, warn: (message: string) => void): string | undefined {
   if (Array.isArray(value)) {
-    const items = value
-      .map((item) => stringValue(item))
-      .filter((item): item is string => !!item);
+    const items: string[] = [];
+    for (const item of value) {
+      const scalar = stringValue(item);
+      if (scalar) {
+        items.push(scalar);
+      } else {
+        warn(`Ignoring non-scalar ${key} item`);
+      }
+    }
     return items.length > 0 ? items.join(",") : undefined;
   }
   return stringValue(value);
@@ -106,17 +117,17 @@ export function parseElekConfig(text: string, warn: (message: string) => void = 
         config[key] = stringList(value, rawKey, warn);
         break;
       case "reviewModels":
-        config.reviewModels = modelList(value);
+        config.reviewModels = modelList(value, rawKey, warn);
         break;
       case "costRates":
-        config.costRates = modelList(value);
+        config.costRates = modelList(value, rawKey, warn);
         break;
       case "reviewStrategy": {
-        const strategy = stringValue(value)?.toLowerCase();
+        const strategy = stringValue(value);
         if (!strategy) break;
-        const canonical = REVIEW_STRATEGY_ALIASES[strategy];
+        const canonical = normalizeReviewStrategy(strategy);
         if (!canonical) {
-          warn(`Ignoring invalid review_strategy: ${strategy}`);
+          warn(`Ignoring invalid review_strategy: ${strategy.toLowerCase()}`);
           break;
         }
         config.reviewStrategy = canonical;
@@ -188,9 +199,13 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
 
 export function formatConfigAuditLog(path: string, config: ElekConfig): string {
   const disabled = !path.trim() || ["none", "off", "false"].includes(path.trim().toLowerCase());
+  const source = process.env.GITHUB_EVENT_NAME === "pull_request"
+    ? "checked-out-pr-branch"
+    : "checked-out-workspace";
   return [
     "[config] loaded",
     `path=${disabled ? "(disabled)" : path}`,
+    `source=${disabled ? "(disabled)" : source}`,
     `review_strategy=${config.reviewStrategy ?? "(unset)"}`,
     `review_models=${config.reviewModels ?? "(unset)"}`,
     `validator_model=${config.validatorModel ?? "(unset)"}`,

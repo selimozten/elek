@@ -78,6 +78,12 @@ validator_model:
   nested: model
 unknown_key: value
 ignore_paths: [dist/**, coverage/**]
+review_models:
+  - openrouter/model
+  - nested: model
+cost_rates:
+  - openrouter/model=1:2
+  - nested: rate
 instructions:
   - supported item
   - nested: mapping
@@ -89,12 +95,16 @@ instructions:
     expect(config.reviewStrategy).toBeUndefined();
     expect(config.validatorModel).toBeUndefined();
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
+    expect(config.reviewModels).toBe("openrouter/model");
+    expect(config.costRates).toBe("openrouter/model=1:2");
     expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
       "Ignoring invalid review_strategy: corsscheck",
       "Ignoring non-scalar validator_model value",
       "Ignoring unknown config key: unknown_key",
+      "Ignoring non-scalar review_models item",
+      "Ignoring non-scalar cost_rates item",
       "Ignoring non-scalar instructions item",
     ]);
   });
@@ -243,8 +253,9 @@ instructions:
       ignorePaths: ["docs/**"],
       instructions: ["Treat migrations as operational risk."],
     })).toBe(
-      "[config] loaded | path=.elek.yml | review_strategy=crosscheck | " +
-        "review_models=openrouter/model-a,deepseek/model-b | validator_model=deepseek/model-b | " +
+      "[config] loaded | path=.elek.yml | source=checked-out-workspace | " +
+        "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
+        "validator_model=deepseek/model-b | " +
         "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
         "ignore_paths=docs/** | instructions=1",
     );

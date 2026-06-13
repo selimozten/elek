@@ -2,7 +2,7 @@ import type { ActionInputs } from "../types";
 import type { GitHubData } from "../github/data";
 import { mcpToolGuidance } from "../github/mcp-guidance";
 import { reviewContractBullets, reviewFindingTemplate } from "./contract";
-import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
+import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -66,20 +66,7 @@ const COUNCIL_EXTRA_LENSES: ReviewLens[] = [
 ];
 
 export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
-  switch ((raw || "solo").trim().toLowerCase()) {
-    case "crosscheck":
-    case "cross-check":
-    case "dual":
-    case "duo":
-      return "crosscheck";
-    case "council":
-    case "swarm":
-    case "panel":
-      return "council";
-    case "solo":
-    default:
-      return "solo";
-  }
+  return (normalizeReviewStrategy(raw) as ReviewStrategy | undefined) ?? "solo";
 }
 
 export function parseModelSpec(raw: string, defaults: Pick<ActionInputs, "provider" | "model">): ModelSpec {
