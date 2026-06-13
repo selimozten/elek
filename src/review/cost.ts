@@ -42,26 +42,35 @@ export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-export function parseCostRateOverrides(value: string): Record<string, Omit<ModelRates, "source">> {
+export function parseCostRateOverrides(
+  value: string,
+  onInvalid?: (entry: string, reason: string) => void,
+): Record<string, Omit<ModelRates, "source">> {
   const rates: Record<string, Omit<ModelRates, "source">> = {};
   for (const rawEntry of value.split(",")) {
     const entry = rawEntry.trim();
     if (!entry) continue;
 
     const eq = entry.indexOf("=");
-    if (eq <= 0) continue;
+    if (eq < 0) {
+      onInvalid?.(entry, "missing model=price pair");
+      continue;
+    }
 
     const label = entry.slice(0, eq).trim().toLowerCase();
     const [inputRaw, outputRaw] = entry.slice(eq + 1).split(":");
     const inputPerMillion = Number(inputRaw);
     const outputPerMillion = Number(outputRaw);
-    if (
-      !label ||
-      !Number.isFinite(inputPerMillion) ||
-      !Number.isFinite(outputPerMillion) ||
-      inputPerMillion < 0 ||
-      outputPerMillion < 0
-    ) {
+    if (!label) {
+      onInvalid?.(entry, "empty model label");
+      continue;
+    }
+    if (!Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion)) {
+      onInvalid?.(entry, "prices must be numeric input:output values");
+      continue;
+    }
+    if (inputPerMillion < 0 || outputPerMillion < 0) {
+      onInvalid?.(entry, "prices must be zero or positive");
       continue;
     }
 
@@ -72,7 +81,9 @@ export function parseCostRateOverrides(value: string): Record<string, Omit<Model
 
 export function resolveRates(modelLabel: string, overrides: string): ModelRates {
   const normalized = modelLabel.toLowerCase();
-  const override = parseCostRateOverrides(overrides)[normalized];
+  const override = parseCostRateOverrides(overrides, (entry, reason) => {
+    console.warn(`Ignoring invalid cost_rates entry "${entry}": ${reason}`);
+  })[normalized];
   if (override) return { ...override, source: "override" };
 
   const builtin = BUILTIN_RATES[normalized];
