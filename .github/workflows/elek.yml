@@ -34,6 +34,7 @@ jobs:
     name: "deepseek-v4-pro"
     if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6.0.3
@@ -66,6 +67,7 @@ jobs:
     name: "openrouter-kimi-k2.7-code"
     if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6.0.3
@@ -80,7 +82,8 @@ jobs:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
           model: moonshotai/kimi-k2.7-code
-          thinking: high
+          thinking: medium
+          max_turns: 6
           branch_prefix: elek/kimi/
           prompt: |
             Review this PR for correctness, security, performance, and style.
