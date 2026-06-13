@@ -4,7 +4,7 @@
  */
 import * as core from "@actions/core";
 import { readFileSync } from "fs";
-import type { GitHubEntityContext, ActionInputs } from "../types";
+import type { GitHubEntityContext, ActionInputs } from "../types.js";
 
 function parseBooleanInput(value: string, defaultValue: boolean): boolean {
   const normalized = value.trim().toLowerCase();

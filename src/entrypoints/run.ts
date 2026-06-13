@@ -121,7 +121,16 @@ async function run(): Promise<void> {
       });
       configBaseRef = pr.base?.ref || configBaseRef;
       canLoadBasePolicy = Boolean(pr.base?.ref);
-      if (context.pr && canLoadBasePolicy) context.pr.baseRef = configBaseRef;
+      if (context.pr) {
+        context.pr = {
+          title: pr.title || context.pr.title,
+          body: pr.body || context.pr.body,
+          headRef: pr.head?.ref || context.pr.headRef,
+          baseRef: pr.base?.ref || context.pr.baseRef,
+          headSha: pr.head?.sha || context.pr.headSha,
+          baseSha: pr.base?.sha || context.pr.baseSha,
+        };
+      }
     } catch (err) {
       canLoadBasePolicy = false;
       console.warn(`[config] Could not resolve PR base ref; skipping base branch policy: ${(err as Error).message}`);

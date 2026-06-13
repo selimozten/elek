@@ -4,8 +4,8 @@
  * Uses the animated elek spinner from the action's home repo on `main`,
  * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
-import type { GitHubEntityContext } from "../types";
-import { spinnerHeader } from "./spinner";
+import type { GitHubEntityContext } from "../types.js";
+import { spinnerHeader } from "./spinner.js";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 

@@ -278,7 +278,10 @@ come from the checked-out branch so contributors can propose review guidance
 changes without controlling cost or severity policy. Each run logs the loaded
 config source plus effective strategy/model/severity choices. If elek cannot
 resolve a PR comment trigger's actual base branch, it skips base-branch policy
-loading for that run instead of guessing from the default branch.
+loading for that run instead of guessing from the default branch; policy fields
+from the checked-out workspace are not used as a fallback. For `issue_comment`
+triggers, "checked-out branch" is whatever the workflow checked out, usually
+the default branch unless the workflow explicitly checks out the PR head.
 
 ### API keys
 
