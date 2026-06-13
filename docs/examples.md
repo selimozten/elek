@@ -40,7 +40,7 @@ on:
 
 jobs:
   review:
-    if: github.event.issue.pull_request
+    if: ${{ github.event.issue.pull_request && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
