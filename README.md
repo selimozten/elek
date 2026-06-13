@@ -295,6 +295,12 @@ own seeded PR benchmark suite:
 npx --package github:selimozten/elek elek-eval --suite review-benchmark.yml artifacts/*/elek-review-summary.json
 ```
 
+Bootstrap an editable suite case from a known-good summary:
+
+```bash
+npx --package github:selimozten/elek elek-benchmark --id auth-regression artifacts/auth/elek-review-summary.json > review-benchmark.yml
+```
+
 Example suite:
 
 ```yaml
@@ -312,7 +318,8 @@ cases:
 
 `elek-eval` reports recall, precision, false positives, duration, and cost per
 summary, then exits non-zero if a run misses expected findings or exceeds the
-false-positive budget. Add `--json` for machine-readable output.
+false-positive budget. Add `--json` for machine-readable output. Generated
+benchmark cases are meant to be reviewed and edited before they become policy.
 
 ## Repo Config
 
