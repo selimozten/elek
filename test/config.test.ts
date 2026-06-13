@@ -302,6 +302,7 @@ instructions:
     const origin = join(root, "origin.git");
     const work = join(root, "work");
     const previousCwd = process.cwd();
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
     try {
       git(root, ["init", "--bare", origin]);
       git(root, ["init", work]);
@@ -326,6 +327,7 @@ instructions:
       git(work, ["push", "origin", "main"]);
 
       process.chdir(work);
+      process.env.GITHUB_WORKSPACE = work;
       expect(loadBaseBranchElekConfig(".elek.yml", "main")).toEqual({
         reviewStrategy: "council",
         reviewModels: "openrouter/base-reviewer",
@@ -337,6 +339,11 @@ instructions:
       });
     } finally {
       process.chdir(previousCwd);
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
       rmSync(root, { recursive: true, force: true });
     }
   });
@@ -346,6 +353,7 @@ instructions:
     const origin = join(root, "origin.git");
     const work = join(root, "work");
     const previousCwd = process.cwd();
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
     try {
       git(root, ["init", "--bare", origin]);
       git(root, ["init", work]);
@@ -359,6 +367,7 @@ instructions:
       git(work, ["push", "origin", "main"]);
 
       process.chdir(work);
+      process.env.GITHUB_WORKSPACE = work;
       const warnings: string[] = [];
       expect(loadBaseBranchElekConfig("missing.yml", "main", (message) => warnings.push(message))).toEqual({
         ignorePaths: [],
@@ -387,6 +396,11 @@ instructions:
       expect(warnings.at(-1)).toContain("Base ref is not safe");
     } finally {
       process.chdir(previousCwd);
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
       rmSync(root, { recursive: true, force: true });
     }
   });

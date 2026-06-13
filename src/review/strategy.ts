@@ -1,7 +1,7 @@
-import type { ActionInputs } from "../types";
-import type { GitHubData } from "../github/data";
-import { mcpToolGuidance } from "../github/mcp-guidance";
-import { reviewContractBullets, reviewFindingTemplate } from "./contract";
+import type { ActionInputs } from "../types.js";
+import type { GitHubData } from "../github/data.js";
+import { mcpToolGuidance } from "../github/mcp-guidance.js";
+import { reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";

@@ -76,7 +76,9 @@ function stringList(value: unknown, key: string, warn: (message: string) => void
     return items;
   }
   const scalar = stringValue(value);
-  if (!scalar && value != null) warn(`Ignoring non-scalar ${key} value`);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+  }
   return scalar ? [scalar] : [];
 }
 
@@ -94,7 +96,9 @@ function modelList(value: unknown, key: string, warn: (message: string) => void)
     return items.length > 0 ? items.join(",") : undefined;
   }
   const scalar = stringValue(value);
-  if (!scalar && value != null) warn(`Ignoring non-scalar ${key} value`);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+  }
   return scalar;
 }
 
@@ -235,15 +239,27 @@ export function loadBaseBranchElekConfig(
     return emptyConfig();
   }
 
+  const gitCwd = process.env.GITHUB_WORKSPACE || process.cwd();
   try {
-    execFileSync("git", ["fetch", "origin", baseRef, "--depth=1"], { stdio: "ignore" });
+    execFileSync("git", ["rev-parse", "--verify", `origin/${baseRef}`], {
+      cwd: gitCwd,
+      stdio: "ignore",
+    });
   } catch {
-    warn(`Could not fetch base branch config source: ${baseRef}`);
-    return emptyConfig();
+    try {
+      execFileSync("git", ["fetch", "origin", baseRef, "--depth=1"], {
+        cwd: gitCwd,
+        stdio: "ignore",
+      });
+    } catch (err) {
+      warn(`Could not fetch base branch config source ${baseRef}: ${(err as Error).message}`);
+      return emptyConfig();
+    }
   }
 
   try {
     const text = execFileSync("git", ["show", `origin/${baseRef}:${trimmed}`], {
+      cwd: gitCwd,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
       maxBuffer: 10 * 1024 * 1024,
