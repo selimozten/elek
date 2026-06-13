@@ -125,4 +125,82 @@ describe("review summary", () => {
     });
     expect(JSON.parse(JSON.stringify(summary)).version).toBe(1);
   });
+
+  it("handles issue reviews and missing optional fields", () => {
+    const issueContext: GitHubEntityContext = {
+      ...context,
+      eventName: "issues",
+      eventAction: "opened",
+      isPR: false,
+      pr: undefined,
+      issue: {
+        title: "Investigate queue drift",
+        body: "Body",
+        labels: ["bug"],
+        assignees: [],
+      },
+    };
+
+    const failed = piResult({
+      conclusion: "failure",
+      costUsd: 0,
+      durationSeconds: 0.04,
+      usage: {
+        inputTokens: 1,
+        outputTokens: 0,
+        estimated: true,
+        modelLabel: "unknown/model",
+        source: "unknown",
+      },
+    });
+    const summary = buildReviewSummary({
+      context: issueContext,
+      runId: "124",
+      jobRunLink: "https://github.com/acme/app/actions/runs/124",
+      conclusion: "failure",
+      mode: "review",
+      requestedStrategy: "",
+      executedStrategy: "solo",
+      primaryModelLabel: "unknown/model",
+      finalModelLabel: "unknown/model",
+      startedAt: new Date("2026-06-13T10:00:00Z"),
+      finishedAt: new Date("2026-06-13T10:00:00.040Z"),
+      inlineComments: { posted: 0, skipped: 0, failed: 0 },
+      costTotal: aggregateCosts([{
+        inputTokens: failed.usage.inputTokens,
+        outputTokens: failed.usage.outputTokens,
+        costUsd: failed.costUsd,
+        estimated: failed.usage.estimated,
+        modelLabel: failed.usage.modelLabel,
+        source: failed.usage.source,
+      }]),
+      runs: [metricFromPiRun(failed, "validator")],
+    });
+
+    expect(summary.run).toMatchObject({ conclusion: "failure", durationSeconds: 0 });
+    expect(summary.entity).toMatchObject({
+      type: "issue",
+      number: 42,
+      title: "Investigate queue drift",
+      event: "issues",
+    });
+    expect(summary.review).toMatchObject({
+      requestedStrategy: "solo",
+      executedStrategy: "solo",
+      branchName: "",
+      commentId: "",
+    });
+    expect(summary.cost).toMatchObject({
+      usd: 0,
+      inputTokens: 1,
+      outputTokens: 0,
+      estimated: true,
+    });
+    expect(summary.modelRuns).toHaveLength(1);
+    expect(summary.modelRuns[0]).toMatchObject({
+      role: "validator",
+      conclusion: "failure",
+      pricingSource: "unknown",
+    });
+  });
 });

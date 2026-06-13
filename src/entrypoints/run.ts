@@ -466,7 +466,7 @@ async function run(): Promise<void> {
       }
     }
 
-    const reports = await Promise.all(
+    const lensRuns = await Promise.all(
       reviewPlan.jobs.map(async (job) => {
         const lensPrompt = lensPromptFor(job);
         const lensInputs = {
@@ -483,23 +483,28 @@ async function run(): Promise<void> {
           false,
           { promptName: `lens-${job.lens.id}` },
         );
-        runCosts.push(costFromPiResult(lensResult));
-        runMetrics.push(metricFromPiRun(lensResult, "reviewer", {
-          lensId: job.lens.id,
-          lensTitle: job.lens.title,
-        }));
         const lensOutput = sanitize(lensResult.output);
         console.log(
           `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
         );
-        return {
-          lens: job.lens,
-          modelLabel: job.model.label,
-          output: lensOutput,
-          conclusion: lensResult.conclusion,
-        };
+        return { job, lensResult, lensOutput };
       }),
     );
+
+    for (const { job, lensResult } of lensRuns) {
+      runCosts.push(costFromPiResult(lensResult));
+      runMetrics.push(metricFromPiRun(lensResult, "reviewer", {
+        lensId: job.lens.id,
+        lensTitle: job.lens.title,
+      }));
+    }
+
+    const reports = lensRuns.map(({ job, lensResult, lensOutput }) => ({
+      lens: job.lens,
+      modelLabel: job.model.label,
+      output: lensOutput,
+      conclusion: lensResult.conclusion,
+    }));
 
     finalInputs = {
       ...piInputs,
@@ -727,12 +732,17 @@ async function run(): Promise<void> {
     costTotal,
     runs: runMetrics,
   });
-  const reviewSummaryJson = JSON.stringify(reviewSummary, null, 2);
+  const reviewSummaryJson = JSON.stringify(reviewSummary);
+  const reviewSummaryFileJson = JSON.stringify(reviewSummary, null, 2);
   const reviewSummaryPath = join(tmpDir, "elek-review-summary.json");
-  writeFileSync(reviewSummaryPath, `${reviewSummaryJson}\n`, "utf-8");
-  core.setOutput("review_summary_path", reviewSummaryPath);
-  core.setOutput("review_summary_json", JSON.stringify(reviewSummary));
-  console.log(`Wrote review summary: ${reviewSummaryPath}`);
+  try {
+    writeFileSync(reviewSummaryPath, `${reviewSummaryFileJson}\n`, "utf-8");
+    core.setOutput("review_summary_path", reviewSummaryPath);
+    console.log(`Wrote review summary: ${reviewSummaryPath}`);
+  } catch (err) {
+    console.warn("Could not write review summary:", (err as Error).message);
+  }
+  core.setOutput("review_summary_json", reviewSummaryJson);
 
   if (result.conclusion === "failure") {
     core.setFailed("pi execution failed");
