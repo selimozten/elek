@@ -224,6 +224,7 @@ async function run(): Promise<void> {
   //   "done" (run finished)      → "Review complete" ✓
   let toolsSeen = 0;
   let textStreamed = false;
+  let activeModelLabel = modelLabel;
 
   let lastUpdate = 0;
   let lastBody = "";
@@ -241,8 +242,7 @@ async function run(): Promise<void> {
     } else if (event.type === "done") {
       progress.readContext = true;
       progress.analyzed = true;
-      // wroteReview reflects whether we actually got output text
-      progress.wroteReview = textStreamed || true;
+      progress.wroteReview = textStreamed;
     }
 
     if (!commentId) return;
@@ -252,12 +252,12 @@ async function run(): Promise<void> {
     const isFinal = event.type === "done";
     if (!isFinal && now - lastUpdate < 3000) return;
 
-    const body = formatProgressComment(progress, modelLabel, jobRunLink);
+    const body = formatProgressComment(progress, activeModelLabel, jobRunLink);
     if (body === lastBody && !isFinal) return; // no visible change → skip the API call
     lastUpdate = now;
     lastBody = body;
     try {
-      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, body, activeModelLabel);
     } catch (err) {
       console.warn("progress update failed:", (err as Error).message);
     }
@@ -353,6 +353,7 @@ async function run(): Promise<void> {
       tools: piTools,
       mode: "review",
     };
+    activeModelLabel = reviewPlan.validator.label;
     prompt = buildSynthesisPrompt({
       data,
       userRequest,
@@ -394,8 +395,8 @@ async function run(): Promise<void> {
   if (commentId) {
     const reviewBody = [
       result.conclusion === "success"
-        ? spinnerHeader(modelLabel, "analysis complete")
-        : spinnerHeader(modelLabel, "encountered an issue"),
+        ? spinnerHeader(activeModelLabel, "analysis complete")
+        : spinnerHeader(activeModelLabel, "encountered an issue"),
       "",
       truncate(safeOutput),
       "",
@@ -403,11 +404,11 @@ async function run(): Promise<void> {
     ].join("\n");
 
     try {
-      await updateTrackingComment(octokit, context, commentId, reviewBody, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, reviewBody, activeModelLabel);
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
-        await postComment(octokit, context, reviewBody, modelLabel);
+        await postComment(octokit, context, reviewBody, activeModelLabel);
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
@@ -460,7 +461,7 @@ async function run(): Promise<void> {
   // Post PR review if no tracking comment
   if (context.isPR && !commentId) {
     try {
-      await createPRReview(octokit, context, safeOutput, result.conclusion, modelLabel);
+      await createPRReview(octokit, context, safeOutput, result.conclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -474,14 +475,14 @@ async function run(): Promise<void> {
         context,
         [
           result.conclusion === "success"
-            ? spinnerHeader(modelLabel, "analysis complete")
-            : spinnerHeader(modelLabel, "encountered an issue"),
+            ? spinnerHeader(activeModelLabel, "analysis complete")
+            : spinnerHeader(activeModelLabel, "encountered an issue"),
           "",
           truncate(safeOutput),
           "",
           `[View run](${jobRunLink})`,
         ].join("\n"),
-        modelLabel,
+        activeModelLabel,
       );
     } catch (err) {
       console.warn("Could not post comment:", err);

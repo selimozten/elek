@@ -12,7 +12,7 @@ export interface ProgressState {
 }
 
 function escapeMarkdown(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
+  return value.replace(/([\\`*_#[\]])/g, "\\$1");
 }
 
 export function formatProgressComment(
