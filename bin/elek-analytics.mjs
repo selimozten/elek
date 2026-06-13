@@ -75,7 +75,7 @@ function addSummary(group, summary) {
   const conclusion = clean(summary.run?.conclusion);
   group.runs++;
   if (conclusion === "success") group.successes++;
-  if (conclusion === "failure") group.failures++;
+  else group.failures++;
   group.findings += findingCount(summary);
   group.inlinePosted += normalizeNumber(summary.inlineComments?.posted);
   group.inlineSkipped += normalizeNumber(summary.inlineComments?.skipped);
@@ -166,7 +166,7 @@ function round(value, digits = 3) {
 
 function printTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings", "inline", "cost", "avg cost", "avg secs"],
+    ["group", "runs", "success", "findings", "posted/skip/fail", "cost", "avg cost", "avg secs"],
     ...report.groups.map((group) => [
       group.key,
       String(group.runs),

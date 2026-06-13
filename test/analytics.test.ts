@@ -195,7 +195,7 @@ describe("elek-analytics", () => {
       const partial = join(dir, "partial.json");
       writeFileSync(partial, JSON.stringify({
         version: 1,
-        run: { conclusion: "success" },
+        run: { conclusion: "skipped" },
       }));
 
       const output = execFileSync("node", ["bin/elek-analytics.mjs", "--json", partial], {
@@ -207,13 +207,15 @@ describe("elek-analytics", () => {
       expect(report.groups[0]).toMatchObject({
         key: "(unknown)",
         runs: 1,
-        successes: 1,
+        successes: 0,
+        failures: 1,
         findings: 0,
         costUsd: 0,
       });
       expect(report.totals).toMatchObject({
         runs: 1,
-        successes: 1,
+        successes: 0,
+        failures: 1,
         costUsd: 0,
       });
     } finally {
@@ -232,6 +234,7 @@ describe("elek-analytics", () => {
 
       expect(output).toContain("group");
       expect(output).toContain("avg cost");
+      expect(output).toContain("posted/skip/fail");
       expect(output).toContain("solo");
       expect(output).toContain("total");
     } finally {
