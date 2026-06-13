@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paths, and extra reviewer instructions.
 - Zero-dependency `elek-init` setup helper for generating a starter workflow
   and repo review policy.
+- Machine-readable review summary JSON output with duration, model labels,
+  per-run cost, pricing source, and inline-comment posting counts.
 
 ### Changed
 

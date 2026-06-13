@@ -1,0 +1,128 @@
+import { describe, expect, it } from "bun:test";
+import { aggregateCosts } from "../src/review/cost";
+import { buildReviewSummary, metricFromPiRun } from "../src/review/summary";
+import type { GitHubEntityContext, PiRunResult } from "../src/types";
+
+const context: GitHubEntityContext = {
+  eventName: "pull_request",
+  eventAction: "synchronize",
+  actor: "alice",
+  repo: {
+    owner: "acme",
+    repo: "app",
+    fullName: "acme/app",
+    defaultBranch: "main",
+  },
+  entityNumber: 42,
+  isPR: true,
+  triggerText: "@pi review",
+  pr: {
+    title: "Fix billing bug",
+    body: "Body",
+    headRef: "feature/billing",
+    baseRef: "main",
+    headSha: "abc",
+    baseSha: "def",
+  },
+};
+
+function piResult(overrides: Partial<PiRunResult> = {}): PiRunResult {
+  return {
+    conclusion: "success",
+    output: "ok",
+    turnsUsed: 2,
+    durationSeconds: 12.34,
+    costUsd: 0.00123456,
+    usage: {
+      inputTokens: 1000,
+      outputTokens: 200,
+      estimated: true,
+      modelLabel: "deepseek/deepseek-v4-pro",
+      source: "builtin",
+    },
+    ...overrides,
+  };
+}
+
+describe("review summary", () => {
+  it("builds machine-readable review metrics", () => {
+    const reviewer = piResult({
+      usage: {
+        inputTokens: 500,
+        outputTokens: 100,
+        estimated: true,
+        modelLabel: "openrouter/moonshotai/kimi-k2.7-code",
+        source: "override",
+      },
+      costUsd: 0.004,
+      durationSeconds: 65.66,
+    });
+    const validator = piResult();
+    const costTotal = aggregateCosts([
+      {
+        inputTokens: reviewer.usage.inputTokens,
+        outputTokens: reviewer.usage.outputTokens,
+        costUsd: reviewer.costUsd,
+        estimated: reviewer.usage.estimated,
+        modelLabel: reviewer.usage.modelLabel,
+        source: reviewer.usage.source,
+      },
+      {
+        inputTokens: validator.usage.inputTokens,
+        outputTokens: validator.usage.outputTokens,
+        costUsd: validator.costUsd,
+        estimated: validator.usage.estimated,
+        modelLabel: validator.usage.modelLabel,
+        source: validator.usage.source,
+      },
+    ]);
+
+    const summary = buildReviewSummary({
+      context,
+      runId: "123",
+      jobRunLink: "https://github.com/acme/app/actions/runs/123",
+      conclusion: "success",
+      mode: "review",
+      requestedStrategy: "crosscheck",
+      executedStrategy: "crosscheck",
+      primaryModelLabel: "deepseek/deepseek-v4-pro",
+      finalModelLabel: "deepseek/deepseek-v4-pro",
+      startedAt: new Date("2026-06-13T10:00:00Z"),
+      finishedAt: new Date("2026-06-13T10:02:03.450Z"),
+      commentId: 99,
+      branchName: "elek/fix",
+      inlineComments: { posted: 2, skipped: 1, failed: 0 },
+      costTotal,
+      runs: [
+        metricFromPiRun(reviewer, "reviewer", { lensId: "correctness", lensTitle: "Correctness" }),
+        metricFromPiRun(validator, "validator"),
+      ],
+    });
+
+    expect(summary.run.durationSeconds).toBe(123.5);
+    expect(summary.entity).toMatchObject({
+      type: "pull_request",
+      number: 42,
+      title: "Fix billing bug",
+    });
+    expect(summary.review).toMatchObject({
+      requestedStrategy: "crosscheck",
+      executedStrategy: "crosscheck",
+      commentId: "99",
+    });
+    expect(summary.inlineComments).toEqual({ posted: 2, skipped: 1, failed: 0 });
+    expect(summary.cost).toMatchObject({
+      usd: 0.005235,
+      inputTokens: 1500,
+      outputTokens: 300,
+      estimated: true,
+    });
+    expect(summary.modelRuns[0]).toMatchObject({
+      role: "reviewer",
+      lensId: "correctness",
+      durationSeconds: 65.7,
+      pricingSource: "override",
+    });
+    expect(JSON.parse(JSON.stringify(summary)).version).toBe(1);
+  });
+});

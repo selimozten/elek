@@ -41,6 +41,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   expensive multi-lens reviews when known prompt/input estimates exceed budget.
 - Zero-dependency `elek-init` setup helper that creates a starter workflow and
   repo review policy.
+- Machine-readable review summary JSON with run duration, model labels,
+  per-model cost, pricing source, and inline-comment posting counts.
 
 ### Next
 
@@ -50,8 +52,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
    when a PR is too large.
 3. Repo knowledge: include selected project docs such as `AGENTS.md`,
    `CONTRIBUTING.md`, `docs/adr/**`, and configured guidelines in the prompt.
-4. Metrics: emit review duration, comments posted/skipped, model labels, and
-   cost as a machine-readable JSON summary artifact.
+4. Model evaluation harness: run seeded PR benchmarks and compare the summary
+   JSON across models and review strategies.
 
 ## Model evaluation plan
 

@@ -81,6 +81,7 @@ export interface PiRunResult {
   output: string;
   sessionId?: string;
   turnsUsed: number;
+  durationSeconds: number;
   costUsd: number;
   usage: {
     inputTokens: number;

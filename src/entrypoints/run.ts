@@ -67,14 +67,23 @@ import {
   modelLabelFor,
   type ReviewCost,
 } from "../review/cost.js";
+import {
+  buildReviewSummary,
+  metricFromPiRun,
+  type ReviewRunMetric,
+} from "../review/summary.js";
 import { sanitize } from "../mcp/handlers.js";
+import type { PostSummary } from "./post-buffered.js";
 
 async function run(): Promise<void> {
   // ── Phase 0: Parse inputs & context ──────────────────────────────────
   core.setOutput("cost_usd", "0.000000");
   core.setOutput("input_tokens", "0");
   core.setOutput("output_tokens", "0");
+  core.setOutput("review_summary_path", "");
+  core.setOutput("review_summary_json", "");
 
+  const actionStartedAt = new Date();
   const parsedInputs = parseInputs();
   const context = parseEntityContext();
 
@@ -415,6 +424,7 @@ async function run(): Promise<void> {
   const useReviewPlan = reviewPlanSupport.enabled;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
   const runCosts: ReviewCost[] = [];
+  const runMetrics: ReviewRunMetric[] = [];
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
@@ -474,6 +484,10 @@ async function run(): Promise<void> {
           { promptName: `lens-${job.lens.id}` },
         );
         runCosts.push(costFromPiResult(lensResult));
+        runMetrics.push(metricFromPiRun(lensResult, "reviewer", {
+          lensId: job.lens.id,
+          lensTitle: job.lens.title,
+        }));
         const lensOutput = sanitize(lensResult.output);
         console.log(
           `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
@@ -511,6 +525,7 @@ async function run(): Promise<void> {
     conclusion: "failure",
     output: "MCP configuration failed",
     turnsUsed: 0,
+    durationSeconds: 0,
     costUsd: 0,
     usage: {
       inputTokens: 0,
@@ -539,6 +554,7 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
+  runMetrics.push(metricFromPiRun(result, "validator"));
   const costTotal = aggregateCosts(runCosts);
   const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
   if (result.output) {
@@ -659,6 +675,7 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 5b: Drain the inline-comment buffer (MCP-only) ─────────────
+  let inlineSummary: PostSummary = { posted: 0, skipped: 0, failed: 0 };
   if (mcpEnabled && context.isPR && existsSync(bufferPath)) {
     try {
       const summary = await postBuffered({
@@ -673,6 +690,7 @@ async function run(): Promise<void> {
         },
         log: (m) => console.log(`[post-buffered] ${m}`),
       });
+      inlineSummary = summary;
       console.log(
         `[post-buffered] posted=${summary.posted} skipped=${summary.skipped} failed=${summary.failed}`,
       );
@@ -690,6 +708,31 @@ async function run(): Promise<void> {
   core.setOutput("cost_usd", costTotal.costUsd.toFixed(6));
   core.setOutput("input_tokens", String(costTotal.inputTokens));
   core.setOutput("output_tokens", String(costTotal.outputTokens));
+
+  const reviewSummary = buildReviewSummary({
+    context,
+    runId,
+    jobRunLink,
+    conclusion: result.conclusion,
+    mode: resolvedMode.mode,
+    requestedStrategy: inputs.reviewStrategy,
+    executedStrategy: useReviewPlan ? reviewPlan.strategy : "solo",
+    primaryModelLabel: modelLabel,
+    finalModelLabel: activeModelLabel,
+    startedAt: actionStartedAt,
+    finishedAt: new Date(),
+    commentId,
+    branchName: workBranch,
+    inlineComments: inlineSummary,
+    costTotal,
+    runs: runMetrics,
+  });
+  const reviewSummaryJson = JSON.stringify(reviewSummary, null, 2);
+  const reviewSummaryPath = join(tmpDir, "elek-review-summary.json");
+  writeFileSync(reviewSummaryPath, `${reviewSummaryJson}\n`, "utf-8");
+  core.setOutput("review_summary_path", reviewSummaryPath);
+  core.setOutput("review_summary_json", JSON.stringify(reviewSummary));
+  console.log(`Wrote review summary: ${reviewSummaryPath}`);
 
   if (result.conclusion === "failure") {
     core.setFailed("pi execution failed");

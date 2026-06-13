@@ -140,6 +140,7 @@ describe("review cost estimates", () => {
       conclusion: "success",
       output: "ok",
       turnsUsed: 1,
+      durationSeconds: 1,
       costUsd: 0.01,
       usage: {
         inputTokens: 100,

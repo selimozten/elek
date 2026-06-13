@@ -259,6 +259,7 @@ export async function runPi(
           output,
           sessionId,
           turnsUsed: turnCount,
+          durationSeconds: elapsed,
           costUsd: usage.costUsd,
           usage: {
             inputTokens: usage.inputTokens,
@@ -280,6 +281,7 @@ export async function runPi(
           output: errMsg,
           sessionId,
           turnsUsed: turnCount,
+          durationSeconds: elapsed,
           costUsd: usage.costUsd,
           usage: {
             inputTokens: usage.inputTokens,
@@ -299,6 +301,7 @@ export async function runPi(
         conclusion: "failure",
         output: err.message,
         turnsUsed: 0,
+        durationSeconds: 0,
         costUsd: 0,
         usage: {
           inputTokens: 0,

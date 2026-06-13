@@ -185,6 +185,12 @@ outputs:
   output_tokens:
     description: "Estimated output tokens used by the review"
     value: ${{ steps.run.outputs.output_tokens }}
+  review_summary_path:
+    description: "Path to the machine-readable elek review summary JSON file"
+    value: ${{ steps.run.outputs.review_summary_path }}
+  review_summary_json:
+    description: "Machine-readable elek review summary JSON"
+    value: ${{ steps.run.outputs.review_summary_json }}
 
 runs:
   using: "composite"
