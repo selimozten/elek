@@ -32,7 +32,7 @@ describe("elek-init", () => {
       "--secret",
       "OPENROUTER_API_KEY",
       "--thinking",
-      "max",
+      "xhigh",
       "--action-ref",
       "owner/elek@v2",
     ]));
@@ -51,7 +51,7 @@ describe("elek-init", () => {
     expect(workflow).toContain("openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}");
     expect(workflow).toContain("provider: openrouter");
     expect(workflow).toContain("model: moonshotai/kimi-k2.7-code");
-    expect(workflow).toContain("thinking: max");
+    expect(workflow).toContain("thinking: xhigh");
     expect(workflow).toContain("uses: owner/elek@v2");
     expect(workflow).toContain("config_path: .elek.yml");
     expect(workflow).not.toContain("contents: write");
@@ -84,7 +84,7 @@ describe("elek-init", () => {
   });
 
   it("can write only the workflow when config is disabled", () => {
-    const options = parseArgs(["--no-config", "--config", "--no-config"]);
+    const options = parseArgs(["--no-config", "true", "--config=false"]);
     const files = planFiles(options);
 
     expect(files.map((file) => file.path)).toEqual([".github/workflows/elek.yml"]);
@@ -123,7 +123,8 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
     expect(() => parseArgs(["--secret", "MY-SECRET"])).toThrow("valid GitHub Actions secret name");
     expect(() => parseArgs(["--secret", "GITHUB_TOKEN"])).toThrow("valid GitHub Actions secret name");
-    expect(() => parseArgs(["--thinking", "huge"])).toThrow("off, minimal, low, medium, high, xhigh, max");
+    expect(() => parseArgs(["--thinking", "max"])).toThrow("off, minimal, low, medium, high, xhigh");
+    expect(() => parseArgs(["--action-ref", "owner/elek@v1\nbad"])).toThrow("non-empty action reference");
   });
 
   it("rejects output paths outside the repository", () => {

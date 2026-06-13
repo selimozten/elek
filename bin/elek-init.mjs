@@ -47,7 +47,7 @@ const DEFAULTS = {
   force: false,
 };
 
-const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 
 export function parseArgs(argv) {
   const options = { ...DEFAULTS };
@@ -57,20 +57,16 @@ export function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "init") continue;
     if (arg === "--help" || arg === "-h") return { ...options, help: true };
-    if (arg === "--force") {
-      options.force = true;
-      continue;
-    }
-    if (arg === "--no-config") {
-      options.writeConfig = false;
-      continue;
-    }
-    if (arg === "--config") {
-      options.writeConfig = true;
+    const [flag, inlineValue] = arg.startsWith("--") ? arg.split("=", 2) : [arg, undefined];
+    if (["--force", "--no-config", "--config"].includes(flag)) {
+      const parsed = parseOptionalBoolean(argv, i, inlineValue);
+      if (parsed.nextIndex !== i) i = parsed.nextIndex;
+      if (flag === "--force") options.force = parsed.value ?? true;
+      if (flag === "--config") options.writeConfig = parsed.value ?? true;
+      if (flag === "--no-config") options.writeConfig = parsed.value === undefined ? false : !parsed.value;
       continue;
     }
 
-    const [flag, inlineValue] = arg.startsWith("--") ? arg.split("=", 2) : [arg, undefined];
     const needsValue = [
       "--provider",
       "--model",
@@ -140,8 +136,9 @@ export function finalizeOptions(options) {
   const thinking = options.thinking ?? providerDefaults.thinking;
   assertValidSecretName(secret);
   if (!THINKING_LEVELS.has(thinking)) {
-    throw new Error("--thinking must be one of: off, minimal, low, medium, high, xhigh, max");
+    throw new Error("--thinking must be one of: off, minimal, low, medium, high, xhigh");
   }
+  assertSafeActionRef(options.actionRef);
   assertSafeOutputPath(options.workflowPath, "--workflow");
   assertSafeOutputPath(options.configPath, "--config-path");
   return {
@@ -153,9 +150,21 @@ export function finalizeOptions(options) {
   };
 }
 
+function parseOptionalBoolean(argv, index, inlineValue) {
+  const raw = inlineValue ?? argv[index + 1];
+  if (raw !== "true" && raw !== "false") return { value: undefined, nextIndex: index };
+  return { value: raw === "true", nextIndex: inlineValue === undefined ? index + 1 : index };
+}
+
 export function assertValidSecretName(value) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value) || value.toUpperCase().startsWith("GITHUB_")) {
     throw new Error("--secret must be a valid GitHub Actions secret name");
+  }
+}
+
+export function assertSafeActionRef(value) {
+  if (typeof value !== "string" || value.trim() === "" || /[\s\0]/.test(value)) {
+    throw new Error("--action-ref must be a non-empty action reference");
   }
 }
 
@@ -216,7 +225,14 @@ ${configLine}`;
 }
 
 export function renderConfig(options) {
-  const lines = [
+  const lines = [];
+  if (options.strategy !== "solo") {
+    lines.push(`review_strategy: ${options.strategy}`, "");
+  }
+  if (options.maxCostUsd) {
+    lines.push(`max_cost_usd: ${options.maxCostUsd}`, "");
+  }
+  lines.push(
     "severity_threshold: important",
     "",
     "ignore_paths:",
@@ -226,17 +242,7 @@ export function renderConfig(options) {
     "instructions:",
     "  - Treat auth, permissions, data deletion, migrations, and billing changes as high-risk.",
     "  - Require tests for parser, config, and security-sensitive behavior changes.",
-  ];
-
-  if (options.strategy !== "solo") {
-    lines.unshift(
-      `review_strategy: ${options.strategy}`,
-      "",
-    );
-  }
-  if (options.maxCostUsd) {
-    lines.splice(options.strategy !== "solo" ? 2 : 0, 0, `max_cost_usd: ${options.maxCostUsd}`, "");
-  }
+  );
   return `${lines.join("\n")}\n`;
 }
 
@@ -276,7 +282,7 @@ Options:
   --provider <name>       deepseek, openrouter, anthropic, openai, google
   --model <id>            provider model id
   --secret <name>         GitHub Actions secret name for the provider key
-  --thinking <level>      off, minimal, low, medium, high, xhigh, or max
+  --thinking <level>      off, minimal, low, medium, high, or xhigh
   --strategy <name>       solo, crosscheck, or council
   --max-cost-usd <n>      add a soft cost cap to .elek.yml
   --config                write .elek.yml, enabled by default
