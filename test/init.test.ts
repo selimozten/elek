@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
+  helpText,
   parseArgs,
   planFiles,
   renderConfig,
@@ -32,17 +33,31 @@ describe("elek-init", () => {
     ]));
 
     expect(workflow).toContain("pull_request: { types: [opened, synchronize, reopened] }");
+    expect(workflow).toContain("issues: { types: [opened] }");
     expect(workflow).toContain("issue_comment: { types: [created] }");
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("pull-requests: write");
     expect(workflow).toContain("issues: write");
+    expect(workflow).toContain("timeout-minutes: 15");
+    expect(workflow).toContain("name: Checkout repository");
     expect(workflow).toContain("actions/checkout@v6.0.3");
     expect(workflow).toContain("fetch-depth: 0");
+    expect(workflow).toContain("name: Run elek review");
     expect(workflow).toContain("openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}");
     expect(workflow).toContain("provider: openrouter");
     expect(workflow).toContain("model: moonshotai/kimi-k2.7-code");
     expect(workflow).toContain("config_path: .elek.yml");
     expect(workflow).not.toContain("contents: write");
+  });
+
+  it("uses the configured repo config path in the workflow", () => {
+    const workflow = renderWorkflow(parseArgs(["--config-path", ".github/elek.yml"]));
+
+    expect(workflow).toContain("config_path: .github/elek.yml");
+    expect(planFiles(parseArgs(["--config-path", ".github/elek.yml"])).map((file) => file.path)).toEqual([
+      ".github/workflows/elek.yml",
+      ".github/elek.yml",
+    ]);
   });
 
   it("renders repo config for strategy and budget policy", () => {
@@ -90,5 +105,10 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--provider", "unknown"])).toThrow("Unsupported provider");
     expect(() => parseArgs(["--strategy", "many"])).toThrow("Unsupported strategy");
     expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
+  });
+
+  it("documents config file controls", () => {
+    expect(helpText()).toContain("--config");
+    expect(helpText()).toContain("--no-config");
   });
 });

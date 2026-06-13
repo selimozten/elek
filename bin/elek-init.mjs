@@ -140,11 +140,12 @@ export function finalizeOptions(options) {
 }
 
 export function renderWorkflow(options) {
-  const configLine = options.writeConfig ? "          config_path: .elek.yml\n" : "";
+  const configLine = options.writeConfig ? `          config_path: ${options.configPath}\n` : "";
   return `name: elek
 
 on:
   pull_request: { types: [opened, synchronize, reopened] }
+  issues: { types: [opened] }
   issue_comment: { types: [created] }
 
 permissions:
@@ -160,12 +161,14 @@ jobs:
   review:
     if: \${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6.0.3
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
-      - uses: ${options.actionRef}
+      - name: Run elek review
+        uses: ${options.actionRef}
         with:
           ${options.keyInput}: \${{ secrets.${options.secret} }}
           provider: ${options.provider}
@@ -233,6 +236,7 @@ Options:
   --secret <name>         GitHub Actions secret name for the provider key
   --strategy <name>       solo, crosscheck, or council
   --max-cost-usd <n>      add a soft cost cap to .elek.yml
+  --config                write .elek.yml, enabled by default
   --no-config             write only .github/workflows/elek.yml
   --force                 overwrite existing files
   --action-ref <ref>      action ref to use, default selimozten/elek@v1
