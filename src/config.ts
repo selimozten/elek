@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, sep } from "path";
 import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types";
 
@@ -24,6 +24,16 @@ const KEY_MAP: Record<string, keyof ElekConfig> = {
 };
 
 const SEVERITIES = new Set(["critical", "important", "minor"]);
+const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
+  solo: "solo",
+  crosscheck: "crosscheck",
+  "cross-check": "crosscheck",
+  dual: "crosscheck",
+  duo: "crosscheck",
+  council: "council",
+  swarm: "council",
+  panel: "council",
+};
 
 function emptyConfig(): ElekConfig {
   return { ignorePaths: [], instructions: [] };
@@ -39,19 +49,29 @@ function stringValue(value: unknown): string | undefined {
   return undefined;
 }
 
-function stringList(value: unknown): string[] {
+function stringList(value: unknown, key: string, warn: (message: string) => void): string[] {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => stringValue(item))
-      .filter((item): item is string => !!item);
+    const items: string[] = [];
+    for (const item of value) {
+      const scalar = stringValue(item);
+      if (scalar) {
+        items.push(scalar);
+      } else {
+        warn(`Ignoring non-scalar ${key} item`);
+      }
+    }
+    return items;
   }
   const scalar = stringValue(value);
+  if (!scalar && value != null) warn(`Ignoring non-scalar ${key} value`);
   return scalar ? [scalar] : [];
 }
 
 function modelList(value: unknown): string | undefined {
   if (Array.isArray(value)) {
-    const items = stringList(value);
+    const items = value
+      .map((item) => stringValue(item))
+      .filter((item): item is string => !!item);
     return items.length > 0 ? items.join(",") : undefined;
   }
   return stringValue(value);
@@ -83,11 +103,22 @@ export function parseElekConfig(text: string, warn: (message: string) => void = 
     switch (key) {
       case "ignorePaths":
       case "instructions":
-        config[key] = stringList(value);
+        config[key] = stringList(value, rawKey, warn);
         break;
       case "reviewModels":
         config.reviewModels = modelList(value);
         break;
+      case "reviewStrategy": {
+        const strategy = stringValue(value)?.toLowerCase();
+        if (!strategy) break;
+        const canonical = REVIEW_STRATEGY_ALIASES[strategy];
+        if (!canonical) {
+          warn(`Ignoring invalid review_strategy: ${strategy}`);
+          break;
+        }
+        config.reviewStrategy = canonical;
+        break;
+      }
       case "severityThreshold": {
         const severity = stringValue(value)?.toLowerCase();
         if (!severity) break;
@@ -112,7 +143,12 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     return emptyConfig();
   }
 
-  const resolved = resolve(process.cwd(), trimmed);
+  const root = resolve(process.cwd());
+  const resolved = resolve(root, trimmed);
+  if (resolved !== root && !resolved.startsWith(root + sep)) {
+    warn(`Config path resolves outside the workspace: ${trimmed}`);
+    return emptyConfig();
+  }
   if (!existsSync(resolved)) return emptyConfig();
 
   try {

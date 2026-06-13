@@ -124,7 +124,7 @@ The `review_strategy` input controls orchestration quality:
 
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
-| `solo` (default) | 1 final reviewer | Fast, cheap default review. |
+| `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
 | `crosscheck` | 2 read-only lenses + 1 final validator | Best default for serious PR review. |
 | `council` | 4 read-only lenses + 1 final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
 

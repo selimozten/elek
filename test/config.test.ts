@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   applyConfigDefaults,
@@ -74,17 +73,25 @@ instructions:
     const config = parseElekConfig(
       `
 severity_threshold: advisory
+review_strategy: corsscheck
 unknown_key: value
 ignore_paths: [dist/**, coverage/**]
+instructions:
+  - supported item
+  - nested: mapping
 `,
       (message) => warnings.push(message),
     );
 
     expect(config.severityThreshold).toBeUndefined();
+    expect(config.reviewStrategy).toBeUndefined();
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
+    expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
+      "Ignoring invalid review_strategy: corsscheck",
       "Ignoring unknown config key: unknown_key",
+      "Ignoring non-scalar instructions item",
     ]);
   });
 
@@ -169,33 +176,51 @@ instructions:
   });
 
   it("returns empty config for missing or unreadable files", () => {
-    const dir = mkdtempSync(join(tmpdir(), "elek-config-test-"));
+    const dir = mkdtempSync(join(process.cwd(), ".elek-config-test-"));
     const warnings: string[] = [];
 
-    expect(loadElekConfig(join(dir, "missing.yml"), (message) => warnings.push(message))).toEqual({
-      ignorePaths: [],
-      instructions: [],
-    });
-    expect(warnings).toEqual([]);
+    try {
+      expect(loadElekConfig(join(dir, "missing.yml"), (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings).toEqual([]);
 
-    mkdirSync(join(dir, "not-a-file.yml"));
-    expect(loadElekConfig(join(dir, "not-a-file.yml"), (message) => warnings.push(message))).toEqual({
+      mkdirSync(join(dir, "not-a-file.yml"));
+      expect(loadElekConfig(join(dir, "not-a-file.yml"), (message) => warnings.push(message))).toEqual({
+        ignorePaths: [],
+        instructions: [],
+      });
+      expect(warnings.at(-1)).toContain("Could not read config file");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects config paths outside the workspace", () => {
+    const warnings: string[] = [];
+
+    expect(loadElekConfig("../outside.yml", (message) => warnings.push(message))).toEqual({
       ignorePaths: [],
       instructions: [],
     });
-    expect(warnings.at(-1)).toContain("Could not read config file");
+    expect(warnings).toEqual(["Config path resolves outside the workspace: ../outside.yml"]);
   });
 
   it("loads config from disk", () => {
-    const dir = mkdtempSync(join(tmpdir(), "elek-config-test-"));
+    const dir = mkdtempSync(join(process.cwd(), ".elek-config-test-"));
     const path = join(dir, ".elek.yml");
-    writeFileSync(path, "severity_threshold: minor\ninstructions:\n  - Check cache invalidation.\n");
+    try {
+      writeFileSync(path, "severity_threshold: minor\ninstructions:\n  - Check cache invalidation.\n");
 
-    expect(loadElekConfig(path)).toEqual({
-      severityThreshold: "minor",
-      ignorePaths: [],
-      instructions: ["Check cache invalidation."],
-    });
+      expect(loadElekConfig(path)).toEqual({
+        severityThreshold: "minor",
+        ignorePaths: [],
+        instructions: ["Check cache invalidation."],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("formats an audit log for loaded config values", () => {
