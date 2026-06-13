@@ -35,15 +35,15 @@ jobs:
 
 ## Why elek
 
-| | elek | claude-code-action | gemini-cli |
+| | elek | single-provider review actions | general-purpose CLI actions |
 |---|---|---|---|
-| **Providers** | 11+ (any pi target) | Anthropic only | Google only |
-| **Per-review cost** | ~$0.005 (deepseek) | ~$0.05 (sonnet) | ~$0.01 |
-| **Inline review threads** | ✓ via MCP | ✓ via MCP | partial |
-| **Iterates on prior findings** | ✓ | ✓ | partial |
-| **Structural safety** | ✓ no merge/approve/close paths | ✗ has full PR API | ✗ has full PR API |
-| **Modules** | ~20 files | 50+ | 30+ |
-| **Runtime** | Node 24 + tsx | Bun + Claude CLI | Node + gcloud |
+| **Providers** | 11+ (any pi target) | usually one provider | usually one provider |
+| **Per-review cost** | ~$0.005 (deepseek) | often premium-model priced | varies by hosted stack |
+| **Inline review threads** | ✓ via MCP | often supported | partial |
+| **Iterates on prior findings** | ✓ | often supported | partial |
+| **Structural safety** | ✓ no merge/approve/close paths | often broader PR API access | often broader repo access |
+| **Modules** | small TypeScript core | larger vendor stack | larger platform stack |
+| **Runtime** | Node 24 + tsx | provider CLI/runtime | provider CLI/runtime |
 
 **Bias toward cheap, capable models.** DeepSeek-v4-Pro plus Kimi K2.7 Code through OpenRouter gives you two independent review passes without defaulting to one expensive model. Run them in parallel for cross-validation; reserve premium validators for the highest-risk PRs.
 
@@ -182,7 +182,7 @@ jobs:
           model: moonshotai/kimi-k2.7-code
 ```
 
-On the second push, each model reads the other's prior findings (kept in the comment thread) and opens its review with a status table — fixed / still present / no longer relevant — before listing new findings. Same pattern claude-code-action uses.
+On the second push, each model reads the other's prior findings (kept in the comment thread) and opens its review with a status table — fixed / still present / no longer relevant — before listing new findings.
 
 ## How it works
 
@@ -335,7 +335,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 
 ## Credits
 
-Built on [pi coding agent](https://github.com/earendil-works/pi). MCP integration via [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter). Patterns adapted from [claude-code-action](https://github.com/anthropics/claude-code-action), [gemini-cli](https://github.com/google-github-actions/run-gemini-cli).
+Built on [pi coding agent](https://github.com/earendil-works/pi). MCP integration via [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter).
 
 ## License
 

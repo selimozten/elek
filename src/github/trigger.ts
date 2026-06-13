@@ -31,7 +31,7 @@ export function detectTrigger(
   // Check for assignee trigger (configured assignee username)
   if (context.issue?.assignees) {
     // If the issue has assignees, check if any match (useful for triage workflows)
-    // This is a simpler alternative to Claude Code's complex assignee matching
+    // Keep assignee matching simple and explicit.
   }
 
   // Check for label trigger

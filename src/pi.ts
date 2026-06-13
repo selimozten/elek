@@ -1,7 +1,7 @@
 /**
  * pi CLI runner — spawns pi in JSON mode for streaming progress updates.
  * Calls back on progress events so the orchestrator can update the tracking comment
- * step-by-step, matching Claude Code's progressive checklist UX.
+ * step-by-step, matching the progressive checklist UX users expect.
  *
  * Event format (verified against pi 0.72.1, see /opt/homebrew/.../docs/json.md):
  *   - {"type":"session", id, version, ...}                 first line, session header
