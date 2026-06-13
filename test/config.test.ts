@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import {
   applyConfigDefaults,
   formatConfigPromptBlock,
@@ -84,6 +87,23 @@ ignore_paths: [dist/**, coverage/**]
     ]);
   });
 
+  it("supports standard YAML block scalars and array model lists", () => {
+    const config = parseElekConfig(`
+review_models:
+  - deepseek/deepseek-v4-pro
+  - openrouter/moonshotai/kimi-k2.7-code
+instructions:
+  - |
+    Require migration PRs to include rollback notes.
+    Mention missing rollback notes as important.
+`);
+
+    expect(config.reviewModels).toBe("deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code");
+    expect(config.instructions).toEqual([
+      "Require migration PRs to include rollback notes.\nMention missing rollback notes as important.",
+    ]);
+  });
+
   it("applies config defaults without overriding explicit action inputs", () => {
     const config: ElekConfig = {
       reviewStrategy: "council",
@@ -133,5 +153,35 @@ ignore_paths: [dist/**, coverage/**]
 
   it("treats none as disabling config loading", () => {
     expect(loadElekConfig("none")).toEqual({ ignorePaths: [], instructions: [] });
+  });
+
+  it("returns empty config for missing or unreadable files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-config-test-"));
+    const warnings: string[] = [];
+
+    expect(loadElekConfig(join(dir, "missing.yml"), (message) => warnings.push(message))).toEqual({
+      ignorePaths: [],
+      instructions: [],
+    });
+    expect(warnings).toEqual([]);
+
+    mkdirSync(join(dir, "not-a-file.yml"));
+    expect(loadElekConfig(join(dir, "not-a-file.yml"), (message) => warnings.push(message))).toEqual({
+      ignorePaths: [],
+      instructions: [],
+    });
+    expect(warnings.at(-1)).toContain("Could not read config file");
+  });
+
+  it("loads config from disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-config-test-"));
+    const path = join(dir, ".elek.yml");
+    writeFileSync(path, "severity_threshold: minor\ninstructions:\n  - Check cache invalidation.\n");
+
+    expect(loadElekConfig(path)).toEqual({
+      severityThreshold: "minor",
+      ignorePaths: [],
+      instructions: ["Check cache invalidation."],
+    });
   });
 });

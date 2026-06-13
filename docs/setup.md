@@ -179,6 +179,12 @@ Supported keys:
 Workflow inputs override `.elek.yml` when explicitly set. To disable config
 loading, set `config_path: none`.
 
+Security note: elek reads `.elek.yml` from the checked-out workspace. On pull
+requests, that is the PR branch, so repo policy owners should protect this file
+with CODEOWNERS/branch protection or set policy-critical values in workflow
+inputs instead. This lets contributors propose config changes while keeping
+merge authority with maintainers.
+
 ## Cost visibility
 
 Cost reporting is on by default. elek estimates tokens from prompt/output text

@@ -117,7 +117,7 @@ inputs:
   review_strategy:
     description: >
       Review orchestration strategy:
-        solo (default) — one model reviews and posts.
+        solo (resolved when unset) — one model reviews and posts.
         crosscheck — two independent read-only review lenses, then a final
           validator/synthesizer posts only high-confidence findings.
         council — four independent read-only lenses for larger/high-risk PRs,

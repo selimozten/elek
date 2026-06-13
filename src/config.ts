@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
+import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types";
 
 export interface ElekConfig {
@@ -22,100 +23,84 @@ const KEY_MAP: Record<string, keyof ElekConfig> = {
   instructions: "instructions",
 };
 
-const ARRAY_KEYS = new Set<keyof ElekConfig>(["ignorePaths", "instructions"]);
 const SEVERITIES = new Set(["critical", "important", "minor"]);
 
-function stripComment(line: string): string {
-  let quote: string | null = null;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if ((char === `"` || char === "'") && line[i - 1] !== "\\") {
-      quote = quote === char ? null : quote || char;
-    }
-    if (char === "#" && !quote) return line.slice(0, i);
-  }
-  return line;
+function emptyConfig(): ElekConfig {
+  return { ignorePaths: [], instructions: [] };
 }
 
-function scalar(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith(`"`) && trimmed.endsWith(`"`)) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function listValue(value: string): string[] {
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    return trimmed
-      .slice(1, -1)
-      .split(",")
-      .map((item) => scalar(item))
-      .filter(Boolean);
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stringValue(item))
+      .filter((item): item is string => !!item);
   }
-  return [scalar(trimmed)];
+  const scalar = stringValue(value);
+  return scalar ? [scalar] : [];
+}
+
+function modelList(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    const items = stringList(value);
+    return items.length > 0 ? items.join(",") : undefined;
+  }
+  return stringValue(value);
 }
 
 export function parseElekConfig(text: string, warn: (message: string) => void = () => {}): ElekConfig {
-  const config: ElekConfig = { ignorePaths: [], instructions: [] };
-  let currentArrayKey: keyof ElekConfig | null = null;
+  let doc: unknown;
+  try {
+    doc = parseYaml(text);
+  } catch (err) {
+    warn(`Could not parse config YAML: ${(err as Error).message}`);
+    return emptyConfig();
+  }
 
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = stripComment(rawLine).trimEnd();
-    if (!line.trim()) continue;
+  if (doc == null) return emptyConfig();
+  if (!isRecord(doc)) {
+    warn("Ignoring config because the top-level YAML value is not a mapping");
+    return emptyConfig();
+  }
 
-    const item = line.match(/^\s*-\s+(.+)$/);
-    if (item) {
-      if (!currentArrayKey || !ARRAY_KEYS.has(currentArrayKey)) {
-        warn(`Ignoring config list item without a list key: ${line.trim()}`);
-        continue;
-      }
-      (config[currentArrayKey] as string[]).push(scalar(item[1]));
-      continue;
-    }
-
-    const kv = line.match(/^([A-Za-z_]+):(?:\s*(.*))?$/);
-    if (!kv) {
-      warn(`Ignoring unsupported config line: ${line.trim()}`);
-      currentArrayKey = null;
-      continue;
-    }
-
-    const key = KEY_MAP[kv[1]];
+  const config = emptyConfig();
+  for (const [rawKey, value] of Object.entries(doc)) {
+    const key = KEY_MAP[rawKey];
     if (!key) {
-      warn(`Ignoring unknown config key: ${kv[1]}`);
-      currentArrayKey = null;
+      warn(`Ignoring unknown config key: ${rawKey}`);
       continue;
     }
 
-    const value = kv[2] ?? "";
-    if (ARRAY_KEYS.has(key)) {
-      const items = listValue(value);
-      if (items.length > 0) (config[key] as string[]).push(...items);
-      currentArrayKey = key;
-      continue;
-    }
-
-    currentArrayKey = null;
-    const parsed = scalar(value);
-    if (!parsed) continue;
-
-    if (key === "severityThreshold") {
-      const normalized = parsed.toLowerCase();
-      if (!SEVERITIES.has(normalized)) {
-        warn(`Ignoring invalid severity_threshold: ${parsed}`);
-        continue;
+    switch (key) {
+      case "ignorePaths":
+      case "instructions":
+        config[key] = stringList(value);
+        break;
+      case "reviewModels":
+        config.reviewModels = modelList(value);
+        break;
+      case "severityThreshold": {
+        const severity = stringValue(value)?.toLowerCase();
+        if (!severity) break;
+        if (!SEVERITIES.has(severity)) {
+          warn(`Ignoring invalid severity_threshold: ${severity}`);
+          break;
+        }
+        config.severityThreshold = severity as ElekConfig["severityThreshold"];
+        break;
       }
-      config.severityThreshold = normalized as ElekConfig["severityThreshold"];
-      continue;
+      default:
+        config[key] = stringValue(value);
     }
-
-    (config[key] as string | undefined) = parsed;
   }
 
   return config;
@@ -124,13 +109,18 @@ export function parseElekConfig(text: string, warn: (message: string) => void = 
 export function loadElekConfig(path: string, warn: (message: string) => void = () => {}): ElekConfig {
   const trimmed = path.trim();
   if (!trimmed || ["none", "off", "false"].includes(trimmed.toLowerCase())) {
-    return { ignorePaths: [], instructions: [] };
+    return emptyConfig();
   }
 
   const resolved = resolve(process.cwd(), trimmed);
-  if (!existsSync(resolved)) return { ignorePaths: [], instructions: [] };
+  if (!existsSync(resolved)) return emptyConfig();
 
-  return parseElekConfig(readFileSync(resolved, "utf-8"), warn);
+  try {
+    return parseElekConfig(readFileSync(resolved, "utf-8"), warn);
+  } catch (err) {
+    warn(`Could not read config file ${trimmed}: ${(err as Error).message}`);
+    return emptyConfig();
+  }
 }
 
 export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): ActionInputs {

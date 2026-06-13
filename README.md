@@ -264,6 +264,10 @@ Supported keys: `review_strategy`, `review_models`, `validator_model`,
 `cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
 `severity_threshold` accepts `critical`, `important`, or `minor`.
 
+On pull requests, `.elek.yml` is read from the checked-out PR branch. Protect
+policy-critical config with CODEOWNERS/branch protection, or set those values
+directly in the workflow.
+
 ### API keys
 
 Each provider has its own input; only set the one you use. Pi reads the matching `*_API_KEY` env var.

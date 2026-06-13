@@ -2,7 +2,7 @@ import type { ActionInputs } from "../types";
 import type { GitHubData } from "../github/data";
 import { mcpToolGuidance } from "../github/mcp-guidance";
 import { reviewContractBullets, reviewFindingTemplate } from "./contract";
-import { formatConfigPromptBlock, type ElekConfig } from "../config";
+import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council";
 
@@ -210,11 +210,11 @@ export function buildLensPrompt(params: {
     data.body || "(no description)",
     `</body>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<user_request>`,
     userRequest || `Review this ${entityLabel}.`,
     `</user_request>`,
     ``,
-    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<changed_files>`,
     "```diff",
     changedFilesBlock(data),
@@ -295,11 +295,11 @@ export function buildSynthesisPrompt(params: {
     data.body || "(no description)",
     `</body>`,
     ``,
+    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<user_request>`,
     userRequest || "Review this pull request.",
     `</user_request>`,
     ``,
-    configBlock.length ? `<elek_config>\n${configBlock.join("\n")}\n</elek_config>\n` : "",
     `<changed_files>`,
     "```diff",
     changedFilesBlock(data, 60_000),

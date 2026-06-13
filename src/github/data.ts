@@ -5,7 +5,7 @@ import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
 import { mcpToolGuidance } from "./mcp-guidance";
 import { reviewContractBullets, reviewFindingTemplate } from "../review/contract";
-import { formatConfigPromptBlock, type ElekConfig } from "../config";
+import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 
 type MinimalOctokit = {
   rest: {
