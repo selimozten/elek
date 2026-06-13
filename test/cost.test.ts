@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   aggregateCosts,
+  costFromPiResult,
   estimateRunCost,
   estimateTokens,
   formatCostLine,
@@ -25,7 +26,7 @@ describe("review cost estimates", () => {
   });
 
   it("parses pricing overrides as dollars per million tokens", () => {
-    expect(parseCostRateOverrides("openai/gpt-5.5=1.25:10,bad,deepseek/x=0.1:0.2")).toEqual({
+    expect(parseCostRateOverrides("openai/gpt-5.5=1.25:10,bad,deepseek/x=0.1:0.2,nope=-1:2")).toEqual({
       "openai/gpt-5.5": { inputPerMillion: 1.25, outputPerMillion: 10 },
       "deepseek/x": { inputPerMillion: 0.1, outputPerMillion: 0.2 },
     });
@@ -77,6 +78,24 @@ describe("review cost estimates", () => {
     expect(total.outputTokens).toBe(12);
     expect(total.costUsd).toBeCloseTo(0.003, 8);
     expect(formatCostLine(total)).toContain("Estimated review cost: $0.0030");
+  });
+
+  it("preserves pricing source from pi results", () => {
+    const cost = costFromPiResult({
+      conclusion: "success",
+      output: "ok",
+      turnsUsed: 1,
+      costUsd: 0.01,
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        estimated: true,
+        modelLabel: "custom/model",
+        source: "override",
+      },
+    });
+
+    expect(cost.source).toBe("override");
   });
 
   it("formats tiny costs without rounding up to a misleading cent value", () => {

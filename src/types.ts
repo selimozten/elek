@@ -77,6 +77,7 @@ export interface PiRunResult {
     outputTokens: number;
     estimated: boolean;
     modelLabel: string;
+    source: "builtin" | "override" | "unknown";
   };
 }
 

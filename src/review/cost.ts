@@ -55,7 +55,15 @@ export function parseCostRateOverrides(value: string): Record<string, Omit<Model
     const [inputRaw, outputRaw] = entry.slice(eq + 1).split(":");
     const inputPerMillion = Number(inputRaw);
     const outputPerMillion = Number(outputRaw);
-    if (!label || !Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion)) continue;
+    if (
+      !label ||
+      !Number.isFinite(inputPerMillion) ||
+      !Number.isFinite(outputPerMillion) ||
+      inputPerMillion < 0 ||
+      outputPerMillion < 0
+    ) {
+      continue;
+    }
 
     rates[label] = { inputPerMillion, outputPerMillion };
   }
@@ -116,7 +124,7 @@ export function costFromPiResult(result: PiRunResult): ReviewCost {
     costUsd: result.costUsd,
     estimated: result.usage.estimated,
     modelLabel: result.usage.modelLabel,
-    source: result.costUsd > 0 ? "builtin" : "unknown",
+    source: result.usage.source,
   };
 }
 

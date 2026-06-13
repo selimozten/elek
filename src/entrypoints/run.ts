@@ -475,8 +475,8 @@ async function run(): Promise<void> {
   if (context.isPR && !commentId) {
     try {
       const reviewOutput = inputs.showCost
-        ? `${safeOutput}\n\n_${costLine}_`
-        : safeOutput;
+        ? `${truncate(safeOutput)}\n\n_${costLine}_`
+        : truncate(safeOutput);
       await createPRReview(octokit, context, reviewOutput, result.conclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);

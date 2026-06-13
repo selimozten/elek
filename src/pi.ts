@@ -265,6 +265,7 @@ export async function runPi(
             outputTokens: usage.outputTokens,
             estimated: usage.estimated,
             modelLabel: usage.modelLabel,
+            source: usage.source,
           },
         });
       } else {
@@ -285,6 +286,7 @@ export async function runPi(
             outputTokens: usage.outputTokens,
             estimated: usage.estimated,
             modelLabel: usage.modelLabel,
+            source: usage.source,
           },
         });
       }
@@ -303,6 +305,7 @@ export async function runPi(
           outputTokens: 0,
           estimated: true,
           modelLabel: runModelLabel,
+          source: "unknown",
         },
       });
     });
