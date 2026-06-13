@@ -142,6 +142,85 @@ describe("elek-analytics", () => {
     }
   });
 
+  it("aggregates multiple summaries into the same group", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-same-group-test-"));
+    try {
+      const first = writeSummary(dir, "first.json", {
+        cost: { usd: 0.002, inputTokens: 1000, outputTokens: 100 },
+      });
+      const second = writeSummary(dir, "second.json", {
+        run: { conclusion: "success", durationSeconds: 30 },
+        inlineComments: { posted: 3, skipped: 1, failed: 0 },
+        findings: [{ title: "A" }, { title: "B" }],
+        cost: { usd: 0.004, inputTokens: 3000, outputTokens: 300 },
+      });
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--json",
+        first,
+        second,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.groups).toEqual([
+        expect.objectContaining({
+          key: "solo",
+          runs: 2,
+          successes: 2,
+          findings: 3,
+          findingsPerRun: 1.5,
+          inlinePosted: 4,
+          inlineSkipped: 1,
+          inlineFailed: 0,
+          costUsd: 0.006,
+          avgCostUsd: 0.003,
+          inputTokens: 4000,
+          outputTokens: 400,
+          durationSeconds: 40,
+          avgDurationSeconds: 20,
+        }),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("handles partial summaries gracefully", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-partial-test-"));
+    try {
+      const partial = join(dir, "partial.json");
+      writeFileSync(partial, JSON.stringify({
+        version: 1,
+        run: { conclusion: "success" },
+      }));
+
+      const output = execFileSync("node", ["bin/elek-analytics.mjs", "--json", partial], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.groups[0]).toMatchObject({
+        key: "(unknown)",
+        runs: 1,
+        successes: 1,
+        findings: 0,
+        costUsd: 0,
+      });
+      expect(report.totals).toMatchObject({
+        runs: 1,
+        successes: 1,
+        costUsd: 0,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("prints a readable analytics table", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-table-test-"));
     try {
@@ -177,6 +256,22 @@ describe("elek-analytics", () => {
       encoding: "utf8",
       stdio: "pipe",
     })).toThrow("--group-by must be one of: strategy, model, repository");
+  });
+
+  it("reports the file path when a summary cannot be parsed", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-invalid-test-"));
+    try {
+      const invalid = join(dir, "invalid.json");
+      writeFileSync(invalid, "{");
+
+      expect(() => execFileSync("node", ["bin/elek-analytics.mjs", invalid], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: "pipe",
+      })).toThrow(`failed to read summary ${invalid}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("prints analytics help", () => {

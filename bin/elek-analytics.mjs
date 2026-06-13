@@ -44,7 +44,11 @@ function parseArgs(argv) {
 }
 
 function readSummary(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`failed to read summary ${path}: ${err.message}`);
+  }
 }
 
 function groupKey(summary, groupBy) {
@@ -64,7 +68,6 @@ function normalizeNumber(value) {
 
 function findingCount(summary) {
   if (Array.isArray(summary.findings)) return summary.findings.length;
-  if (Array.isArray(summary.review?.findings)) return summary.review.findings.length;
   return 0;
 }
 
