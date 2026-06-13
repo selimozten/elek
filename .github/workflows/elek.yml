@@ -20,12 +20,11 @@ concurrency:
   group: elek-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
   cancel-in-progress: true
 
-# review mode tools are read-only — bot can't approve/merge/close even if
-# jailbroken. `contents: write` is needed only for the (currently rare)
-# review+edit / agent modes that push to a pi/* branch. Drop to `read` if
-# you only run review mode.
+# Self-review is advisory because provider quota and transient model failures
+# should not block test-verified code. The action itself still posts a visible
+# tracking comment when a provider fails.
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   issues: write
 
@@ -36,20 +35,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
 
-      - uses: ./
+      - name: Advisory elek review
+        id: review
+        uses: ./
+        continue-on-error: true
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
-          branch_prefix: pi/deepseek/
+          branch_prefix: elek/deepseek/
           prompt: |
             Review this PR for correctness, security, performance, and style.
             Be specific — reference files and line numbers. Think step by step.
+            Do not claim external GitHub Action versions are unpublished unless
+            this run failed while resolving them; by the time this prompt runs,
+            checkout and this composite action have already resolved.
+
+      - name: Report advisory review failure
+        if: steps.review.outcome == 'failure'
+        run: echo "::warning::Advisory DeepSeek review failed; inspect the tracking comment and run logs."
 
   # ── Z.AI GLM-5.1 ──────────────────────────────────────────────────────
   zai:
@@ -57,17 +66,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
 
-      - uses: ./
+      - name: Advisory elek review
+        id: review
+        uses: ./
+        continue-on-error: true
         with:
           zai_api_key: ${{ secrets.ZAI_API_KEY }}
           provider: zai
           model: glm-5.1
           thinking: high
-          branch_prefix: pi/zai/
+          branch_prefix: elek/zai/
           prompt: |
             Review this PR for correctness, security, performance, and style.
             Be specific — reference files and line numbers. Think step by step.
+            Do not claim external GitHub Action versions are unpublished unless
+            this run failed while resolving them; by the time this prompt runs,
+            checkout and this composite action have already resolved.
+
+      - name: Report advisory review failure
+        if: steps.review.outcome == 'failure'
+        run: echo "::warning::Advisory Z.AI review failed; inspect the tracking comment and run logs."

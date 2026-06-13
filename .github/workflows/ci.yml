@@ -5,8 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    # Skip the tests workflow on docs-only churn so the dual-model review
-    # in elek.yml stays the primary signal.
+    # Skip the tests workflow on docs-only churn. The AI self-review workflow
+    # is advisory; this remains the hard correctness gate for code changes.
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
 
       - uses: oven-sh/setup-bun@v2
         with:

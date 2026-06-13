@@ -15,11 +15,14 @@ const baseInputs: ActionInputs = {
   systemPrompt: "",
   maxTurns: 20,
   tools: "",
-  branchPrefix: "pi/",
+  branchPrefix: "elek/",
   actorFilter: "",
   allowedBots: "",
   stickyComment: true,
   mode: "review",
+  reviewStrategy: "solo",
+  reviewModels: "",
+  validatorModel: "",
 };
 
 const baseCtx: GitHubEntityContext = {

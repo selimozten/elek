@@ -4,6 +4,7 @@
  */
 import type { GitHubEntityContext } from "../types";
 import { getGitDiff } from "./git";
+import { mcpToolGuidance } from "./mcp-guidance";
 
 type MinimalOctokit = {
   rest: {
@@ -188,22 +189,7 @@ export function buildPrompt(
   if (options.useMcp) {
     parts.push("## Available tools (via the `mcp` proxy)");
     parts.push("");
-    parts.push("You have an `mcp` proxy tool. Tool names are server-prefixed; ours are `elek_review_*`. Two operations:");
-    parts.push("");
-    parts.push('- `mcp({tool: "elek_review_create_inline_comment", args: "{\\"path\\":\\"...\\",\\"line\\":N,\\"body\\":\\"...\\"}"})`');
-    parts.push("  Post a finding on a specific line of the diff. For multi-line ranges, add `startLine`.");
-    parts.push("  Buffered by default — only sent at the end of the run. Set `confirmed: true` to post immediately.");
-    parts.push("  Use markdown suggestion blocks for actionable fixes:");
-    parts.push("    ```suggestion");
-    parts.push("    new code here");
-    parts.push("    ```");
-    parts.push("");
-    parts.push('- `mcp({tool: "elek_review_update_tracking_comment", args: "{\\"body\\":\\"...\\"}"})`');
-    parts.push("  Replace the body of your tracking comment. Use this to maintain a live todo checklist as you work.");
-    parts.push("");
-    parts.push("Note: `args` is a JSON STRING (not an object). If you forget the prefix, use `mcp({search: \"<keyword>\"})` to discover the right name.");
-    parts.push("");
-    parts.push("These are the ONLY ways your inline-comment output is visible. Console output is discarded.");
+    parts.push(...mcpToolGuidance());
     parts.push("");
   }
 
@@ -213,6 +199,7 @@ export function buildPrompt(
   parts.push("Follow these steps:");
   parts.push("");
   parts.push("1. **Analyze the context** — Read the body, diff, and any comments to understand what changed and why.");
+  parts.push("   - Do not claim external packages, GitHub Actions, model IDs, or APIs do not exist unless you can verify it from current repo files, package-manager output, or workflow error logs.");
   if (isPR) {
     parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
     parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);
@@ -276,4 +263,3 @@ export function buildPrompt(
 
   return parts.join("\n");
 }
-

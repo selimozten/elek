@@ -17,11 +17,14 @@ export function parseInputs(): ActionInputs {
     maxTurns: parseInt(core.getInput("max_turns") || "20", 10),
     tools: core.getInput("tools") || "read,write,edit,bash,grep,find,ls",
     baseBranch: core.getInput("base_branch") || undefined,
-    branchPrefix: core.getInput("branch_prefix") || "pi/",
+    branchPrefix: core.getInput("branch_prefix") || "elek/",
     actorFilter: core.getInput("actor_filter") || "",
     allowedBots: core.getInput("allowed_bots") || "",
     stickyComment: core.getInput("sticky_comment") !== "false",
     mode: core.getInput("mode") || "review",
+    reviewStrategy: core.getInput("review_strategy") || "solo",
+    reviewModels: core.getInput("review_models") || "",
+    validatorModel: core.getInput("validator_model") || "",
   };
 }
 

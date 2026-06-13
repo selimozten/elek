@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }   # required for accurate PR diffs
       - uses: selimozten/elek@v1
         with:
@@ -88,8 +88,34 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 | `mode` | Tools | Inline comments | Edits | When to use |
 |---|---|---|---|---|
 | `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | All review-only workflows |
-| `review+edit` | + `write,edit` | ✓ | pushes to `pi/*` branch | "Review and propose fixes" |
+| `review+edit` | + `write,edit` | ✓ | pushes to `elek/*` branch | "Review and propose fixes" |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
+
+## Review strategies
+
+`review_strategy` controls how many independent review passes run before the
+visible review is posted:
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    zai_api_key: ${{ secrets.ZAI_API_KEY }}
+    provider: deepseek
+    model: deepseek-v4-pro
+    review_strategy: crosscheck
+    review_models: deepseek/deepseek-v4-pro,zai/glm-5.1
+    validator_model: deepseek/deepseek-v4-pro
+```
+
+| `review_strategy` | Behavior |
+|---|---|
+| `solo` | One model reviews and posts. |
+| `crosscheck` | Risk + design lenses run read-only, then a final validator posts. |
+| `council` | Risk + design + tests + operations lenses run read-only, then a final validator posts. |
+
+Candidate reviewers cannot post comments. They run without MCP access; only the
+final validator can call elek's review tools.
 
 ## Permissions
 
@@ -100,7 +126,7 @@ permissions:
   issues: write
 ```
 
-For `mode: review+edit` (pushing to `pi/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
+For `mode: review+edit` (pushing to `elek/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
 
 ## Actor filtering
 
@@ -142,7 +168,7 @@ The most common cause: `pi --mode json` was hanging on stdin. Make sure you're o
 
 ### Empty PR diff
 
-`actions/checkout@v4` defaults to a shallow clone. Use `fetch-depth: 0`.
+`actions/checkout@v6.0.3` defaults to a shallow clone. Use `fetch-depth: 0`.
 
 ### "Tool not found" errors in the review
 

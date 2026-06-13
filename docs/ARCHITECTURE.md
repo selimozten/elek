@@ -5,9 +5,9 @@
 elek is a composite GitHub Action: action.yml installs Node + the pi CLI,
 then `tsx` invokes a single TypeScript orchestrator (`src/entrypoints/run.ts`)
 that parses the webhook event, fetches PR/issue data via the GitHub API,
-builds an XML-tagged prompt, and spawns `pi --mode json` in a child process.
-Pi runs the chosen model with a tightly-scoped tool surface, streams events
-back as JSONL, and elek converts those into progressive comment updates.
+builds XML-tagged prompts, and spawns `pi --mode json` in child processes.
+Pi runs the chosen model(s) with a tightly-scoped tool surface, streams events
+back as JSONL, and elek converts the final run into progressive comment updates.
 When the model uses MCP tools (`create_inline_comment`, `update_tracking_comment`)
 their effects are buffered to disk during the run; a post-step drains the
 buffer to GitHub's PR review-comments API.
@@ -35,24 +35,46 @@ The single end-to-end runner. Phases:
 2. **Trigger detection** — `@pi` mention in body/comment, label match, or
    explicit `prompt` input. Actor filter applied.
 3. **Setup** — Octokit client, mode resolution (`resolveMode`), git auth,
-   pi/* branch creation for PRs.
+   elek/* branch creation for PRs.
 4. **Tracking comment** — find existing by signature, reuse or create new.
 5. **Data fetch + prompt** — PR diff, issue body, all comments (including
    bot's own prior reviews so the model can iterate), build the structured
    prompt.
-6. **MCP wiring** — write `~/.config/mcp/mcp.json` pointing pi-mcp-adapter
-   at our review server, with `GITHUB_TOKEN` and `ELEK_TRACKING_COMMENT_ID`
-   in the spawn env. The file is `unlinkSync`'d in a `finally` after pi exits.
-7. **Run pi** — `runPi(prompt, inputs, onProgress, mcpEnabled)`. The
+6. **Optional review strategy** — `solo` runs the final reviewer directly.
+   `crosscheck` runs two read-only candidate lenses first (risk + design).
+   `council` runs four read-only candidate lenses first (risk + design +
+   tests + operations). Candidate runs have no MCP access and cannot post.
+7. **MCP wiring** — immediately before the final posting-capable run, write
+   `~/.config/mcp/mcp.json` pointing pi-mcp-adapter at our review server, with
+   `GITHUB_TOKEN` and `ELEK_TRACKING_COMMENT_ID` in the server env. The file
+   is `unlinkSync`'d in a `finally` after pi exits.
+8. **Run final pi** — `runPi(prompt, inputs, onProgress, mcpEnabled)`. The
    onProgress callback updates the tracking comment with a checklist body
    (rate-limited to 3s, last update flushed on the `done` event).
-8. **Post review** — replace the tracking-comment body with the model's
+9. **Post review** — replace the tracking-comment body with the model's
    final review text (truncated at 60K chars).
-9. **Drain MCP buffer** — `postBuffered()` reads the JSONL file the MCP
+10. **Drain MCP buffer** — `postBuffered()` reads the JSONL file the MCP
    server appended to during the run, posts each non-opted-out entry as a
-   PR review comment.
-10. **Optional code push** — if `mode: review+edit` or `agent` and the model
-    made local changes, commit and push to the pi/* branch.
+   PR review comment after validating anchors against PR diff hunks when the
+   GitHub file patches are available.
+11. **Optional code push** — if `mode: review+edit` or `agent` and the model
+    made local changes, commit and push to the elek/* branch.
+
+### `src/review/strategy.ts` — cross-model review planning
+
+Defines the strategy names and prompt builders:
+
+```
+solo       → existing one-model review
+crosscheck → Risk Review + Design Review, then final validation/synthesis
+council    → Risk + Design + Test Integrity + Operational Review, then final validation/synthesis
+```
+
+Candidate reviewers run as independent `pi` processes with only
+`read,grep,find,ls`, no MCP proxy, and a filtered environment. Their output is
+internal evidence. The final validator receives the candidate reports, rejects
+speculative or duplicate findings, and is the only run allowed to call elek's
+review MCP tools.
 
 ### `src/pi.ts` — pi CLI runner
 
@@ -108,9 +130,10 @@ names with `elek_review_*`.
 ### `src/entrypoints/post-buffered.ts` — post-step drain
 
 `postBuffered(deps)` reads the JSONL buffer line-by-line, skips entries
-with `confirmed:false` (explicit opt-out), posts each via
-`pulls.createReviewComment`. Caches PR head SHA fetch failures so a bad
-token doesn't amplify into N rate-limit hits. Returns `{posted, skipped, failed}`.
+with `confirmed:false` (explicit opt-out), optionally validates file/line
+anchors against `pulls.listFiles` patch hunks, and posts each survivor via
+`pulls.createReviewComment`. Caches PR head SHA fetch failures so a bad token
+doesn't amplify into N rate-limit hits. Returns `{posted, skipped, failed}`.
 
 ## Data flow for the typical PR review
 

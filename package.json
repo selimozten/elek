@@ -1,7 +1,7 @@
 {
   "name": "elek",
   "version": "1.0.0",
-  "description": "Model-agnostic AI code review for GitHub Actions. Tightly scoped tool surface — model can post inline review threads but cannot approve, merge, or close.",
+  "description": "Model-agnostic AI code review for GitHub Actions with cross-model validation and a tightly scoped review-only tool surface.",
   "type": "module",
   "homepage": "https://github.com/selimozten/elek",
   "bugs": "https://github.com/selimozten/elek/issues",
@@ -38,6 +38,8 @@
     "anthropic",
     "openai",
     "model-agnostic",
+    "cross-model",
+    "code-review-bot",
     "mcp",
     "pull-request",
     "automated-review"

@@ -1,11 +1,13 @@
-# elek
+<p align="center">
+  <img src="assets/elek-wordmark.svg" width="430" alt="elek" />
+</p>
 
-> Model-agnostic AI code review for GitHub. Works with any provider [pi](https://github.com/badlogic/pi-mono) supports — DeepSeek, Z.AI, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, OpenRouter.
+> Model-agnostic AI code review for GitHub. Cross-check pull requests with independent review lenses and keep the model inside a review-only tool surface. Works with any provider [pi](https://github.com/badlogic/pi-mono) supports — DeepSeek, Z.AI, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, OpenRouter.
 
 [![ci](https://github.com/selimozten/elek/actions/workflows/ci.yml/badge.svg)](https://github.com/selimozten/elek/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-elek is a GitHub Action that posts dual-model AI reviews on every PR — top-level summaries in the tracking comment plus inline review threads on the lines that need attention. The model can read code, search, and post review feedback. It cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+elek is a GitHub Action that posts AI reviews on every PR — top-level summaries in the tracking comment plus inline review threads on the lines that need attention. It can run one reviewer, a two-lens cross-check, or a four-lens council. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
 
 ```yaml
 # .github/workflows/elek.yml
@@ -15,7 +17,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -69,7 +71,7 @@ jobs:
        runs-on: ubuntu-latest
        timeout-minutes: 10
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@v6.0.3
            with: { fetch-depth: 0 }
          - uses: selimozten/elek@v1
            with:
@@ -90,12 +92,45 @@ The `mode` input controls the model's tool surface:
 | `mode` | Tools | MCP | Edits | Use case |
 |---|---|---|---|---|
 | `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Code review only. Recommended. |
-| `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to a `pi/*` branch. |
+| `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to an `elek/*` branch. |
 | `agent` | `+ bash` | ✗ | ✓ | Legacy, full power. Trusted workflows only. |
 
 **The model can never approve, merge, or close** in any mode — those endpoints aren't plumbed in elek's MCP server. The `permissions:` block in your workflow is the backstop.
 
-## Dual-model review
+## Review Strategies
+
+The `review_strategy` input controls orchestration quality:
+
+| `review_strategy` | Runs | Use case |
+|---|---:|---|
+| `solo` (default) | 1 final reviewer | Fast, cheap default review. |
+| `crosscheck` | 2 read-only lenses + 1 final validator | Best default for serious PR review. |
+| `council` | 4 read-only lenses + 1 final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
+
+`crosscheck` runs two independent candidate reviewers:
+
+- **Risk Review** — correctness, security, breaking changes, devex regressions, feature-gate leaks.
+- **Design Review** — maintainability, structural simplification, abstraction quality, file-size growth, spaghetti branching, type boundaries.
+
+`council` adds:
+
+- **Test Integrity Review** — missing/weak tests, nondeterminism, meaningless assertions.
+- **Operational Review** — rollout/rollback safety, migrations, configuration, observability, retries, partial updates.
+
+Candidate reviewers are read-only and cannot post. The final validator receives their reports, rejects speculative or duplicate findings, and posts only high-confidence feedback through elek's narrow review MCP tools.
+
+```yaml
+with:
+  provider: deepseek
+  model: deepseek-v4-pro
+  review_strategy: crosscheck
+  review_models: deepseek/deepseek-v4-pro,zai/glm-5.1
+  validator_model: deepseek/deepseek-v4-pro
+```
+
+For expensive models, a good pattern is cheap parallel reviewers plus one stronger validator.
+
+## Cross-Model Review
 
 Run two providers in parallel for free cross-validation. Each model independently iterates on the other's findings:
 
@@ -104,7 +139,7 @@ jobs:
   deepseek:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -114,7 +149,7 @@ jobs:
   zai:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           zai_api_key: ${{ secrets.ZAI_API_KEY }}
@@ -153,6 +188,9 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
+| `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
+| `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,zai/glm-5.1` |
+| `validator_model` | _(primary model)_ | Final synthesis model spec |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -168,7 +206,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `max_turns` | `20` | Cap conversation turns |
 | `tools` | _(mode-resolved)_ | Override the tool allowlist (rarely needed) |
 | `base_branch` | _(repo default)_ | Override the comparison base |
-| `branch_prefix` | `pi/` | Prefix for branches the action creates |
+| `branch_prefix` | `elek/` | Prefix for branches the action creates |
 
 ### API keys
 
@@ -193,7 +231,7 @@ For AWS Bedrock: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as j
 | Output | Description |
 |---|---|
 | `conclusion` | `success` / `failure` / `skipped` |
-| `branch_name` | The `pi/*` branch created (if any) |
+| `branch_name` | The `elek/*` branch created (if any) |
 | `comment_id` | The tracking comment ID |
 | `session_id` | Pi session ID for resumption |
 | `summary` | First 1000 chars of the review |
@@ -207,7 +245,7 @@ permissions:
   issues: write            # post tracking comment
 ```
 
-For `mode: review+edit` (model pushes fixes to a `pi/*` branch), upgrade `contents: write`. The model still can't approve/merge — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
+For `mode: review+edit` (model pushes fixes to an `elek/*` branch), upgrade `contents: write`. The model still can't approve/merge — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
 
 ## Supported events
 

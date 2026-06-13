@@ -169,17 +169,15 @@ export async function createPRReview(
   output: string,
   conclusion: "success" | "failure",
 ): Promise<void> {
-  const event = conclusion === "success" ? "COMMENT" : "REQUEST_CHANGES";
-
   await octokit.rest.pulls.createReview({
     owner: context.repo.owner,
     repo: context.repo.repo,
     pull_number: context.entityNumber,
     body: formatReviewBody(output, conclusion, context),
-    event,
+    event: "COMMENT",
   });
 
-  console.log(`✓ Posted PR review (${event})`);
+  console.log("✓ Posted PR review (COMMENT)");
 }
 
 /**

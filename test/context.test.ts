@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { parseEntityContext } from "../src/github/context";
+import { parseEntityContext, parseInputs } from "../src/github/context";
 
 let tmp: string;
 const ENV_KEYS = [
@@ -18,6 +18,7 @@ const ENV_KEYS = [
   "GITHUB_ACTOR",
   "GITHUB_REPOSITORY",
   "GITHUB_REPOSITORY_OWNER",
+  "INPUT_BRANCH_PREFIX",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -162,5 +163,17 @@ describe("parseEntityContext", () => {
     expect(ctx!.repo.owner).toBe("octo");
     expect(ctx!.repo.repo).toBe("repo");
     expect(ctx!.repo.fullName).toBe("octo/repo");
+  });
+});
+
+describe("parseInputs", () => {
+  it("defaults generated branch names to elek branding", () => {
+    delete process.env.INPUT_BRANCH_PREFIX;
+    expect(parseInputs().branchPrefix).toBe("elek/");
+  });
+
+  it("respects an explicit branch_prefix input", () => {
+    process.env.INPUT_BRANCH_PREFIX = "feature/automated-fixes/";
+    expect(parseInputs().branchPrefix).toBe("feature/automated-fixes/");
   });
 });

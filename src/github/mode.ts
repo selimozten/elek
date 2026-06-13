@@ -5,7 +5,7 @@
  *   through the MCP server. No bash, no write, no edit. The model literally
  *   has no tool that can approve, merge, or close anything.
  * - review+edit: also allows write/edit so the model can push fixes to its
- *   own pi/* branch. Still no bash (no shelling out to gh).
+ *   own elek/* branch. Still no bash (no shelling out to gh).
  * - agent: legacy behavior — full tool surface including bash. The MCP
  *   server is NOT injected (the host posts the tracking comment).
  *

@@ -1,11 +1,12 @@
 name: "elek — AI Code Review"
 description: >
-  Model-agnostic AI code review for GitHub. Sieve through PRs and issues
-  with pi coding agent. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq,
-  Mistral, xAI, OpenRouter — bring your own key.
+  Model-agnostic AI code review for GitHub. Cross-check pull requests with
+  independent review lenses while preserving a narrow review-only tool surface.
+  Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral, xAI,
+  OpenRouter — bring your own key.
 branding:
   icon: "filter"
-  color: "purple"
+  color: "green"
 
 inputs:
   # ── Trigger ──
@@ -84,9 +85,9 @@ inputs:
     description: "Base branch for PRs (defaults to repository default branch)"
     required: false
   branch_prefix:
-    description: "Prefix for branches created by pi"
+    description: "Prefix for branches created by elek"
     required: false
-    default: "pi/"
+    default: "elek/"
   actor_filter:
     description: "Comma-separated usernames allowed to trigger. Empty = all humans."
     required: false
@@ -106,12 +107,35 @@ inputs:
           via the elek MCP server (inline comments + tracking comment). No
           bash, no write, no edit. Cannot approve, merge, or close.
         review+edit — also allows write/edit so the model can push fixes to
-          its own pi/* branch. Still no bash. Cannot approve/merge/close.
+          its own elek/* branch. Still no bash. Cannot approve/merge/close.
         agent — legacy: full tool surface (read,write,edit,bash,grep,find,ls)
           and no MCP injection. Use only for trusted workflows where the
           model needs shell access.
     required: false
     default: "review"
+  review_strategy:
+    description: >
+      Review orchestration strategy:
+        solo (default) — one model reviews and posts.
+        crosscheck — two independent read-only review lenses, then a final
+          validator/synthesizer posts only high-confidence findings.
+        council — four independent read-only lenses for larger/high-risk PRs,
+          then final validation/synthesis.
+    required: false
+    default: "solo"
+  review_models:
+    description: >
+      Optional comma-separated model specs for crosscheck/council reviewer
+      lenses. Examples: deepseek/deepseek-v4-pro,zai/glm-5.1. If omitted,
+      the primary provider/model is reused for every lens.
+    required: false
+    default: ""
+  validator_model:
+    description: >
+      Optional model spec for final validation/synthesis. Example:
+      deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -134,9 +158,9 @@ runs:
   using: "composite"
   steps:
     - name: Setup Node.js
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
       with:
-        node-version: "20.x"
+        node-version: "24.x"
 
     - name: Install dependencies
       shell: bash
@@ -189,6 +213,9 @@ runs:
         INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
         INPUT_MODE: ${{ inputs.mode }}
+        INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
+        INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
+        INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}

@@ -1,5 +1,5 @@
 /**
- * Trigger detection for pi action.
+ * Trigger detection for the elek action.
  * Checks if the event should trigger pi based on mentions, labels, assignees, or explicit prompts.
  */
 import type { GitHubEntityContext, ActionInputs } from "../types";

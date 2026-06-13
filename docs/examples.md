@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -83,14 +83,14 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
-          branch_prefix: pi/deepseek/
+          branch_prefix: elek/deepseek/
 
   zai:
     name: glm-5.1
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -98,12 +98,12 @@ jobs:
           provider: zai
           model: glm-5.1
           thinking: high
-          branch_prefix: pi/zai/
+          branch_prefix: elek/zai/
 ```
 
 ## Review + propose fixes
 
-The model can push fixes to a `pi/*` branch when something is mechanical (rename, add missing test, simple refactor).
+The model can push fixes to an `elek/*` branch when something is mechanical (rename, add missing test, simple refactor).
 
 ```yaml
 permissions: { contents: write, pull-requests: write, issues: write }
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -123,7 +123,7 @@ jobs:
           mode: review+edit
           prompt: |
             Review this PR. For mechanical issues (typos, obvious bugs,
-            missing imports), push a fix to the pi/* branch and link it
+            missing imports), push a fix to the elek/* branch and link it
             in your review. For design questions, just review.
 ```
 
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -212,7 +212,7 @@ jobs:
     if: contains(github.event.pull_request.changed_files, '.ts')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -223,7 +223,7 @@ jobs:
     if: contains(github.event.pull_request.changed_files, '.go')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
@@ -244,7 +244,7 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}

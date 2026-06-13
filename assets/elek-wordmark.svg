@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 240" role="img" aria-label="elek">
+  <style>
+    :root { color: #0f172a; }
+    @media (prefers-color-scheme: dark) { :root { color: #f8fafc; } }
+    .mark { fill: none; stroke: currentColor; stroke-width: 20; stroke-linecap: round; stroke-linejoin: round; }
+    .accent { fill: #14b8a6; }
+    .word { fill: currentColor; font-family: ui-sans-serif, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 128px; font-weight: 760; letter-spacing: 0; }
+    .tag { fill: #64748b; font-family: ui-sans-serif, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 30px; font-weight: 560; letter-spacing: 0; }
+  </style>
+  <g transform="translate(30 30)">
+    <path class="mark" d="M36 38h132M36 90h100M36 142h68"/>
+    <path class="mark" d="M168 38 104 142"/>
+    <circle class="accent" cx="164" cy="142" r="14"/>
+  </g>
+  <text class="word" x="250" y="128">elek</text>
+  <text class="tag" x="258" y="178">cross-model code review</text>
+</svg>

@@ -1,5 +1,5 @@
 /**
- * Git operations for the pi action:
+ * Git operations for the elek action:
  * - Configure git auth
  * - Create/checkout branches
  * - Commit signing
@@ -19,8 +19,8 @@ export function configureGitAuth(githubToken: string, context: GitHubEntityConte
       ? "users.noreply.github.com"
       : `users.noreply.${serverUrl.hostname}`;
 
-  const botName = "pi[bot]";
-  const botId = "pi-bot";
+  const botName = "elek[bot]";
+  const botId = "elek-bot";
 
   execSync(`git config user.name "${botName}"`, { stdio: "inherit" });
   execSync(`git config user.email "${botId}@${noreplyDomain}"`, { stdio: "inherit" });
@@ -40,10 +40,10 @@ export function configureGitAuth(githubToken: string, context: GitHubEntityConte
 }
 
 /**
- * Create a new branch for pi's work.
+ * Create a new branch for elek's work.
  * Returns the branch name.
  */
-export function createPiBranch(
+export function createElekBranch(
   context: GitHubEntityContext,
   prefix: string,
 ): string {
