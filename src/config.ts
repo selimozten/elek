@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, realpathSync } from "fs";
 import { resolve, sep } from "path";
 import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types";
@@ -108,6 +108,9 @@ export function parseElekConfig(text: string, warn: (message: string) => void = 
       case "reviewModels":
         config.reviewModels = modelList(value);
         break;
+      case "costRates":
+        config.costRates = modelList(value);
+        break;
       case "reviewStrategy": {
         const strategy = stringValue(value)?.toLowerCase();
         if (!strategy) break;
@@ -129,8 +132,14 @@ export function parseElekConfig(text: string, warn: (message: string) => void = 
         config.severityThreshold = severity as ElekConfig["severityThreshold"];
         break;
       }
-      default:
-        config[key] = stringValue(value);
+      default: {
+        const scalar = stringValue(value);
+        if (scalar) {
+          config[key] = scalar;
+        } else if (value != null) {
+          warn(`Ignoring non-scalar ${rawKey} value`);
+        }
+      }
     }
   }
 
@@ -143,7 +152,7 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
     return emptyConfig();
   }
 
-  const root = resolve(process.cwd());
+  const root = realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
   const resolved = resolve(root, trimmed);
   if (resolved !== root && !resolved.startsWith(root + sep)) {
     warn(`Config path resolves outside the workspace: ${trimmed}`);
@@ -152,7 +161,12 @@ export function loadElekConfig(path: string, warn: (message: string) => void = (
   if (!existsSync(resolved)) return emptyConfig();
 
   try {
-    return parseElekConfig(readFileSync(resolved, "utf-8"), warn);
+    const realResolved = realpathSync(resolved);
+    if (realResolved !== root && !realResolved.startsWith(root + sep)) {
+      warn(`Config path resolves outside the workspace: ${trimmed}`);
+      return emptyConfig();
+    }
+    return parseElekConfig(readFileSync(realResolved, "utf-8"), warn);
   } catch (err) {
     warn(`Could not read config file ${trimmed}: ${(err as Error).message}`);
     return emptyConfig();

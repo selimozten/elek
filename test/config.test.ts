@@ -74,6 +74,8 @@ instructions:
       `
 severity_threshold: advisory
 review_strategy: corsscheck
+validator_model:
+  nested: model
 unknown_key: value
 ignore_paths: [dist/**, coverage/**]
 instructions:
@@ -85,11 +87,13 @@ instructions:
 
     expect(config.severityThreshold).toBeUndefined();
     expect(config.reviewStrategy).toBeUndefined();
+    expect(config.validatorModel).toBeUndefined();
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
     expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
       "Ignoring invalid review_strategy: corsscheck",
+      "Ignoring non-scalar validator_model value",
       "Ignoring unknown config key: unknown_key",
       "Ignoring non-scalar instructions item",
     ]);
@@ -110,6 +114,9 @@ instructions:
 review_models:
   - deepseek/deepseek-v4-pro
   - openrouter/moonshotai/kimi-k2.7-code
+cost_rates:
+  - deepseek/deepseek-v4-pro=0.25:1
+  - openrouter/moonshotai/kimi-k2.7-code=0.95:4
 instructions:
   - |
     Require migration PRs to include rollback notes.
@@ -117,6 +124,9 @@ instructions:
 `);
 
     expect(config.reviewModels).toBe("deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code");
+    expect(config.costRates).toBe(
+      "deepseek/deepseek-v4-pro=0.25:1,openrouter/moonshotai/kimi-k2.7-code=0.95:4",
+    );
     expect(config.instructions).toEqual([
       "Require migration PRs to include rollback notes.\nMention missing rollback notes as important.",
     ]);
