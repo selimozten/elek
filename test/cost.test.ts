@@ -95,6 +95,31 @@ describe("review cost estimates", () => {
     expect(formatCostLine(total)).toContain("Estimated review cost: $0.0030");
   });
 
+  it("aggregates empty cost lists to zero", () => {
+    expect(aggregateCosts([])).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      estimated: false,
+      runs: [],
+    });
+  });
+
+  it("marks totals estimated when any run has unknown pricing", () => {
+    const total = aggregateCosts([
+      {
+        inputTokens: 10,
+        outputTokens: 5,
+        costUsd: 0,
+        estimated: true,
+        modelLabel: "unknown/model",
+        source: "unknown",
+      },
+    ]);
+
+    expect(total.estimated).toBe(true);
+  });
+
   it("preserves pricing source from pi results", () => {
     const cost = costFromPiResult({
       conclusion: "success",
