@@ -290,7 +290,7 @@ async function run(): Promise<void> {
     }
 
     if (commentId) {
-      const code = (value: string) => `\`${value.replace(/`/g, "\\`")}\``;
+      const code = (value: string) => `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
       try {
         await updateTrackingComment(
           octokit,

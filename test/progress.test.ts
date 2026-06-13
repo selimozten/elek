@@ -46,14 +46,14 @@ describe("formatProgressComment", () => {
     expect(body).toContain("Analyzing (Bash(npm test))…");
   });
 
-  it("escapes backticks in current tool names", () => {
+  it("escapes markdown control characters in current tool names", () => {
     const body = formatProgressComment(
-      { readContext: true, analyzed: false, wroteReview: false, lastTool: "Mcp(`tool`)" },
+      { readContext: true, analyzed: false, wroteReview: false, lastTool: "Mcp(\\`tool`)" },
       modelLabel,
       link,
     );
 
-    expect(body).toContain("Analyzing (Mcp(\\`tool\\`))…");
+    expect(body).toContain("Analyzing (Mcp(\\\\\\`tool\\`))…");
   });
 
   it("checks off analyzing and shows writing phase", () => {
