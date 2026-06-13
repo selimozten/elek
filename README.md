@@ -217,8 +217,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
-| `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none` to disable |
-| `review_strategy` | `solo` | `solo` / `crosscheck` / `council` |
+| `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
+| `review_strategy` | `solo` resolved when unset | `solo` / `crosscheck` / `council` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
@@ -262,11 +262,14 @@ instructions:
 
 Supported keys: `review_strategy`, `review_models`, `validator_model`,
 `cost_rates`, `severity_threshold`, `ignore_paths`, and `instructions`.
-`severity_threshold` accepts `critical`, `important`, or `minor`.
+`severity_threshold` accepts `critical`, `important`, or `minor`. Severity
+and ignore-path policy are prompt instructions for the reviewer, not a
+server-side filter.
 
 On pull requests, `.elek.yml` is read from the checked-out PR branch. Protect
 policy-critical config with CODEOWNERS/branch protection, or set those values
-directly in the workflow.
+directly in the workflow. Each run logs the loaded config path, strategy,
+models, severity threshold, cost rates, ignore paths, and instruction count.
 
 ### API keys
 

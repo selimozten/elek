@@ -172,18 +172,21 @@ Supported keys:
 | `review_models` | Default reviewer model list |
 | `validator_model` | Default final validation model |
 | `cost_rates` | Default price overrides |
-| `severity_threshold` | `critical`, `important`, or `minor` |
+| `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `ignore_paths` | Paths the prompt tells reviewers to ignore unless risk escapes the path |
 | `instructions` | Extra repo-specific review policy inserted into every prompt |
 
 Workflow inputs override `.elek.yml` when explicitly set. To disable config
-loading, set `config_path: none`.
+loading, set `config_path: none`, `off`, or `false`. Severity thresholds and
+ignore paths are review instructions, not a server-side comment filter.
 
 Security note: elek reads `.elek.yml` from the checked-out workspace. On pull
 requests, that is the PR branch, so repo policy owners should protect this file
 with CODEOWNERS/branch protection or set policy-critical values in workflow
 inputs instead. This lets contributors propose config changes while keeping
-merge authority with maintainers.
+merge authority with maintainers. Each run logs the loaded config path,
+strategy, models, severity threshold, cost rates, ignore paths, and instruction
+count.
 
 ## Cost visibility
 

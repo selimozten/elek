@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   applyConfigDefaults,
+  formatConfigAuditLog,
   formatConfigPromptBlock,
   loadElekConfig,
   parseElekConfig,
@@ -87,6 +88,16 @@ ignore_paths: [dist/**, coverage/**]
     ]);
   });
 
+  it("warns and skips non-mapping yaml documents", () => {
+    const warnings: string[] = [];
+
+    expect(parseElekConfig("- not\n- a mapping\n", (message) => warnings.push(message))).toEqual({
+      ignorePaths: [],
+      instructions: [],
+    });
+    expect(warnings).toEqual(["Ignoring config because the top-level YAML value is not a mapping"]);
+  });
+
   it("supports standard YAML block scalars and array model lists", () => {
     const config = parseElekConfig(`
 review_models:
@@ -151,8 +162,10 @@ instructions:
     ]);
   });
 
-  it("treats none as disabling config loading", () => {
+  it("treats disable aliases as disabling config loading", () => {
     expect(loadElekConfig("none")).toEqual({ ignorePaths: [], instructions: [] });
+    expect(loadElekConfig("off")).toEqual({ ignorePaths: [], instructions: [] });
+    expect(loadElekConfig("false")).toEqual({ ignorePaths: [], instructions: [] });
   });
 
   it("returns empty config for missing or unreadable files", () => {
@@ -183,5 +196,26 @@ instructions:
       ignorePaths: [],
       instructions: ["Check cache invalidation."],
     });
+  });
+
+  it("formats an audit log for loaded config values", () => {
+    expect(formatConfigAuditLog(".elek.yml", {
+      reviewStrategy: "crosscheck",
+      reviewModels: "openrouter/model-a,deepseek/model-b",
+      validatorModel: "deepseek/model-b",
+      severityThreshold: "important",
+      costRates: "deepseek/model-b=1:2",
+      ignorePaths: ["docs/**"],
+      instructions: ["Treat migrations as operational risk."],
+    })).toBe(
+      "[config] loaded | path=.elek.yml | review_strategy=crosscheck | " +
+        "review_models=openrouter/model-a,deepseek/model-b | validator_model=deepseek/model-b | " +
+        "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
+        "ignore_paths=docs/** | instructions=1",
+    );
+
+    expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
+      "path=(disabled)",
+    );
   });
 });

@@ -136,6 +136,21 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
   };
 }
 
+export function formatConfigAuditLog(path: string, config: ElekConfig): string {
+  const disabled = !path.trim() || ["none", "off", "false"].includes(path.trim().toLowerCase());
+  return [
+    "[config] loaded",
+    `path=${disabled ? "(disabled)" : path}`,
+    `review_strategy=${config.reviewStrategy ?? "(unset)"}`,
+    `review_models=${config.reviewModels ?? "(unset)"}`,
+    `validator_model=${config.validatorModel ?? "(unset)"}`,
+    `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
+    `cost_rates=${config.costRates ?? "(unset)"}`,
+    `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
+    `instructions=${config.instructions.length}`,
+  ].join(" | ");
+}
+
 export function formatConfigPromptBlock(config: ElekConfig): string[] {
   const lines: string[] = [];
   if (config.severityThreshold) {

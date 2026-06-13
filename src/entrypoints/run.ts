@@ -21,7 +21,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
-import { applyConfigDefaults, loadElekConfig } from "../config.js";
+import { applyConfigDefaults, formatConfigAuditLog, loadElekConfig } from "../config.js";
 import { detectTrigger, isActorAllowed } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
@@ -69,6 +69,7 @@ async function run(): Promise<void> {
   const repoConfig = loadElekConfig(parsedInputs.configPath, (message) => {
     console.warn(`[config] ${message}`);
   });
+  console.log(formatConfigAuditLog(parsedInputs.configPath, repoConfig));
   const inputs = applyConfigDefaults(parsedInputs, repoConfig);
   const context = parseEntityContext();
 

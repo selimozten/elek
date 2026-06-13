@@ -79,7 +79,7 @@ inputs:
     required: false
     default: ""
   config_path:
-    description: "Repo-local elek config file path. Set to 'none' to disable. Default: .elek.yml"
+    description: "Repo-local elek config file path. Set to 'none', 'off', or 'false' to disable. Default: .elek.yml"
     required: false
     default: ".elek.yml"
   base_branch:
