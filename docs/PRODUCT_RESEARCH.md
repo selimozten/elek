@@ -45,7 +45,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - Zero-dependency `elek-init` setup helper that creates a starter workflow and
   repo review policy.
 - Machine-readable review summary JSON with run duration, model labels,
-  per-model cost, pricing source, and inline-comment posting counts.
+  per-model cost, pricing source, stable finding IDs, and inline-comment
+  posting counts.
 - Repo knowledge context through bounded `knowledge_paths`, with default
   loading for common project guidance files.
 - Model evaluation summary fields and `elek-eval` for scoring saved review
@@ -54,7 +55,11 @@ elek should not compete by becoming a general coding agent. The winning lane is:
   review summary artifacts.
 - `elek-analytics` for aggregating saved summary artifacts by strategy, model,
   or repository to compare cost, latency, findings, and inline comment health,
-  plus baseline/current trend comparison for regression checks.
+  finding acceptance/score feedback, plus baseline/current trend comparison for
+  regression checks.
+- `elek-feedback` for agent-native per-finding adjudication so the
+  implementation agent or maintainer can mark findings accepted, partial,
+  rejected, or unreviewed with a `0-5` usefulness score.
 - Finding validation gates that require a concrete failure path, reject
   contradicted or unverifiable claims, and tell validators to drop weak
   candidates instead of posting caveats.
@@ -63,8 +68,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 
 1. Benchmark fixture runner: create local seeded PR worktrees from a
    declarative suite so model comparisons can run end-to-end.
-2. Review feedback signals: track reviewer/user resolution and acceptance
-   once GitHub thread outcomes are available as first-class summary data.
+2. Community model leaderboard: publish anonymized aggregate feedback reports
+   so projects can compare model quality, cost, latency, and false positives.
 
 ## Model evaluation plan
 

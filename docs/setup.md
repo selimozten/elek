@@ -259,10 +259,23 @@ model labels, parsed findings, per-model token/cost estimates, pricing source,
 and inline comment counts. Upload that path as an artifact in your workflow
 when you want to compare model quality, speed, and cost across PRs.
 
+After the implementation agent or maintainer has handled the review, create a
+finding feedback file and merge it back into the saved summary:
+
+```bash
+npx --package github:selimozten/elek elek-feedback --template artifacts/pr-42/elek-review-summary.json > feedback.json
+npx --package github:selimozten/elek elek-feedback --apply feedback.json artifacts/pr-42/elek-review-summary.json > artifacts/pr-42/adjudicated-summary.json
+```
+
+Use `accepted`, `partial`, `rejected`, or `unreviewed` for each finding and a
+`0-5` point score. This is the agent-native quality signal: the agent doing the
+main code change can mark which findings were real, useful, or false positives,
+then analytics can compare models on accepted findings and average score.
+
 Aggregate saved summaries by strategy, model, or repository:
 
 ```bash
-npx --package github:selimozten/elek elek-analytics --group-by strategy artifacts/*/elek-review-summary.json
+npx --package github:selimozten/elek elek-analytics --group-by strategy artifacts/*/adjudicated-summary.json
 ```
 
 Compare a baseline artifact set against a current artifact set when you want

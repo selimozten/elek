@@ -189,6 +189,74 @@ describe("elek-analytics", () => {
     }
   });
 
+  it("aggregates finding feedback for model quality analytics", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-feedback-test-"));
+    try {
+      const deepseek = writeSummary(dir, "deepseek.json", {
+        findings: [
+          { title: "Accepted", feedback: { verdict: "accepted", points: 5 } },
+          { title: "Rejected", feedback: { verdict: "rejected", points: 0 } },
+        ],
+      });
+      const kimi = writeSummary(dir, "kimi.json", {
+        review: { executedStrategy: "crosscheck", finalModel: "openrouter/moonshotai/kimi-k2.7-code" },
+        findings: [
+          { title: "Useful but incomplete", feedback: { verdict: "partial", points: 3 } },
+          { title: "Not adjudicated", feedback: { verdict: "unreviewed", points: 0 } },
+        ],
+      });
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--group-by",
+        "model",
+        "--json",
+        deepseek,
+        kimi,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.groups).toEqual([
+        expect.objectContaining({
+          key: "deepseek/deepseek-v4-pro",
+          findings: 2,
+          reviewedFindings: 2,
+          acceptedFindings: 1,
+          partialFindings: 0,
+          rejectedFindings: 1,
+          acceptanceRate: 0.5,
+          feedbackPoints: 5,
+          avgFindingScore: 2.5,
+        }),
+        expect.objectContaining({
+          key: "openrouter/moonshotai/kimi-k2.7-code",
+          findings: 2,
+          reviewedFindings: 1,
+          acceptedFindings: 0,
+          partialFindings: 1,
+          rejectedFindings: 0,
+          acceptanceRate: 1,
+          feedbackPoints: 3,
+          avgFindingScore: 3,
+        }),
+      ]);
+      expect(report.totals).toMatchObject({
+        reviewedFindings: 3,
+        acceptedFindings: 1,
+        partialFindings: 1,
+        rejectedFindings: 1,
+        acceptanceRate: 0.667,
+        feedbackPoints: 8,
+        avgFindingScore: 2.667,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("handles partial summaries gracefully", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-partial-test-"));
     try {
@@ -316,6 +384,8 @@ describe("elek-analytics", () => {
       });
 
       expect(output).toContain("findings/run");
+      expect(output).toContain("accepted");
+      expect(output).toContain("score");
       expect(output).toContain("inline issues");
       expect(output).toContain("changes");
       expect(output).toContain("$0.002000 (+$0.001000)");

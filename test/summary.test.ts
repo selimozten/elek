@@ -123,6 +123,7 @@ describe("review summary", () => {
     });
     expect(summary.inlineComments).toEqual({ posted: 2, skipped: 1, failed: 0 });
     expect(summary.findings).toEqual([expect.objectContaining({
+      id: "missing-tenant-check",
       title: "Missing tenant check",
       severity: "critical",
       confidence: "high",

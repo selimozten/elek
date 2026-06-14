@@ -286,11 +286,24 @@ upload step when you want to compare models or review strategies across CI
 runs. If the runner cannot write the optional file, `review_summary_path` is
 set to an empty string while `review_summary_json` is still emitted.
 
+Adjudicate each finding after the implementation agent has handled the PR:
+
+```bash
+npx --package github:selimozten/elek elek-feedback --template artifacts/pr-42/elek-review-summary.json > feedback.json
+# Fill verdict/points per finding: accepted, partial, rejected, or unreviewed.
+npx --package github:selimozten/elek elek-feedback --apply feedback.json artifacts/pr-42/elek-review-summary.json > artifacts/pr-42/adjudicated-summary.json
+```
+
+Feedback is stored on each finding with a `0-5` score, evaluator, timestamp,
+and note. This lets humans or implementation agents mark whether a model's
+finding was accepted, partially useful, or rejected before analytics aggregates
+model quality.
+
 Aggregate saved summaries to compare strategies, models, repositories, cost,
 latency, findings, and inline comment outcomes:
 
 ```bash
-npx --package github:selimozten/elek elek-analytics --group-by model artifacts/*/elek-review-summary.json
+npx --package github:selimozten/elek elek-analytics --group-by model artifacts/*/adjudicated-summary.json
 ```
 
 Compare two saved artifact sets to spot regressions in success rate, finding
@@ -302,7 +315,8 @@ npx --package github:selimozten/elek elek-analytics --group-by model \
   --current artifacts/after/*/elek-review-summary.json
 ```
 
-Add `--json` to feed dashboards, release reports, or scheduled quality checks.
+Add `--json` to feed dashboards, release reports, scheduled quality checks, or
+community model-quality leaderboards.
 
 ## Model evaluation
 

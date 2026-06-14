@@ -90,10 +90,16 @@ function findingCount(summary) {
 
 function addSummary(group, summary) {
   const conclusion = clean(summary.run?.conclusion);
+  const feedback = findingFeedback(summary);
   group.runs++;
   if (conclusion === "success") group.successes++;
   else group.failures++;
   group.findings += findingCount(summary);
+  group.reviewedFindings += feedback.reviewed;
+  group.acceptedFindings += feedback.accepted;
+  group.partialFindings += feedback.partial;
+  group.rejectedFindings += feedback.rejected;
+  group.feedbackPoints += feedback.points;
   group.inlinePosted += normalizeNumber(summary.inlineComments?.posted);
   group.inlineSkipped += normalizeNumber(summary.inlineComments?.skipped);
   group.inlineFailed += normalizeNumber(summary.inlineComments?.failed);
@@ -101,6 +107,21 @@ function addSummary(group, summary) {
   group.inputTokens += normalizeNumber(summary.cost?.inputTokens);
   group.outputTokens += normalizeNumber(summary.cost?.outputTokens);
   group.durationSeconds += normalizeNumber(summary.run?.durationSeconds);
+}
+
+function findingFeedback(summary) {
+  const feedback = { reviewed: 0, accepted: 0, partial: 0, rejected: 0, points: 0 };
+  const findings = Array.isArray(summary.findings) ? summary.findings : [];
+  for (const finding of findings) {
+    const verdict = clean(finding.feedback?.verdict).toLowerCase();
+    if (!verdict || verdict === "unreviewed") continue;
+    feedback.reviewed++;
+    if (verdict === "accepted") feedback.accepted++;
+    else if (verdict === "partial") feedback.partial++;
+    else if (verdict === "rejected") feedback.rejected++;
+    feedback.points += normalizeNumber(finding.feedback?.points);
+  }
+  return feedback;
 }
 
 function aggregate(summaries, groupBy) {
@@ -139,6 +160,8 @@ function compareReports(baseline, current) {
         runs: after.runs - before.runs,
         successRate: round(after.successRate - before.successRate),
         findingsPerRun: round(after.findingsPerRun - before.findingsPerRun),
+        acceptanceRate: round(after.acceptanceRate - before.acceptanceRate),
+        avgFindingScore: round(after.avgFindingScore - before.avgFindingScore),
         inlineIssueRate: round(inlineIssueRate(after) - inlineIssueRate(before)),
         avgCostUsd: round(after.avgCostUsd - before.avgCostUsd, 6),
         avgDurationSeconds: round(after.avgDurationSeconds - before.avgDurationSeconds, 1),
@@ -167,6 +190,12 @@ function describeRegressions(delta, before, after) {
   }
   if (before.runs > 0 && after.runs > 0 && delta.inlineIssueRate >= 0.05) {
     regressions.push(`inline issue rate up ${formatPercent(delta.inlineIssueRate)}`);
+  }
+  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && delta.acceptanceRate <= -0.05) {
+    regressions.push(`finding acceptance down ${formatPercent(Math.abs(delta.acceptanceRate))}`);
+  }
+  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && delta.avgFindingScore <= -0.5) {
+    regressions.push(`average finding score down ${Math.abs(delta.avgFindingScore)}`);
   }
   if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
     regressions.push(`average latency up ${formatPlainSeconds(delta.avgDurationSeconds)}`);
@@ -199,6 +228,11 @@ function emptyGroup(key) {
     successes: 0,
     failures: 0,
     findings: 0,
+    reviewedFindings: 0,
+    acceptedFindings: 0,
+    partialFindings: 0,
+    rejectedFindings: 0,
+    feedbackPoints: 0,
     inlinePosted: 0,
     inlineSkipped: 0,
     inlineFailed: 0,
@@ -214,6 +248,11 @@ function addRow(total, row) {
   total.successes += row.successes;
   total.failures += row.failures;
   total.findings += row.findings;
+  total.reviewedFindings += row.reviewedFindings;
+  total.acceptedFindings += row.acceptedFindings;
+  total.partialFindings += row.partialFindings;
+  total.rejectedFindings += row.rejectedFindings;
+  total.feedbackPoints += row.feedbackPoints;
   total.inlinePosted += row.inlinePosted;
   total.inlineSkipped += row.inlineSkipped;
   total.inlineFailed += row.inlineFailed;
@@ -233,6 +272,13 @@ function finalizeGroup(group) {
     successRate: group.runs === 0 ? 0 : round(group.successes / group.runs),
     findings: group.findings,
     findingsPerRun: group.runs === 0 ? 0 : round(group.findings / group.runs),
+    reviewedFindings: group.reviewedFindings,
+    acceptedFindings: group.acceptedFindings,
+    partialFindings: group.partialFindings,
+    rejectedFindings: group.rejectedFindings,
+    acceptanceRate: group.reviewedFindings === 0 ? 0 : round((group.acceptedFindings + group.partialFindings) / group.reviewedFindings),
+    feedbackPoints: round(group.feedbackPoints),
+    avgFindingScore: group.reviewedFindings === 0 ? 0 : round(group.feedbackPoints / group.reviewedFindings),
     inlinePosted: group.inlinePosted,
     inlineSkipped: group.inlineSkipped,
     inlineFailed: group.inlineFailed,
@@ -279,12 +325,14 @@ function formatSignedUsd(value) {
 
 function printTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings", "posted/skip/fail", "cost", "avg cost", "avg secs"],
+    ["group", "runs", "success", "findings", "accepted", "score", "posted/skip/fail", "cost", "avg cost", "avg secs"],
     ...report.groups.map((group) => [
       group.key,
       String(group.runs),
       `${Math.round(group.successRate * 100)}%`,
       `${group.findings} (${group.findingsPerRun}/run)`,
+      `${group.acceptedFindings}+${group.partialFindings}/${group.reviewedFindings}`,
+      String(group.avgFindingScore),
       `${group.inlinePosted}/${group.inlineSkipped}/${group.inlineFailed}`,
       `$${group.costUsd.toFixed(6)}`,
       `$${group.avgCostUsd.toFixed(6)}`,
@@ -295,6 +343,8 @@ function printTable(report) {
       String(report.totals.runs),
       `${Math.round(report.totals.successRate * 100)}%`,
       `${report.totals.findings} (${report.totals.findingsPerRun}/run)`,
+      `${report.totals.acceptedFindings}+${report.totals.partialFindings}/${report.totals.reviewedFindings}`,
+      String(report.totals.avgFindingScore),
       `${report.totals.inlinePosted}/${report.totals.inlineSkipped}/${report.totals.inlineFailed}`,
       `$${report.totals.costUsd.toFixed(6)}`,
       `$${report.totals.avgCostUsd.toFixed(6)}`,
@@ -309,12 +359,14 @@ function printTable(report) {
 
 function printComparisonTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings/run", "inline issues", "avg cost", "avg secs", "changes"],
+    ["group", "runs", "success", "findings/run", "accepted", "score", "inline issues", "avg cost", "avg secs", "changes"],
     ...report.comparisons.map((item) => [
       item.key,
       `${item.baseline.runs}->${item.current.runs}`,
       `${Math.round(item.current.successRate * 100)}% (${formatSignedPercent(item.delta.successRate)})`,
       `${item.current.findingsPerRun} (${signedNumber(item.delta.findingsPerRun)})`,
+      `${Math.round(item.current.acceptanceRate * 100)}% (${formatSignedPercent(item.delta.acceptanceRate)})`,
+      `${item.current.avgFindingScore} (${signedNumber(item.delta.avgFindingScore)})`,
       `${Math.round(inlineIssueRate(item.current) * 100)}% (${formatSignedPercent(item.delta.inlineIssueRate)})`,
       `${formatUsd(item.current.avgCostUsd)} (${formatSignedUsd(item.delta.avgCostUsd)})`,
       `${item.current.avgDurationSeconds}s (${formatSeconds(item.delta.avgDurationSeconds)})`,
