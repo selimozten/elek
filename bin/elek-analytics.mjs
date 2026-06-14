@@ -117,7 +117,12 @@ function findingFeedback(summary) {
     if (!verdict || verdict === "unreviewed") continue;
     if (verdict !== "accepted" && verdict !== "partial" && verdict !== "rejected") continue;
     const points = normalizeFeedbackPoints(finding.feedback?.points);
-    if (points === null) continue;
+    if (points === null) {
+      process.stderr.write(
+        `elek-analytics: warning: finding "${findingLabel(finding)}" has invalid feedback points, skipping\n`,
+      );
+      continue;
+    }
     feedback.reviewed++;
     if (verdict === "accepted") feedback.accepted++;
     else if (verdict === "partial") feedback.partial++;
@@ -130,6 +135,10 @@ function findingFeedback(summary) {
 function normalizeFeedbackPoints(value) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= 5 ? number : null;
+}
+
+function findingLabel(finding) {
+  return clean(finding.id) || clean(finding.title) || "(unknown)";
 }
 
 function aggregate(summaries, groupBy) {

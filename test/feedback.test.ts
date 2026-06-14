@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { execFileSync, spawnSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
+import { parseReviewFindings } from "../src/review/findings";
 
 function writeSummary(dir: string) {
   const path = join(dir, "summary.json");
@@ -195,6 +196,50 @@ describe("elek-feedback", () => {
         "foo-1-1",
         "finding-4",
       ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps legacy feedback ids aligned with parsed review finding ids", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-parser-id-test-"));
+    try {
+      const review = `
+### Foo
+- Severity: minor
+- Evidence: a
+
+### Foo
+- Severity: minor
+- Evidence: b
+
+### Foo 1
+- Severity: minor
+- Evidence: c
+
+### !!!
+- Severity: minor
+- Evidence: d
+`;
+      const parsedIds = parseReviewFindings(review).map((finding) => finding.id);
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        findings: [
+          { title: "Foo" },
+          { title: "Foo" },
+          { title: "Foo 1" },
+          { title: "!!!" },
+        ],
+      }));
+
+      const output = execFileSync("node", ["bin/elek-feedback.mjs", "--template", summaryPath], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const feedback = JSON.parse(output);
+
+      expect(feedback.findings.map((finding) => finding.id)).toEqual(parsedIds);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -254,6 +254,33 @@ describe("elek-analytics", () => {
         feedbackPoints: 8,
         avgFindingScore: 2.667,
       });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when recognized feedback has invalid points", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-invalid-points-test-"));
+    try {
+      const summary = writeSummary(dir, "summary.json", {
+        findings: [
+          { id: "real-finding", title: "Real finding", feedback: { verdict: "accepted", points: "five" } },
+        ],
+      });
+
+      const result = spawnSync("node", [
+        "bin/elek-analytics.mjs",
+        "--json",
+        summary,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain('finding "real-finding" has invalid feedback points, skipping');
+      const report = JSON.parse(result.stdout);
+      expect(report.totals.reviewedFindings).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
