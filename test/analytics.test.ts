@@ -448,7 +448,7 @@ describe("elek-analytics", () => {
         baseline.push(writeSummary(dir, `baseline-${index}.json`, {
           run: { conclusion: "success", durationSeconds: 25 },
           inlineComments: { posted: 1, skipped: 0, failed: 0 },
-          findings: [{ title: "A" }],
+          findings: [{ title: "A", feedback: { verdict: "accepted", points: 5 } }],
           cost: { usd: 0.005, inputTokens: 1000, outputTokens: 100 },
         }));
         current.push(writeSummary(dir, `current-${index}.json`, {
@@ -456,7 +456,14 @@ describe("elek-analytics", () => {
           inlineComments: index === 0
             ? { posted: 0, skipped: 1, failed: 0 }
             : { posted: 1, skipped: 0, failed: 0 },
-          findings: [{ title: "A" }],
+          findings: [{
+            title: "A",
+            feedback: index === 0
+              ? { verdict: "rejected", points: 0 }
+              : index === 1
+                ? { verdict: "partial", points: 0 }
+                : { verdict: "accepted", points: 5 },
+          }],
           cost: { usd: 0.006, inputTokens: 1200, outputTokens: 120 },
         }));
       }
@@ -477,12 +484,16 @@ describe("elek-analytics", () => {
       expect(report.comparisons[0].delta).toMatchObject({
         successRate: -0.05,
         inlineIssueRate: 0.05,
+        acceptanceRate: -0.05,
+        avgFindingScore: -0.5,
         avgCostUsd: 0.001,
         avgDurationSeconds: 5,
       });
       expect(report.comparisons[0].regressions).toEqual([
         "success rate down 5 pts",
         "inline issue rate up 5 pts",
+        "finding acceptance down 5 pts",
+        "average finding score down 0.5",
         "average latency up 5s",
         "average cost up $0.001000",
       ]);

@@ -277,7 +277,7 @@ function finalizeGroup(group) {
     partialFindings: group.partialFindings,
     rejectedFindings: group.rejectedFindings,
     acceptanceRate: group.reviewedFindings === 0 ? 0 : round((group.acceptedFindings + group.partialFindings) / group.reviewedFindings),
-    feedbackPoints: round(group.feedbackPoints),
+    feedbackPoints: group.feedbackPoints,
     avgFindingScore: group.reviewedFindings === 0 ? 0 : round(group.feedbackPoints / group.reviewedFindings),
     inlinePosted: group.inlinePosted,
     inlineSkipped: group.inlineSkipped,

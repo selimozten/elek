@@ -51,6 +51,7 @@ export function parseReviewFindings(text: string): ParsedReviewFinding[] {
 }
 
 export function findingId(title: string, index: number): string {
+  // Keep slug rules in sync with bin/elek-feedback.mjs for old summaries without IDs.
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

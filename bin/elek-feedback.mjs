@@ -69,6 +69,7 @@ function findingsWithIds(summary) {
 function findingId(finding, index) {
   const existing = clean(finding.id);
   if (existing) return existing;
+  // Keep slug rules in sync with src/review/findings.ts for new summaries.
   const slug = clean(finding.title)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
