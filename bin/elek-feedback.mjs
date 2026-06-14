@@ -115,7 +115,7 @@ function template(summary) {
       generatedAt: summary.generatedAt ?? "",
     },
     evaluator: "",
-    evaluatedAt: new Date().toISOString(),
+    evaluatedAt: "",
     scale: {
       points: "0-5",
       guidance: "5 accepted high-value finding, 3 partial/useful but incomplete, 0 rejected or not actionable",
@@ -159,7 +159,7 @@ function applyFeedback(summary, feedback) {
       return {
         ...finding,
         id,
-        feedback: entry ? normalizeFeedback(entry, evaluator, evaluatedAt) : finding.feedback,
+        feedback: entry ? normalizeFeedback(entry, evaluator, evaluatedAt) : emptyFeedback(),
       };
     }),
   };
@@ -170,6 +170,16 @@ function applyFeedback(summary, feedback) {
     }
   }
   return output;
+}
+
+function emptyFeedback() {
+  return {
+    verdict: "unreviewed",
+    points: 0,
+    evaluator: "",
+    evaluatedAt: "",
+    note: "",
+  };
 }
 
 function normalizeFeedback(entry, evaluator, evaluatedAt) {

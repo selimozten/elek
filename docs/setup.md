@@ -271,7 +271,8 @@ Use `accepted`, `partial`, `rejected`, or `unreviewed` for each finding and a
 `0-5` integer point score. This is the agent-native quality signal: the agent
 doing the main code change can mark which findings were real, useful, or false
 positives, then analytics can compare models on accepted findings and average
-score.
+score. Applying feedback is a replacement step: findings omitted from the
+feedback file are reset to `unreviewed`.
 
 Aggregate saved summaries by strategy, model, or repository:
 

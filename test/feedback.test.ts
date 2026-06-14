@@ -120,6 +120,55 @@ describe("elek-feedback", () => {
     }
   });
 
+  it("resets omitted findings when applying replacement feedback", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-replace-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        findings: [
+          { id: "kept", title: "Kept" },
+          {
+            id: "omitted",
+            title: "Omitted",
+            feedback: {
+              verdict: "accepted",
+              points: 5,
+              evaluator: "old-agent",
+              evaluatedAt: "2026-06-13T10:00:00Z",
+              note: "stale",
+            },
+          },
+        ],
+      }));
+      const feedbackPath = join(dir, "feedback.json");
+      writeFileSync(feedbackPath, JSON.stringify({
+        findings: [{ id: "kept", verdict: "accepted", points: 5 }],
+      }));
+
+      const output = execFileSync("node", [
+        "bin/elek-feedback.mjs",
+        "--apply",
+        feedbackPath,
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const summary = JSON.parse(output);
+
+      expect(summary.findings[1].feedback).toEqual({
+        verdict: "unreviewed",
+        points: 0,
+        evaluator: "",
+        evaluatedAt: "",
+        note: "",
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("deduplicates generated feedback ids for repeated and colliding finding titles", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-id-test-"));
     try {

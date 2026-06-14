@@ -116,13 +116,20 @@ function findingFeedback(summary) {
     const verdict = clean(finding.feedback?.verdict).toLowerCase();
     if (!verdict || verdict === "unreviewed") continue;
     if (verdict !== "accepted" && verdict !== "partial" && verdict !== "rejected") continue;
+    const points = normalizeFeedbackPoints(finding.feedback?.points);
+    if (points === null) continue;
     feedback.reviewed++;
     if (verdict === "accepted") feedback.accepted++;
     else if (verdict === "partial") feedback.partial++;
     else feedback.rejected++;
-    feedback.points += normalizeNumber(finding.feedback?.points);
+    feedback.points += points;
   }
   return feedback;
+}
+
+function normalizeFeedbackPoints(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 && number <= 5 ? number : null;
 }
 
 function aggregate(summaries, groupBy) {
@@ -192,11 +199,13 @@ function describeRegressions(delta, before, after) {
   if (before.runs > 0 && after.runs > 0 && delta.inlineIssueRate >= 0.05) {
     regressions.push(`inline issue rate up ${formatPercent(delta.inlineIssueRate)}`);
   }
-  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && delta.acceptanceRate <= -0.05) {
-    regressions.push(`finding acceptance down ${formatPercent(Math.abs(delta.acceptanceRate))}`);
+  const rawAcceptanceDelta = acceptanceRate(after) - acceptanceRate(before);
+  const rawScoreDelta = avgFindingScore(after) - avgFindingScore(before);
+  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && rawAcceptanceDelta <= -0.05) {
+    regressions.push(`finding acceptance down ${formatPercent(Math.abs(rawAcceptanceDelta))}`);
   }
-  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && delta.avgFindingScore <= -0.5) {
-    regressions.push(`average finding score down ${Math.abs(delta.avgFindingScore)}`);
+  if (before.reviewedFindings > 0 && after.reviewedFindings > 0 && rawScoreDelta <= -0.5) {
+    regressions.push(`average finding score down ${round(Math.abs(rawScoreDelta))}`);
   }
   if (before.runs > 0 && after.runs > 0 && meaningfulIncrease(before.avgDurationSeconds, after.avgDurationSeconds, 5, 0.2)) {
     regressions.push(`average latency up ${formatPlainSeconds(delta.avgDurationSeconds)}`);
@@ -205,6 +214,16 @@ function describeRegressions(delta, before, after) {
     regressions.push(`average cost up ${formatUsd(Math.abs(delta.avgCostUsd))}`);
   }
   return regressions;
+}
+
+function acceptanceRate(group) {
+  return group.reviewedFindings === 0
+    ? 0
+    : (group.acceptedFindings + group.partialFindings) / group.reviewedFindings;
+}
+
+function avgFindingScore(group) {
+  return group.reviewedFindings === 0 ? 0 : group.feedbackPoints / group.reviewedFindings;
 }
 
 function describeNotableChanges(delta, before, after) {
@@ -326,7 +345,7 @@ function formatSignedUsd(value) {
 
 function printTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings", "accepted", "score", "posted/skip/fail", "cost", "avg cost", "avg secs"],
+    ["group", "runs", "success", "findings", "accept+partial", "score", "posted/skip/fail", "cost", "avg cost", "avg secs"],
     ...report.groups.map((group) => [
       group.key,
       String(group.runs),
@@ -360,7 +379,7 @@ function printTable(report) {
 
 function printComparisonTable(report) {
   const rows = [
-    ["group", "runs", "success", "findings/run", "accepted", "score", "inline issues", "avg cost", "avg secs", "changes"],
+    ["group", "runs", "success", "findings/run", "accept+partial", "score", "inline issues", "avg cost", "avg secs", "changes"],
     ...report.comparisons.map((item) => [
       item.key,
       `${item.baseline.runs}->${item.current.runs}`,

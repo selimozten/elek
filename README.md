@@ -297,7 +297,8 @@ npx --package github:selimozten/elek elek-feedback --apply feedback.json artifac
 Feedback is stored on each finding with a `0-5` integer score, evaluator,
 timestamp, and note. This lets humans or implementation agents mark whether a
 model's finding was accepted, partially useful, or rejected before analytics
-aggregates model quality.
+aggregates model quality. Applying feedback is a replacement step: findings
+omitted from the feedback file are reset to `unreviewed`.
 
 Aggregate saved summaries to compare strategies, models, repositories, cost,
 latency, findings, and inline comment outcomes:
