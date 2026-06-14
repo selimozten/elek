@@ -285,8 +285,8 @@ to catch trend regressions before changing default models or strategies:
 
 ```bash
 npx --package github:selimozten/elek elek-analytics --group-by model \
-  --baseline artifacts/before/*/elek-review-summary.json \
-  --current artifacts/after/*/elek-review-summary.json
+  --baseline artifacts/before/*/adjudicated-summary.json \
+  --current artifacts/after/*/adjudicated-summary.json
 ```
 
 Use `--json` when sending aggregate or comparison reports to dashboards,
