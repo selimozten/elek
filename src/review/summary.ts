@@ -1,7 +1,7 @@
 import type { GitHubEntityContext, PiRunResult } from "../types.js";
 import type { ReviewCost, ReviewCostTotal } from "./cost.js";
 import type { PostSummary } from "../entrypoints/post-buffered.js";
-import type { ParsedReviewFinding } from "./findings.js";
+import { uniqueFindingId, type ParsedReviewFinding } from "./findings.js";
 
 export interface ReviewRunMetric {
   role: "reviewer" | "validator";
@@ -60,6 +60,7 @@ export function metricFromPiRun(
 
 export function buildReviewSummary(input: ReviewSummaryInput) {
   const entityType = input.context.isPR ? "pull_request" : "issue";
+  const usedFindingIds = new Set<string>();
   return {
     version: 1,
     generatedAt: input.finishedAt.toISOString(),
@@ -94,7 +95,10 @@ export function buildReviewSummary(input: ReviewSummaryInput) {
       skipped: input.inlineComments.skipped,
       failed: input.inlineComments.failed,
     },
-    findings: input.findings ?? [],
+    findings: (input.findings ?? []).map((finding, index) => ({
+      ...finding,
+      id: uniqueFindingId(finding.title, index, usedFindingIds, finding.id),
+    })),
     cost: {
       usd: roundUsd(input.costTotal.costUsd),
       inputTokens: input.costTotal.inputTokens,

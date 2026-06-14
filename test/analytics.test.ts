@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -189,6 +189,103 @@ describe("elek-analytics", () => {
     }
   });
 
+  it("aggregates finding feedback for model quality analytics", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-feedback-test-"));
+    try {
+      const deepseek = writeSummary(dir, "deepseek.json", {
+        findings: [
+          { title: "Accepted", feedback: { verdict: "accepted", points: 5 } },
+          { title: "Rejected", feedback: { verdict: "rejected", points: 0 } },
+          { title: "Typo verdict", feedback: { verdict: "accepeted", points: 5 } },
+          { title: "Invalid score", feedback: { verdict: "accepted", points: -1 } },
+        ],
+      });
+      const kimi = writeSummary(dir, "kimi.json", {
+        review: { executedStrategy: "crosscheck", finalModel: "openrouter/moonshotai/kimi-k2.7-code" },
+        findings: [
+          { title: "Useful but incomplete", feedback: { verdict: "partial", points: 3 } },
+          { title: "Not adjudicated", feedback: { verdict: "unreviewed", points: 0 } },
+        ],
+      });
+
+      const output = execFileSync("node", [
+        "bin/elek-analytics.mjs",
+        "--group-by",
+        "model",
+        "--json",
+        deepseek,
+        kimi,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const report = JSON.parse(output);
+
+      expect(report.groups).toEqual([
+        expect.objectContaining({
+          key: "deepseek/deepseek-v4-pro",
+          findings: 4,
+          reviewedFindings: 2,
+          acceptedFindings: 1,
+          partialFindings: 0,
+          rejectedFindings: 1,
+          acceptanceRate: 0.5,
+          feedbackPoints: 5,
+          avgFindingScore: 2.5,
+        }),
+        expect.objectContaining({
+          key: "openrouter/moonshotai/kimi-k2.7-code",
+          findings: 2,
+          reviewedFindings: 1,
+          acceptedFindings: 0,
+          partialFindings: 1,
+          rejectedFindings: 0,
+          acceptanceRate: 1,
+          feedbackPoints: 3,
+          avgFindingScore: 3,
+        }),
+      ]);
+      expect(report.totals).toMatchObject({
+        reviewedFindings: 3,
+        acceptedFindings: 1,
+        partialFindings: 1,
+        rejectedFindings: 1,
+        acceptanceRate: 0.667,
+        feedbackPoints: 8,
+        avgFindingScore: 2.667,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when recognized feedback has invalid points", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-invalid-points-test-"));
+    try {
+      const summary = writeSummary(dir, "summary.json", {
+        findings: [
+          { id: "real-finding", title: "Real finding", feedback: { verdict: "accepted", points: "five" } },
+        ],
+      });
+
+      const result = spawnSync("node", [
+        "bin/elek-analytics.mjs",
+        "--json",
+        summary,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain('finding "real-finding" has invalid feedback points, skipping');
+      const report = JSON.parse(result.stdout);
+      expect(report.totals.reviewedFindings).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("handles partial summaries gracefully", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-analytics-partial-test-"));
     try {
@@ -316,6 +413,8 @@ describe("elek-analytics", () => {
       });
 
       expect(output).toContain("findings/run");
+      expect(output).toContain("accept+partial");
+      expect(output).toContain("score");
       expect(output).toContain("inline issues");
       expect(output).toContain("changes");
       expect(output).toContain("$0.002000 (+$0.001000)");
@@ -378,7 +477,7 @@ describe("elek-analytics", () => {
         baseline.push(writeSummary(dir, `baseline-${index}.json`, {
           run: { conclusion: "success", durationSeconds: 25 },
           inlineComments: { posted: 1, skipped: 0, failed: 0 },
-          findings: [{ title: "A" }],
+          findings: [{ title: "A", feedback: { verdict: "accepted", points: 5 } }],
           cost: { usd: 0.005, inputTokens: 1000, outputTokens: 100 },
         }));
         current.push(writeSummary(dir, `current-${index}.json`, {
@@ -386,7 +485,14 @@ describe("elek-analytics", () => {
           inlineComments: index === 0
             ? { posted: 0, skipped: 1, failed: 0 }
             : { posted: 1, skipped: 0, failed: 0 },
-          findings: [{ title: "A" }],
+          findings: [{
+            title: "A",
+            feedback: index === 0
+              ? { verdict: "rejected", points: 0 }
+              : index === 1
+                ? { verdict: "partial", points: 0 }
+                : { verdict: "accepted", points: 5 },
+          }],
           cost: { usd: 0.006, inputTokens: 1200, outputTokens: 120 },
         }));
       }
@@ -407,12 +513,16 @@ describe("elek-analytics", () => {
       expect(report.comparisons[0].delta).toMatchObject({
         successRate: -0.05,
         inlineIssueRate: 0.05,
+        acceptanceRate: -0.05,
+        avgFindingScore: -0.5,
         avgCostUsd: 0.001,
         avgDurationSeconds: 5,
       });
       expect(report.comparisons[0].regressions).toEqual([
         "success rate down 5 pts",
         "inline issue rate up 5 pts",
+        "finding acceptance down 5 pts",
+        "average finding score down 0.5",
         "average latency up 5s",
         "average cost up $0.001000",
       ]);

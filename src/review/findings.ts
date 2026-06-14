@@ -1,4 +1,5 @@
 export interface ParsedReviewFinding {
+  id?: string;
   title: string;
   severity: "critical" | "important" | "minor" | "unknown";
   confidence: "high" | "medium" | "unknown";
@@ -17,6 +18,7 @@ const SECTION_OR_FINDING_HEADING = /^#{2,3}\s+/m;
 export function parseReviewFindings(text: string): ParsedReviewFinding[] {
   const headings = [...text.matchAll(FINDING_HEADING)];
   const findings: ParsedReviewFinding[] = [];
+  const usedIds = new Set<string>();
 
   for (let index = 0; index < headings.length; index++) {
     const heading = headings[index];
@@ -32,6 +34,7 @@ export function parseReviewFindings(text: string): ParsedReviewFinding[] {
     }
 
     findings.push({
+      id: uniqueFindingId(title, findings.length, usedIds),
       title,
       severity: severityValue(fields.severity),
       confidence: confidenceValue(fields.confidence),
@@ -45,6 +48,37 @@ export function parseReviewFindings(text: string): ParsedReviewFinding[] {
   }
 
   return findings;
+}
+
+export function findingId(title: string, index: number): string {
+  // Keep slug rules in sync with bin/elek-feedback.mjs for old summaries without IDs.
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return slug || `finding-${index + 1}`;
+}
+
+export function uniqueFindingId(
+  title: string,
+  index: number,
+  usedIds: Set<string>,
+  preferredId = "",
+): string {
+  const baseId = preferredId.trim() || findingId(title, index);
+  if (!usedIds.has(baseId)) {
+    usedIds.add(baseId);
+    return baseId;
+  }
+  let count = 1;
+  let candidate = `${baseId}-${count}`;
+  while (usedIds.has(candidate)) {
+    count++;
+    candidate = `${baseId}-${count}`;
+  }
+  usedIds.add(candidate);
+  return candidate;
 }
 
 function fieldsFromFindingBody(body: string): Record<string, string> {

@@ -30,6 +30,7 @@ This paragraph has no review contract fields.
 
     expect(findings).toHaveLength(2);
     expect(findings[0]).toMatchObject({
+      id: "missing-tenant-check",
       title: "Missing tenant check",
       severity: "critical",
       confidence: "high",
@@ -40,11 +41,39 @@ This paragraph has no review contract fields.
       fix: "reject mismatched tenant ids before querying",
     });
     expect(findings[1]).toMatchObject({
+      id: "weak-cache-cleanup",
       title: "Weak cache cleanup",
       severity: "minor",
       confidence: "medium",
       path: "body-only",
     });
+  });
+
+  it("assigns stable unique ids to findings", () => {
+    const findings = parseReviewFindings(`
+### Foo
+- Severity: minor
+- Evidence: a
+
+### Foo
+- Severity: minor
+- Evidence: b
+
+### Foo 1
+- Severity: minor
+- Evidence: c
+
+### !!!
+- Severity: minor
+- Evidence: d
+`);
+
+    expect(findings.map((finding) => finding.id)).toEqual([
+      "foo",
+      "foo-1",
+      "foo-1-1",
+      "finding-4",
+    ]);
   });
 
   it("keeps unknown enum values explicit instead of throwing", () => {

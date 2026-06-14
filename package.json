@@ -19,6 +19,7 @@
     "elek-analytics": "./bin/elek-analytics.mjs",
     "elek-benchmark": "./bin/elek-benchmark.mjs",
     "elek-eval": "./bin/elek-eval.mjs",
+    "elek-feedback": "./bin/elek-feedback.mjs",
     "elek-init": "./bin/elek-init.mjs"
   },
   "dependencies": {
