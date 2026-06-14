@@ -268,9 +268,10 @@ npx --package github:selimozten/elek elek-feedback --apply feedback.json artifac
 ```
 
 Use `accepted`, `partial`, `rejected`, or `unreviewed` for each finding and a
-`0-5` point score. This is the agent-native quality signal: the agent doing the
-main code change can mark which findings were real, useful, or false positives,
-then analytics can compare models on accepted findings and average score.
+`0-5` integer point score. This is the agent-native quality signal: the agent
+doing the main code change can mark which findings were real, useful, or false
+positives, then analytics can compare models on accepted findings and average
+score.
 
 Aggregate saved summaries by strategy, model, or repository:
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -120,15 +120,16 @@ describe("elek-feedback", () => {
     }
   });
 
-  it("deduplicates generated feedback ids for repeated finding titles", () => {
+  it("deduplicates generated feedback ids for repeated and colliding finding titles", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-id-test-"));
     try {
       const summaryPath = join(dir, "summary.json");
       writeFileSync(summaryPath, JSON.stringify({
         version: 1,
         findings: [
-          { title: "Repeated issue" },
-          { title: "Repeated issue" },
+          { title: "Foo" },
+          { title: "Foo" },
+          { title: "Foo 1" },
           { title: "" },
         ],
       }));
@@ -140,9 +141,10 @@ describe("elek-feedback", () => {
       const feedback = JSON.parse(output);
 
       expect(feedback.findings.map((finding) => finding.id)).toEqual([
-        "repeated-issue",
-        "repeated-issue-1",
-        "finding-3",
+        "foo",
+        "foo-1",
+        "foo-1-1",
+        "finding-4",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -170,7 +172,7 @@ describe("elek-feedback", () => {
 
       const invalidScore = join(dir, "invalid-score.json");
       writeFileSync(invalidScore, JSON.stringify({
-        findings: [{ id: "tenant-bypass", verdict: "accepted", points: 6 }],
+        findings: [{ id: "tenant-bypass", verdict: "accepted", points: 2.5 }],
       }));
       expect(() => execFileSync("node", [
         "bin/elek-feedback.mjs",
@@ -181,7 +183,36 @@ describe("elek-feedback", () => {
         cwd: process.cwd(),
         encoding: "utf8",
         stdio: "pipe",
-      })).toThrow("points must be between 0 and 5");
+      })).toThrow("points must be an integer between 0 and 5");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when feedback references an unknown finding id", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-unmatched-test-"));
+    try {
+      const summaryPath = writeSummary(dir);
+      const feedbackPath = join(dir, "feedback.json");
+      writeFileSync(feedbackPath, JSON.stringify({
+        findings: [
+          { id: "tenant-bypass", verdict: "accepted", points: 5 },
+          { id: "typo-id", verdict: "rejected", points: 0 },
+        ],
+      }));
+
+      const result = spawnSync("node", [
+        "bin/elek-feedback.mjs",
+        "--apply",
+        feedbackPath,
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain("typo-id");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -18,7 +18,7 @@ const SECTION_OR_FINDING_HEADING = /^#{2,3}\s+/m;
 export function parseReviewFindings(text: string): ParsedReviewFinding[] {
   const headings = [...text.matchAll(FINDING_HEADING)];
   const findings: ParsedReviewFinding[] = [];
-  const usedIds = new Map<string, number>();
+  const usedIds = new Set<string>();
 
   for (let index = 0; index < headings.length; index++) {
     const heading = headings[index];
@@ -59,11 +59,20 @@ export function findingId(title: string, index: number): string {
   return slug || `finding-${index + 1}`;
 }
 
-export function uniqueFindingId(title: string, index: number, usedIds: Map<string, number>): string {
+export function uniqueFindingId(title: string, index: number, usedIds: Set<string>): string {
   const baseId = findingId(title, index);
-  const count = usedIds.get(baseId) ?? 0;
-  usedIds.set(baseId, count + 1);
-  return count === 0 ? baseId : `${baseId}-${count}`;
+  if (!usedIds.has(baseId)) {
+    usedIds.add(baseId);
+    return baseId;
+  }
+  let count = 1;
+  let candidate = `${baseId}-${count}`;
+  while (usedIds.has(candidate)) {
+    count++;
+    candidate = `${baseId}-${count}`;
+  }
+  usedIds.add(candidate);
+  return candidate;
 }
 
 function fieldsFromFindingBody(body: string): Record<string, string> {

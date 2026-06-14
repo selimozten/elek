@@ -294,10 +294,10 @@ npx --package github:selimozten/elek elek-feedback --template artifacts/pr-42/el
 npx --package github:selimozten/elek elek-feedback --apply feedback.json artifacts/pr-42/elek-review-summary.json > artifacts/pr-42/adjudicated-summary.json
 ```
 
-Feedback is stored on each finding with a `0-5` score, evaluator, timestamp,
-and note. This lets humans or implementation agents mark whether a model's
-finding was accepted, partially useful, or rejected before analytics aggregates
-model quality.
+Feedback is stored on each finding with a `0-5` integer score, evaluator,
+timestamp, and note. This lets humans or implementation agents mark whether a
+model's finding was accepted, partially useful, or rejected before analytics
+aggregates model quality.
 
 Aggregate saved summaries to compare strategies, models, repositories, cost,
 latency, findings, and inline comment outcomes:
@@ -311,8 +311,8 @@ volume, inline comment health, latency, and cost:
 
 ```bash
 npx --package github:selimozten/elek elek-analytics --group-by model \
-  --baseline artifacts/before/*/elek-review-summary.json \
-  --current artifacts/after/*/elek-review-summary.json
+  --baseline artifacts/before/*/adjudicated-summary.json \
+  --current artifacts/after/*/adjudicated-summary.json
 ```
 
 Add `--json` to feed dashboards, release reports, scheduled quality checks, or

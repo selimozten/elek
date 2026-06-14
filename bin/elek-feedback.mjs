@@ -59,7 +59,7 @@ function summaryFindings(summary) {
 }
 
 function findingsWithIds(summary) {
-  const usedIds = new Map();
+  const usedIds = new Set();
   return summaryFindings(summary).map((finding, index) => ({
     finding,
     id: uniqueFindingId(finding, index, usedIds),
@@ -79,9 +79,18 @@ function findingId(finding, index) {
 
 function uniqueFindingId(finding, index, usedIds) {
   const baseId = findingId(finding, index);
-  const count = usedIds.get(baseId) ?? 0;
-  usedIds.set(baseId, count + 1);
-  return count === 0 ? baseId : `${baseId}-${count}`;
+  if (!usedIds.has(baseId)) {
+    usedIds.add(baseId);
+    return baseId;
+  }
+  let count = 1;
+  let candidate = `${baseId}-${count}`;
+  while (usedIds.has(candidate)) {
+    count++;
+    candidate = `${baseId}-${count}`;
+  }
+  usedIds.add(candidate);
+  return candidate;
 }
 
 function clean(value) {
@@ -122,12 +131,14 @@ function template(summary) {
 function applyFeedback(summary, feedback) {
   const entries = Array.isArray(feedback.findings) ? feedback.findings : [];
   const feedbackById = new Map(entries.map((entry) => [clean(entry.id), entry]).filter(([id]) => id));
+  const matchedIds = new Set();
   const evaluator = clean(feedback.evaluator);
   const evaluatedAt = clean(feedback.evaluatedAt) || new Date().toISOString();
-  return {
+  const output = {
     ...summary,
     findings: findingsWithIds(summary).map(({ finding, id }) => {
       const entry = feedbackById.get(id);
+      if (entry) matchedIds.add(id);
       return {
         ...finding,
         id,
@@ -135,6 +146,13 @@ function applyFeedback(summary, feedback) {
       };
     }),
   };
+  for (const entry of entries) {
+    const id = clean(entry.id);
+    if (id && !matchedIds.has(id)) {
+      process.stderr.write(`elek-feedback: warning: finding "${id}" not found in summary, skipping\n`);
+    }
+  }
+  return output;
 }
 
 function normalizeFeedback(entry, evaluator, evaluatedAt) {
@@ -143,21 +161,16 @@ function normalizeFeedback(entry, evaluator, evaluatedAt) {
     throw new Error(`finding ${clean(entry.id) || "(unknown)"} has invalid verdict: ${entry.verdict}`);
   }
   const points = Number(entry.points);
-  if (!Number.isFinite(points) || points < 0 || points > 5) {
-    throw new Error(`finding ${clean(entry.id) || "(unknown)"} points must be between 0 and 5`);
+  if (!Number.isInteger(points) || points < 0 || points > 5) {
+    throw new Error(`finding ${clean(entry.id) || "(unknown)"} points must be an integer between 0 and 5`);
   }
   return {
     verdict,
-    points: round(points),
+    points,
     evaluator,
     evaluatedAt,
     note: clean(entry.note),
   };
-}
-
-function round(value, digits = 3) {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
 }
 
 try {

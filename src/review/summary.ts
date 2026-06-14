@@ -60,7 +60,7 @@ export function metricFromPiRun(
 
 export function buildReviewSummary(input: ReviewSummaryInput) {
   const entityType = input.context.isPR ? "pull_request" : "issue";
-  const usedFindingIds = new Map<string, number>();
+  const usedFindingIds = new Set<string>();
   return {
     version: 1,
     generatedAt: input.finishedAt.toISOString(),
