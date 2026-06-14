@@ -115,10 +115,11 @@ function findingFeedback(summary) {
   for (const finding of findings) {
     const verdict = clean(finding.feedback?.verdict).toLowerCase();
     if (!verdict || verdict === "unreviewed") continue;
+    if (verdict !== "accepted" && verdict !== "partial" && verdict !== "rejected") continue;
     feedback.reviewed++;
     if (verdict === "accepted") feedback.accepted++;
     else if (verdict === "partial") feedback.partial++;
-    else if (verdict === "rejected") feedback.rejected++;
+    else feedback.rejected++;
     feedback.points += normalizeNumber(finding.feedback?.points);
   }
   return feedback;

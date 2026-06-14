@@ -271,6 +271,39 @@ describe("review summary", () => {
     expect(summary.cost.usd).toBe(0.00012);
   });
 
+  it("deduplicates existing and generated finding ids", () => {
+    const validator = piResult();
+    const summary = buildReviewSummary({
+      context,
+      runId: "127",
+      jobRunLink: "https://github.com/acme/app/actions/runs/127",
+      conclusion: "success",
+      mode: "review",
+      requestedStrategy: "",
+      executedStrategy: "solo",
+      primaryModelLabel: "deepseek/deepseek-v4-pro",
+      finalModelLabel: "deepseek/deepseek-v4-pro",
+      startedAt: new Date("2026-06-13T10:00:00Z"),
+      finishedAt: new Date("2026-06-13T10:00:01.000Z"),
+      inlineComments: { posted: 0, skipped: 0, failed: 0 },
+      costTotal: aggregateCosts([{
+        inputTokens: validator.usage.inputTokens,
+        outputTokens: validator.usage.outputTokens,
+        costUsd: validator.costUsd,
+        estimated: validator.usage.estimated,
+        modelLabel: validator.usage.modelLabel,
+        source: validator.usage.source,
+      }]),
+      runs: [metricFromPiRun(validator, "validator")],
+      findings: [
+        { id: "foo", title: "Existing", severity: "minor", confidence: "medium", path: "", line: "", evidence: "", impact: "", fix: "", body: "" },
+        { title: "Foo", severity: "minor", confidence: "medium", path: "", line: "", evidence: "", impact: "", fix: "", body: "" },
+      ],
+    });
+
+    expect(summary.findings.map((finding) => finding.id)).toEqual(["foo", "foo-1"]);
+  });
+
   it("clamps and rounds duration and cost boundary values", () => {
     const first = piResult({ durationSeconds: -1, costUsd: -1 });
     const second = piResult({ durationSeconds: 0.05, costUsd: 0.0000005 });

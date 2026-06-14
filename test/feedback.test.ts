@@ -218,6 +218,67 @@ describe("elek-feedback", () => {
     }
   });
 
+  it("warns on duplicate feedback ids and uses the last entry", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-duplicate-test-"));
+    try {
+      const summaryPath = writeSummary(dir);
+      const feedbackPath = join(dir, "feedback.json");
+      writeFileSync(feedbackPath, JSON.stringify({
+        findings: [
+          { id: "tenant-bypass", verdict: "rejected", points: 0 },
+          { id: "tenant-bypass", verdict: "accepted", points: 5 },
+        ],
+      }));
+
+      const result = spawnSync("node", [
+        "bin/elek-feedback.mjs",
+        "--apply",
+        feedbackPath,
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const summary = JSON.parse(result.stdout);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain("duplicate feedback id \"tenant-bypass\"");
+      expect(summary.findings[0].feedback).toMatchObject({ verdict: "accepted", points: 5 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("matches numeric feedback ids after string normalization", () => {
+    const dir = mkdtempSync(join(process.cwd(), ".elek-feedback-numeric-id-test-"));
+    try {
+      const summaryPath = join(dir, "summary.json");
+      writeFileSync(summaryPath, JSON.stringify({
+        version: 1,
+        findings: [{ id: "123", title: "Numeric id" }],
+      }));
+      const feedbackPath = join(dir, "feedback.json");
+      writeFileSync(feedbackPath, JSON.stringify({
+        findings: [{ id: 123, verdict: "accepted", points: 5 }],
+      }));
+
+      const output = execFileSync("node", [
+        "bin/elek-feedback.mjs",
+        "--apply",
+        feedbackPath,
+        summaryPath,
+      ], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const summary = JSON.parse(output);
+
+      expect(summary.findings[0].feedback).toMatchObject({ verdict: "accepted", points: 5 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("prints feedback help", () => {
     const output = execFileSync("node", ["bin/elek-feedback.mjs", "--help"], {
       cwd: process.cwd(),

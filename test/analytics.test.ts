@@ -196,6 +196,7 @@ describe("elek-analytics", () => {
         findings: [
           { title: "Accepted", feedback: { verdict: "accepted", points: 5 } },
           { title: "Rejected", feedback: { verdict: "rejected", points: 0 } },
+          { title: "Typo verdict", feedback: { verdict: "accepeted", points: 5 } },
         ],
       });
       const kimi = writeSummary(dir, "kimi.json", {
@@ -222,7 +223,7 @@ describe("elek-analytics", () => {
       expect(report.groups).toEqual([
         expect.objectContaining({
           key: "deepseek/deepseek-v4-pro",
-          findings: 2,
+          findings: 3,
           reviewedFindings: 2,
           acceptedFindings: 1,
           partialFindings: 0,

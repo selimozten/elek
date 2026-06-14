@@ -67,7 +67,7 @@ function findingsWithIds(summary) {
 }
 
 function findingId(finding, index) {
-  const existing = clean(finding.id);
+  const existing = cleanId(finding.id);
   if (existing) return existing;
   // Keep slug rules in sync with src/review/findings.ts for new summaries.
   const slug = clean(finding.title)
@@ -96,6 +96,11 @@ function uniqueFindingId(finding, index, usedIds) {
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanId(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
 }
 
 function template(summary) {
@@ -131,7 +136,18 @@ function template(summary) {
 
 function applyFeedback(summary, feedback) {
   const entries = Array.isArray(feedback.findings) ? feedback.findings : [];
-  const feedbackById = new Map(entries.map((entry) => [clean(entry.id), entry]).filter(([id]) => id));
+  const feedbackById = new Map();
+  for (const entry of entries) {
+    const id = cleanId(entry.id);
+    if (!id) {
+      process.stderr.write("elek-feedback: warning: feedback entry missing id, skipping\n");
+      continue;
+    }
+    if (feedbackById.has(id)) {
+      process.stderr.write(`elek-feedback: warning: duplicate feedback id "${id}", using last entry\n`);
+    }
+    feedbackById.set(id, entry);
+  }
   const matchedIds = new Set();
   const evaluator = clean(feedback.evaluator);
   const evaluatedAt = clean(feedback.evaluatedAt) || new Date().toISOString();
@@ -148,7 +164,7 @@ function applyFeedback(summary, feedback) {
     }),
   };
   for (const entry of entries) {
-    const id = clean(entry.id);
+    const id = cleanId(entry.id);
     if (id && !matchedIds.has(id)) {
       process.stderr.write(`elek-feedback: warning: finding "${id}" not found in summary, skipping\n`);
     }
@@ -159,11 +175,11 @@ function applyFeedback(summary, feedback) {
 function normalizeFeedback(entry, evaluator, evaluatedAt) {
   const verdict = clean(entry.verdict).toLowerCase();
   if (!VERDICTS.has(verdict)) {
-    throw new Error(`finding ${clean(entry.id) || "(unknown)"} has invalid verdict: ${entry.verdict}`);
+    throw new Error(`finding ${cleanId(entry.id) || "(unknown)"} has invalid verdict: ${entry.verdict}`);
   }
   const points = Number(entry.points);
   if (!Number.isInteger(points) || points < 0 || points > 5) {
-    throw new Error(`finding ${clean(entry.id) || "(unknown)"} points must be an integer between 0 and 5`);
+    throw new Error(`finding ${cleanId(entry.id) || "(unknown)"} points must be an integer between 0 and 5`);
   }
   return {
     verdict,

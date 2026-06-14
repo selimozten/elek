@@ -97,7 +97,7 @@ export function buildReviewSummary(input: ReviewSummaryInput) {
     },
     findings: (input.findings ?? []).map((finding, index) => ({
       ...finding,
-      id: finding.id || uniqueFindingId(finding.title, index, usedFindingIds),
+      id: uniqueFindingId(finding.title, index, usedFindingIds, finding.id),
     })),
     cost: {
       usd: roundUsd(input.costTotal.costUsd),

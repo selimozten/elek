@@ -60,8 +60,13 @@ export function findingId(title: string, index: number): string {
   return slug || `finding-${index + 1}`;
 }
 
-export function uniqueFindingId(title: string, index: number, usedIds: Set<string>): string {
-  const baseId = findingId(title, index);
+export function uniqueFindingId(
+  title: string,
+  index: number,
+  usedIds: Set<string>,
+  preferredId = "",
+): string {
+  const baseId = preferredId.trim() || findingId(title, index);
   if (!usedIds.has(baseId)) {
     usedIds.add(baseId);
     return baseId;
