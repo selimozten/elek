@@ -5,7 +5,7 @@ describe("spinner branding", () => {
   it("renders an elek-branded inline image", () => {
     const html = spinnerHtml();
 
-    expect(html).toContain("assets/elek-spinner.svg");
+    expect(html).toContain("assets/elek-logo.png");
     expect(html).toContain('alt="elek"');
     expect(html).toContain('width="18"');
   });

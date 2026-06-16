@@ -1,12 +1,12 @@
 /**
- * Animated elek mark — used in both the initial tracking comment
+ * elek logo — used in both the initial tracking comment
  * and the progressive checklist updates so the visual stays consistent.
  *
  * Loaded from the action's home repo on `main` so fork PRs (where
  * GITHUB_HEAD_REF doesn't exist in the base repo) don't 404.
  */
 const SPINNER_URL =
-  "https://raw.githubusercontent.com/selimozten/elek/main/assets/elek-spinner.svg";
+  "https://raw.githubusercontent.com/selimozten/elek/main/assets/elek-logo.png";
 
 export function spinnerHtml(): string {
   return `<img src="${SPINNER_URL}" width="18" height="18" alt="elek" style="vertical-align: middle; margin-right: 4px;" />`;
