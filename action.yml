@@ -2,8 +2,8 @@ name: "elek — AI Code Review"
 description: >
   Review-only AI for pull requests. Cross-check changes with independent
   models while keeping every reviewer inside a narrow, non-destructive tool
-  surface. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral, xAI,
-  OpenRouter — bring your own key.
+  surface. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral,
+  Together, xAI, OpenRouter — bring your own key.
 branding:
   icon: "filter"
   color: "gray-dark"
@@ -17,7 +17,7 @@ inputs:
 
   # ── Model ──
   provider:
-    description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, xai, openrouter, etc.)"
+    description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, together, xai, openrouter, etc.)"
     required: false
     default: "anthropic"
   model:
@@ -47,6 +47,9 @@ inputs:
     required: false
   mistral_api_key:
     description: "Mistral API key"
+    required: false
+  together_api_key:
+    description: "Together AI API key"
     required: false
   xai_api_key:
     description: "xAI API key"
@@ -251,6 +254,7 @@ runs:
         DEEPSEEK_API_KEY: ${{ inputs.deepseek_api_key }}
         GROQ_API_KEY: ${{ inputs.groq_api_key }}
         MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}
+        TOGETHER_API_KEY: ${{ inputs.together_api_key }}
         XAI_API_KEY: ${{ inputs.xai_api_key }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
 

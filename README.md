@@ -16,7 +16,7 @@ elek is a GitHub App-first AI review product in development. This public repo co
 
 The planned hosted GitHub App will be the primary install path for branded, zero-config pull request reviews. The self-hosted Action works today for teams that want BYOK control, local auditability, or advanced workflow integration.
 
-It can run one reviewer, a two-lens cross-check, or a four-lens council with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, and more. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+It can run one reviewer, a two-lens cross-check, or a four-lens council with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, Together, xAI, and more. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
 
 | Path | Status | Use it for |
 |---|---|---|
@@ -269,7 +269,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Input | Default | Examples |
 |---|---|---|
-| `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `xai` |
+| `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `together`, `xai` |
 | `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/kimi-k2.7-code`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
 | `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh`; provider adapters map these to native efforts, e.g. Claude's maximum `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
@@ -435,6 +435,7 @@ Each provider has its own input; only set the one you use. Pi reads the matching
 | `deepseek_api_key` | `DEEPSEEK_API_KEY` |
 | `groq_api_key` | `GROQ_API_KEY` |
 | `mistral_api_key` | `MISTRAL_API_KEY` |
+| `together_api_key` | `TOGETHER_API_KEY` |
 | `xai_api_key` | `XAI_API_KEY` |
 | `openrouter_api_key` | `OPENROUTER_API_KEY` |
 

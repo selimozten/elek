@@ -84,6 +84,7 @@ describe("buildPiEnv", () => {
   afterEach(() => {
     for (const v of secretVars) delete process.env[v];
     delete process.env.GITHUB_TOKEN;
+    delete process.env.TOGETHER_API_KEY;
   });
 
   it("does not leak arbitrary parent secrets into agent-mode child env", () => {
@@ -116,6 +117,16 @@ describe("buildPiEnv", () => {
     // GITHUB_TOKEN is only granted to agent mode (which runs git push).
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH);
+  });
+
+  it("passes Together credentials to the review child env without leaking unrelated secrets", () => {
+    process.env.TOGETHER_API_KEY = "together-fake-key";
+    process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
+
+    const env = __buildPiEnv({ ...baseInputs, provider: "together", mode: "review" });
+
+    expect(env.TOGETHER_API_KEY).toBe("together-fake-key");
+    expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
   });
 });
 
