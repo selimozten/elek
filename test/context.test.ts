@@ -23,6 +23,8 @@ const ENV_KEYS = [
   "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
+  "INPUT_REVIEW_AGENT_COUNT",
+  "INPUT_VALIDATOR_THINKING",
   "INPUT_MAX_COST_USD",
   "INPUT_MAX_COUNCIL_CHANGED_LINES",
   "INPUT_MAX_CROSSCHECK_CHANGED_LINES",
@@ -208,6 +210,8 @@ describe("parseInputs", () => {
   it("can disable cost reporting and parse rate overrides", () => {
     process.env.INPUT_SHOW_COST = "false";
     process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
+    process.env.INPUT_REVIEW_AGENT_COUNT = "6";
+    process.env.INPUT_VALIDATOR_THINKING = "medium";
     process.env.INPUT_MAX_COST_USD = "0.25";
     process.env.INPUT_MAX_COUNCIL_CHANGED_LINES = "1500";
     process.env.INPUT_MAX_CROSSCHECK_CHANGED_LINES = "0";
@@ -215,6 +219,8 @@ describe("parseInputs", () => {
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
+    expect(inputs.reviewAgentCount).toBe(6);
+    expect(inputs.validatorThinking).toBe("medium");
     expect(inputs.maxCostUsd).toBe(0.25);
     expect(inputs.maxCouncilChangedLines).toBe(1500);
     expect(inputs.maxCrosscheckChangedLines).toBe(0);
@@ -224,6 +230,13 @@ describe("parseInputs", () => {
     for (const value of ["0", "-0.05", "abc", "Infinity", ""]) {
       process.env.INPUT_MAX_COST_USD = value;
       expect(parseInputs().maxCostUsd).toBeUndefined();
+    }
+  });
+
+  it("rejects invalid review_agent_count action inputs", () => {
+    for (const value of ["0", "-1", "1.5", "9", "abc", ""]) {
+      process.env.INPUT_REVIEW_AGENT_COUNT = value;
+      expect(parseInputs().reviewAgentCount).toBeUndefined();
     }
   });
 

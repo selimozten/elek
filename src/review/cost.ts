@@ -3,7 +3,7 @@ import type { ActionInputs, PiRunResult } from "../types";
 export interface ModelRates {
   inputPerMillion: number;
   outputPerMillion: number;
-  source: "builtin" | "override" | "unknown";
+  source: "builtin" | "override" | "provider" | "unknown";
 }
 
 export interface ReviewCost {
@@ -27,6 +27,10 @@ const BUILTIN_RATES: Record<string, Omit<ModelRates, "source">> = {
   "deepseek/deepseek-v4-pro": { inputPerMillion: 0.435, outputPerMillion: 0.87 },
   "openrouter/deepseek/deepseek-v4-pro": { inputPerMillion: 0.435, outputPerMillion: 0.87 },
   "openrouter/moonshotai/kimi-k2.7-code": { inputPerMillion: 0.95, outputPerMillion: 4 },
+  "together/moonshotai/kimi-k2.7-code": { inputPerMillion: 0.95, outputPerMillion: 4 },
+  "together/deepseek-ai/deepseek-v4-pro": { inputPerMillion: 2.1, outputPerMillion: 4.4 },
+  "together/qwen/qwen3.7-max": { inputPerMillion: 1.25, outputPerMillion: 3.75 },
+  "openai/gpt-5.5": { inputPerMillion: 5, outputPerMillion: 30 },
 };
 const overrideCache = new Map<string, Record<string, Omit<ModelRates, "source">>>();
 

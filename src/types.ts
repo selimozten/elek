@@ -28,12 +28,17 @@ export interface ActionInputs {
    * - solo: one reviewer, current behavior
    * - crosscheck: two independent read-only lenses, then synthesis
    * - council: four independent read-only lenses, then synthesis
+   * - thermos: N independent Thermos-style audit lenses, then synthesis
    */
   reviewStrategy: string;
   /** Optional comma-separated model specs for reviewer lenses. */
   reviewModels: string;
+  /** Optional number of parallel reviewer agents for thermos strategy. */
+  reviewAgentCount?: number;
   /** Optional model spec for final validation/synthesis. */
   validatorModel: string;
+  /** Optional thinking level for final validation/synthesis. */
+  validatorThinking: string;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";
   /** Show estimated review cost in logs, outputs, and comments. */
@@ -100,7 +105,7 @@ export interface PiRunResult {
     outputTokens: number;
     estimated: boolean;
     modelLabel: string;
-    source: "builtin" | "override" | "unknown";
+    source: "builtin" | "override" | "provider" | "unknown";
   };
 }
 

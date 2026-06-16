@@ -379,6 +379,7 @@ async function run(): Promise<void> {
       lens: job.lens,
       modelLabel: job.model.label,
       repoConfig: effectiveRepoConfig,
+      includeDiscussion: false,
     });
     lensPromptCache.set(key, lensPrompt);
     return lensPrompt;
@@ -388,7 +389,8 @@ async function run(): Promise<void> {
     // Defensive only: the budget selector stops before estimating solo plans.
     if (plan.strategy === "solo") return [];
 
-    const lensCosts = plan.jobs.map((job) => estimatePromptOnlyCost({
+    const reviewerJobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
+    const lensCosts = reviewerJobs.map((job) => estimatePromptOnlyCost({
       modelLabel: job.model.label,
       prompt: lensPromptFor(job),
       costRates: inputs.costRates,
@@ -401,7 +403,7 @@ async function run(): Promise<void> {
         modelLabel: plan.validator.label,
         jobRunLink,
         commentId,
-        reports: plan.jobs.map((job) => ({
+        reports: reviewerJobs.map((job) => ({
           lens: job.lens,
           modelLabel: job.model.label,
           output: "(candidate report pending)",
@@ -469,7 +471,7 @@ async function run(): Promise<void> {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | validator: ${reviewPlan.validator.label}`,
+        .join(", ")} | validator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | validator: ${reviewPlan.validator.label}`,
     );
     if (reviewPlan.reusedModels) {
       console.warn(
@@ -488,6 +490,9 @@ async function run(): Promise<void> {
             spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
             ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: ${code(j.model.label)}`),
+            reviewPlan.validatorReview
+              ? `- ${reviewPlan.validatorReview.lens.title}: ${code(reviewPlan.validatorReview.model.label)}`
+              : "",
             "",
             `Final validation: ${code(reviewPlan.validator.label)}`,
             `[View run](${jobRunLink})`,
@@ -499,13 +504,17 @@ async function run(): Promise<void> {
       }
     }
 
+    const reviewerJobs = reviewPlan.validatorReview ? [...reviewPlan.jobs, reviewPlan.validatorReview] : reviewPlan.jobs;
     const lensRuns = await Promise.all(
-      reviewPlan.jobs.map(async (job) => {
+      reviewerJobs.map(async (job) => {
         const lensPrompt = lensPromptFor(job);
         const lensInputs = {
           ...piInputs,
           provider: job.model.provider,
           model: job.model.model,
+          thinking: job.role === "validator-review"
+            ? inputs.validatorThinking || inputs.thinking
+            : inputs.thinking,
           tools: lensTools,
           mode: "review",
         };
@@ -526,7 +535,7 @@ async function run(): Promise<void> {
 
     for (const { job, lensResult } of lensRuns) {
       runCosts.push(costFromPiResult(lensResult));
-      runMetrics.push(metricFromPiRun(lensResult, "reviewer", {
+      runMetrics.push(metricFromPiRun(lensResult, job.role || "reviewer", {
         lensId: job.lens.id,
         lensTitle: job.lens.title,
       }));
@@ -543,6 +552,7 @@ async function run(): Promise<void> {
       ...piInputs,
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
+      thinking: inputs.validatorThinking || inputs.thinking,
       tools: piTools,
       mode: "review",
     };

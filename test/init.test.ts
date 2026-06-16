@@ -23,6 +23,16 @@ describe("elek-init", () => {
     expect(options.writeConfig).toBe(true);
   });
 
+  it("uses Together defaults suitable for cheap max-thinking reviewers", () => {
+    const options = parseArgs(["--provider=together", "--strategy=thermos"]);
+
+    expect(options.provider).toBe("together");
+    expect(options.model).toBe("moonshotai/Kimi-K2.7-Code");
+    expect(options.secret).toBe("TOGETHER_API_KEY");
+    expect(options.thinking).toBe("max");
+    expect(options.strategy).toBe("thermos");
+  });
+
   it("renders a safe review-only workflow", () => {
     const workflow = renderWorkflow(parseArgs([
       "--provider",
@@ -134,7 +144,8 @@ describe("elek-init", () => {
     expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
     expect(() => parseArgs(["--secret", "MY-SECRET"])).toThrow("valid GitHub Actions secret name");
     expect(() => parseArgs(["--secret", "GITHUB_TOKEN"])).toThrow("valid GitHub Actions secret name");
-    expect(() => parseArgs(["--thinking", "max"])).toThrow("off, minimal, low, medium, high, xhigh");
+    expect(parseArgs(["--thinking", "max"]).thinking).toBe("max");
+    expect(() => parseArgs(["--thinking", "ultra"])).toThrow("off, minimal, low, medium, high, xhigh, max");
     expect(() => parseArgs(["--action-ref", "owner/elek@v1\nbad"])).toThrow("non-empty action reference");
   });
 

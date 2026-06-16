@@ -44,6 +44,17 @@ function parseNonNegativeIntegerInput(name: string, value: string): number | und
   return parsed;
 }
 
+function parseReviewAgentCountInput(value: string): number | undefined {
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
+    core.warning(`Ignoring invalid review_agent_count input: ${normalized}`);
+    return undefined;
+  }
+  return parsed;
+}
+
 function parsePositiveIntegerInput(name: string, value: string, defaultValue: number): number {
   const normalized = value.trim();
   if (!normalized) return defaultValue;
@@ -75,7 +86,9 @@ export function parseInputs(): ActionInputs {
     mode: core.getInput("mode") || "review",
     reviewStrategy: core.getInput("review_strategy") || "",
     reviewModels: core.getInput("review_models") || "",
+    reviewAgentCount: parseReviewAgentCountInput(core.getInput("review_agent_count")),
     validatorModel: core.getInput("validator_model") || "",
+    validatorThinking: core.getInput("validator_thinking") || "",
     severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",

@@ -139,10 +139,11 @@ The `review_strategy` input controls orchestration quality:
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
 | `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
-| `crosscheck` | 2 read-only lenses + 1 final validator | Best default for serious PR review. |
-| `council` | 4 read-only lenses + 1 final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
+| `crosscheck` | 2 read-only lenses + final-model self-review + final validator | Best default for serious PR review. |
+| `council` | 4 read-only lenses + final-model self-review + final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
+| `thermos` | N read-only audit agents + final-model self-review + final validator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
 
-`crosscheck` and `council` currently run only with `mode: review`. If you use
+Multi-agent strategies currently run only with `mode: review`. If you use
 `review+edit` or `agent`, elek runs a solo review and logs a warning.
 
 `crosscheck` runs two independent candidate reviewers:
@@ -155,7 +156,19 @@ The `review_strategy` input controls orchestration quality:
 - **Test Integrity Review** — missing/weak tests, nondeterminism, meaningless assertions.
 - **Operational Review** — rollout/rollback safety, migrations, configuration, observability, retries, partial updates.
 
-Candidate reviewers are read-only and cannot post. The final validator receives their reports, rejects speculative or duplicate findings, and posts only high-confidence feedback through elek's narrow review MCP tools.
+`thermos` runs configurable independent audit agents, defaulting to five:
+
+- **Security & Correctness Audit** — concrete bugs, security, auth, data loss, races, and user-visible regressions.
+- **Breaking Side-Effects Audit** — cross-module side effects, changed contracts, hidden coupling, and compatibility breaks.
+- **DevEx & Config Audit** — local workflow breakage, env/config drift, scripts, generated artifacts, and build/test surprises.
+- **Feature Gate & Exposure Audit** — feature leaks, missing guards, internal-only behavior becoming public, and rollout gaps.
+- **Tests & Operations Audit** — missing high-signal tests, migrations, observability, timeouts, retries, idempotency, and support burden.
+
+Candidate reviewers are read-only and cannot post. They do not see existing PR
+discussion, so they produce fresh independent reports. The final model also
+runs its own read-only self-review, then receives every candidate report plus
+the visible PR discussion, rejects speculative or duplicate findings, and posts
+only high-confidence feedback through elek's narrow review MCP tools.
 
 Every finding is expected to follow elek's review contract: severity,
 confidence, evidence, impact, and a concrete fix. Low-confidence findings
@@ -163,19 +176,24 @@ should be dropped instead of posted.
 
 ```yaml
 with:
-  provider: deepseek
-  model: deepseek-v4-pro
-  review_strategy: crosscheck
-  review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
-  validator_model: deepseek/deepseek-v4-pro
-  max_cost_usd: "0.05"
+  provider: together
+  model: moonshotai/Kimi-K2.7-Code
+  thinking: max
+  review_strategy: thermos
+  review_agent_count: 5
+  review_models: together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max
+  validator_model: openai/gpt-5.5
+  validator_thinking: medium
   max_council_changed_lines: 1200
   max_crosscheck_changed_lines: 3000
 ```
 
-For expensive models, a good pattern is cheap parallel reviewers plus one stronger validator.
-If the selected multi-lens strategy already exceeds `max_cost_usd` before
-output tokens are counted, elek downgrades to the next cheaper strategy.
+For expensive models, a good pattern is cheap/open parallel reviewers at high or
+max reasoning plus one stronger final validator at medium reasoning.
+During initial testing, omit `max_cost_usd` so the full fan-out runs and tune a
+budget later from observed review summaries. If the selected multi-lens
+strategy already exceeds `max_cost_usd` before output tokens are counted, elek
+downgrades to the next cheaper strategy.
 If a PR exceeds a changed-line guard, elek also downgrades before starting
 model calls.
 
@@ -252,9 +270,11 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
 | `mode` | `review` | `review` / `review+edit` / `agent` |
 | `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
-| `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` |
-| `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code` |
+| `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |
+| `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max` |
+| `review_agent_count` | _(.elek.yml or unset)_ | Parallel reviewer count for `thermos`, 1-8 |
 | `validator_model` | _(primary model)_ | Final synthesis model spec |
+| `validator_thinking` | _(same as `thinking`)_ | Final-model thinking level; use `medium` for frontier validators when reviewers use high/max |
 | `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
@@ -270,8 +290,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Input | Default | Examples |
 |---|---|---|
 | `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `together`, `xai` |
-| `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/kimi-k2.7-code`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
-| `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh`; provider adapters map these to native efforts, e.g. Claude's maximum `max` |
+| `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/Kimi-K2.7-Code`, `Qwen/Qwen3.7-Max`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
+| `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
 | `max_turns` | `20` | Cap conversation turns |
 | `run_timeout_seconds` | `600` | Wall-clock timeout for each model run; keep the job timeout higher so elek can update the tracking comment |
@@ -394,8 +414,8 @@ instructions:
   - Require tests for parser and config changes.
 ```
 
-Supported keys: `review_strategy`, `review_models`, `validator_model`,
-`cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
+Supported keys: `review_strategy`, `review_models`, `review_agent_count`,
+`validator_model`, `validator_thinking`, `cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
 `max_crosscheck_changed_lines`, `severity_threshold`, `knowledge_paths`,
 `ignore_paths`, and `instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
@@ -475,10 +495,11 @@ For `mode: review+edit` (model pushes fixes to an `elek/*` branch), upgrade `con
 
 ## Cost visibility
 
-elek shows estimated review cost in the final comment and exposes the same data
-as action outputs. This is intentionally transparent rather than billing-grade:
-when pi exposes exact usage, elek can use it; today it estimates tokens from
-prompt/output text and applies model price hints.
+elek shows review cost in the final comment and exposes the same data as action
+outputs. When pi emits provider usage, elek uses those exact input/output token
+counts and provider cost, including the model's analysis/reasoning step. When
+provider usage is missing or zero, elek falls back to prompt/output token
+estimates and configured price hints.
 
 Set `show_cost: false` to hide the visible comment/log line. The `cost_usd`,
 `input_tokens`, and `output_tokens` action outputs are still populated for
@@ -490,6 +511,10 @@ Built-in price hints cover the recommended low-cost defaults:
 |---|---|---|
 | `deepseek/deepseek-v4-pro` | built in | Strong low-cost reviewer |
 | `openrouter/moonshotai/kimi-k2.7-code` | built in | Independent reviewer through OpenRouter |
+| `together/moonshotai/Kimi-K2.7-Code` | built in | Fast low-cost reviewer through Together |
+| `together/deepseek-ai/DeepSeek-V4-Pro` | built in | Independent DeepSeek reviewer through Together |
+| `together/Qwen/Qwen3.7-Max` | built in | Independent Qwen reviewer through Together |
+| `openai/gpt-5.5` | built in | Frontier final validator |
 
 For premium or newer models, pass your provider's current prices in USD per 1M
 tokens:
@@ -497,7 +522,7 @@ tokens:
 ```yaml
 with:
   show_cost: true
-  cost_rates: openai/gpt-5.5=1.25:10,anthropic/claude-sonnet-4-6=3:15
+  cost_rates: openai/gpt-5.5=5:30,custom/provider-model=1.25:10
   max_cost_usd: "0.10"
   max_council_changed_lines: 1200
   max_crosscheck_changed_lines: 3000
@@ -505,13 +530,13 @@ with:
 
 `max_cost_usd` is a soft guard for strategy selection. elek estimates the
 known prompt/input-side cost before running multi-lens reviews; if that
-minimum estimate already exceeds the cap, it downgrades `council` to
-`crosscheck`, then `crosscheck` to `solo`. Provide `cost_rates` for custom
-models so the guard can enforce the cap.
+minimum estimate already exceeds the cap, it downgrades `thermos` to
+`council`, `council` to `crosscheck`, then `crosscheck` to `solo`. Provide
+`cost_rates` for custom models so the preflight guard can enforce the cap.
 
-Changed-line guards run before cost estimates. By default, `council`
-downgrades above 1,200 changed diff lines and `crosscheck` downgrades above
-3,000. Override with `max_council_changed_lines` and
+Changed-line guards run before cost estimates. By default, `thermos` and
+`council` downgrade above 1,200 changed diff lines and `crosscheck` downgrades
+above 3,000. Override with `max_council_changed_lines` and
 `max_crosscheck_changed_lines`, or set either value to `0` to disable that
 guard.
 

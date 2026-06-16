@@ -95,6 +95,10 @@ describe("review summary", () => {
       costTotal,
       runs: [
         metricFromPiRun(reviewer, "reviewer", { lensId: "correctness", lensTitle: "Correctness" }),
+        metricFromPiRun(validator, "validator-review", {
+          lensId: "validator-self-review",
+          lensTitle: "Final Model Independent Audit",
+        }),
         metricFromPiRun(validator, "validator"),
       ],
       findings: [{
@@ -139,6 +143,10 @@ describe("review summary", () => {
       lensId: "correctness",
       durationSeconds: 65.7,
       pricingSource: "override",
+    });
+    expect(summary.modelRuns[1]).toMatchObject({
+      role: "validator-review",
+      lensId: "validator-self-review",
     });
     expect(JSON.parse(JSON.stringify(summary)).version).toBe(1);
   });

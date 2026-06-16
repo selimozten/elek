@@ -25,7 +25,7 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
 import type { ActionInputs, PiRunResult } from "./types";
-import { estimateRunCost, modelLabelFor } from "./review/cost";
+import { estimateRunCost, modelLabelFor, resolveRates, type ReviewCost } from "./review/cost";
 
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
@@ -42,6 +42,23 @@ interface PiAssistantMessage {
   content: PiContent[];
   stopReason?: string;
   errorMessage?: string;
+  usage?: PiUsage;
+}
+
+interface PiUsage {
+  input?: number;
+  output?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  cost?: {
+    total?: number;
+    input?: number;
+    output?: number;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
 }
 
 /**
@@ -276,7 +293,7 @@ export async function runPi(
       const output = useJsonMode
         ? (extractAssistantText(finalAssistant) || streamingText.trim())
         : stdoutRaw.trim();
-      const usage = estimateRunCost({
+      const usage = exactRunCostFromPi(finalAssistant, runModelLabel, inputs.costRates) ?? estimateRunCost({
         modelLabel: runModelLabel,
         prompt,
         output,
@@ -365,6 +382,67 @@ function extractAssistantText(msg?: PiAssistantMessage): string {
     .map((c) => c.text)
     .join("")
     .trim();
+}
+
+function exactRunCostFromPi(
+  msg: PiAssistantMessage | undefined,
+  modelLabel: string,
+  costRates: string,
+): ReviewCost | undefined {
+  const usage = msg?.usage;
+  if (!usage) return undefined;
+  const inputTokens = firstNonNegativeInteger(
+    usage.input,
+    usage.inputTokens,
+    usage.promptTokens,
+  );
+  const outputTokens = firstNonNegativeInteger(
+    usage.output,
+    usage.outputTokens,
+    usage.completionTokens,
+  );
+  if (inputTokens === undefined && outputTokens === undefined) return undefined;
+  const safeInput = inputTokens ?? 0;
+  const safeOutput = outputTokens ?? 0;
+  if (safeInput === 0 && safeOutput === 0) return undefined;
+
+  const providerCost = nonNegativeNumber(usage.cost?.total);
+  if (providerCost !== undefined) {
+    return {
+      inputTokens: safeInput,
+      outputTokens: safeOutput,
+      costUsd: providerCost,
+      estimated: false,
+      modelLabel,
+      source: "provider",
+    };
+  }
+
+  const rates = resolveRates(modelLabel, costRates);
+  const costUsd =
+    (safeInput / 1_000_000) * rates.inputPerMillion +
+    (safeOutput / 1_000_000) * rates.outputPerMillion;
+  return {
+    inputTokens: safeInput,
+    outputTokens: safeOutput,
+    costUsd,
+    estimated: true,
+    modelLabel,
+    source: rates.source,
+  };
+}
+
+function firstNonNegativeInteger(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) continue;
+    return Math.floor(value);
+  }
+  return undefined;
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
+  return value;
 }
 
 /**

@@ -5,7 +5,7 @@ import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate 
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
 
-export type ReviewStrategy = "solo" | "crosscheck" | "council";
+export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
 
 export interface ModelSpec {
   provider: string;
@@ -22,11 +22,13 @@ export interface ReviewLens {
 export interface ReviewJob {
   lens: ReviewLens;
   model: ModelSpec;
+  role?: "reviewer" | "validator-review";
 }
 
 export interface ReviewPlan {
   strategy: ReviewStrategy;
   jobs: ReviewJob[];
+  validatorReview?: ReviewJob;
   validator: ModelSpec;
   reusedModels: boolean;
 }
@@ -80,6 +82,48 @@ const COUNCIL_EXTRA_LENSES: ReviewLens[] = [
   },
 ];
 
+const THERMOS_LENSES: ReviewLens[] = [
+  {
+    id: "security-correctness",
+    title: "Security & Correctness Audit",
+    focus:
+      "Security vulnerabilities, auth/authz regressions, data corruption, data loss, race conditions, injection risks, and concrete user-visible breakage rooted in changed code.",
+  },
+  {
+    id: "side-effects",
+    title: "Breaking Side-Effects Audit",
+    focus:
+      "Cross-module and cross-package side effects, changed contracts, backward compatibility, hidden coupling, feature behavior regressions, and unintended breakage elsewhere in the codebase.",
+  },
+  {
+    id: "devex-config",
+    title: "DevEx & Config Audit",
+    focus:
+      "Developer workflow breakage, env var/config drift, local build/test/runtime changes, dependency or script requirements that alter normal development, and generated artifact drift.",
+  },
+  {
+    id: "feature-gates",
+    title: "Feature Gate & Exposure Audit",
+    focus:
+      "Feature-flag leaks, internal-only behavior becoming public, rollout/kill-switch gaps, permission bypasses, and incomplete gating around partially shipped features.",
+  },
+  {
+    id: "tests-ops",
+    title: "Tests & Operations Audit",
+    focus:
+      "Missing tests for changed behavior, weak assertions, migration/rollback risk, observability gaps, timeout/retry/idempotency issues, and production support burden.",
+  },
+];
+
+const VALIDATOR_REVIEW_LENS: ReviewLens = {
+  id: "validator-self-review",
+  title: "Final Model Independent Audit",
+  focus:
+    "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues.",
+};
+
+const MAX_THERMOS_REVIEW_AGENTS = 8;
+
 export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
   return (normalizeReviewStrategy(raw) as ReviewStrategy | undefined) ?? "solo";
 }
@@ -122,26 +166,52 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   const validator = parseModelSpec(inputs.validatorModel, inputs);
   if (strategy === "solo") return { strategy, jobs: [], validator, reusedModels: false };
 
+  const parsedModels = parseModelList(inputs.reviewModels, inputs);
   const lenses =
     strategy === "crosscheck"
       ? CROSSCHECK_LENSES
-      : [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES];
-
-  const parsedModels = parseModelList(inputs.reviewModels, inputs);
+      : strategy === "council"
+        ? [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES]
+        : thermosLenses(inputs.reviewAgentCount, parsedModels.length);
   const models = parsedModels.length > 0 ? parsedModels : [parseModelSpec("", inputs)];
   const reusedModels = lenses.length > models.length;
   const jobs = lenses.map((lens, i) => ({
     lens,
     model: models[i % models.length],
+    role: "reviewer" as const,
   }));
+  const validatorReview = {
+    lens: VALIDATOR_REVIEW_LENS,
+    model: validator,
+    role: "validator-review" as const,
+  };
 
-  return { strategy, jobs, validator, reusedModels };
+  return { strategy, jobs, validatorReview, validator, reusedModels };
 }
 
 export function downgradeReviewStrategy(strategy: ReviewStrategy): ReviewStrategy | undefined {
+  if (strategy === "thermos") return "council";
   if (strategy === "council") return "crosscheck";
   if (strategy === "crosscheck") return "solo";
   return undefined;
+}
+
+function thermosLenses(requestedCount: number | undefined, modelCount: number): ReviewLens[] {
+  const count = Math.min(
+    MAX_THERMOS_REVIEW_AGENTS,
+    Math.max(1, requestedCount ?? Math.max(THERMOS_LENSES.length, modelCount)),
+  );
+  if (count <= THERMOS_LENSES.length) return THERMOS_LENSES.slice(0, count);
+  const lenses = [...THERMOS_LENSES];
+  for (let i = THERMOS_LENSES.length + 1; i <= count; i++) {
+    lenses.push({
+      id: `independent-audit-${i}`,
+      title: `Independent Audit ${i}`,
+      focus:
+        "Fresh Thermos-style audit from another angle: changed-code bugs, security, breaking behavior, feature leaks, developer workflow breakage, and missing high-signal tests.",
+    });
+  }
+  return lenses;
 }
 
 export function resolveReviewPlanSupport(
@@ -234,7 +304,7 @@ export function countChangedDiffLines(diff: string | undefined): number | undefi
 }
 
 function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInputs): number | undefined {
-  if (strategy === "council") {
+  if (strategy === "council" || strategy === "thermos") {
     const limit = inputs.maxCouncilChangedLines ?? DEFAULT_MAX_COUNCIL_CHANGED_LINES;
     return limit === 0 ? undefined : limit;
   }
@@ -243,6 +313,12 @@ function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInp
     return limit === 0 ? undefined : limit;
   }
   return undefined;
+}
+
+function changedLineLimitNameForStrategy(strategy: ReviewStrategy): string {
+  if (strategy === "thermos" || strategy === "council") return "max_council_changed_lines";
+  if (strategy === "crosscheck") return "max_crosscheck_changed_lines";
+  return "max_changed_lines";
 }
 
 export function selectReviewPlanWithinDiffSize(args: {
@@ -269,7 +345,7 @@ export function selectReviewPlanWithinDiffSize(args: {
       level: "warn",
       message:
         `[size] changed_lines=${args.changedLines} strategy=${plan.strategy} ` +
-        `max_${plan.strategy}_changed_lines=${limit}; downgrading to ${downgraded}.`,
+        `${changedLineLimitNameForStrategy(plan.strategy)}=${limit}; downgrading to ${downgraded}.`,
     });
     plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
     support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
@@ -292,8 +368,9 @@ export function buildLensPrompt(params: {
   lens: ReviewLens;
   modelLabel: string;
   repoConfig?: ElekConfig;
+  includeDiscussion?: boolean;
 }): string {
-  const { data, userRequest, lens, modelLabel, repoConfig } = params;
+  const { data, userRequest, lens, modelLabel, repoConfig, includeDiscussion = true } = params;
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
   const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
@@ -313,6 +390,13 @@ export function buildLensPrompt(params: {
     `- Do not claim external packages, GitHub Actions, model IDs, or APIs do not exist unless you can verify it from current repo files, package-manager output, or workflow error logs.`,
     `- Never present unfinished research when the repo contains the code needed to verify it.`,
     `- Prefer a few high-confidence findings over a long list of speculative notes.`,
+    ``,
+    `Thermos-style audit calibration:`,
+    `- Be extremely thorough tracing side effects, but report only medium-to-high risk issues with verified impact.`,
+    `- Catch breaking functionality, breaking developer workflow, security vulnerabilities, and feature-gate leaks rooted in this diff.`,
+    `- If the branch intentionally changes behavior and the blast radius is clear and constrained, do not report intended breakage as a bug.`,
+    `- Never overstate severity; false positives are review failures.`,
+    `- Do your audit with fresh eyes. Do not depend on existing PR discussion; the final validator will compare discussion after candidate reports are produced.`,
     ``,
     `Review calibration:`,
     ...reviewContractBullets(),
@@ -348,10 +432,10 @@ export function buildLensPrompt(params: {
     "```",
     `</changed_files>`,
     ``,
-    data.comments.length
+    includeDiscussion && data.comments.length
       ? `<comments>\n${data.comments.map((c) => `- ${c}`).join("\n")}\n</comments>\n`
       : "",
-    data.reviewComments.length
+    includeDiscussion && data.reviewComments.length
       ? `<review_comments>\n${data.reviewComments.map((c) => `- ${c}`).join("\n")}\n</review_comments>\n`
       : "",
     `Output format:`,

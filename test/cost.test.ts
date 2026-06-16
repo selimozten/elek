@@ -58,6 +58,29 @@ describe("review cost estimates", () => {
     });
   });
 
+  it("has built-in price hints for recommended thermos models", () => {
+    expect(resolveRates("together/moonshotai/Kimi-K2.7-Code", "")).toEqual({
+      inputPerMillion: 0.95,
+      outputPerMillion: 4,
+      source: "builtin",
+    });
+    expect(resolveRates("together/deepseek-ai/DeepSeek-V4-Pro", "")).toEqual({
+      inputPerMillion: 2.1,
+      outputPerMillion: 4.4,
+      source: "builtin",
+    });
+    expect(resolveRates("together/Qwen/Qwen3.7-Max", "")).toEqual({
+      inputPerMillion: 1.25,
+      outputPerMillion: 3.75,
+      source: "builtin",
+    });
+    expect(resolveRates("openai/gpt-5.5", "")).toEqual({
+      inputPerMillion: 5,
+      outputPerMillion: 30,
+      source: "builtin",
+    });
+  });
+
   it("estimates a run cost from prompt and output text", () => {
     const cost = estimateRunCost({
       modelLabel: "deepseek/deepseek-v4-pro",

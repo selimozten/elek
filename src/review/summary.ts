@@ -4,7 +4,7 @@ import type { PostSummary } from "../entrypoints/post-buffered.js";
 import { uniqueFindingId, type ParsedReviewFinding } from "./findings.js";
 
 export interface ReviewRunMetric {
-  role: "reviewer" | "validator";
+  role: "reviewer" | "validator-review" | "validator";
   lensId?: string;
   lensTitle?: string;
   modelLabel: string;
@@ -15,7 +15,7 @@ export interface ReviewRunMetric {
   outputTokens: number;
   costUsd: number;
   costEstimated: boolean;
-  pricingSource: "builtin" | "override" | "unknown";
+  pricingSource: ReviewCost["source"];
 }
 
 export interface ReviewSummaryInput {

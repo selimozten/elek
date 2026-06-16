@@ -34,7 +34,9 @@ const baseInputs: ActionInputs = {
   mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
+  reviewAgentCount: undefined,
   validatorModel: "",
+  validatorThinking: "",
   severityThreshold: "",
   showCost: true,
   costRates: "",
@@ -64,6 +66,8 @@ describe("review strategy", () => {
   it("accepts useful aliases without exposing the internal naming", () => {
     expect(resolveReviewStrategy("dual")).toBe("crosscheck");
     expect(resolveReviewStrategy("swarm")).toBe("council");
+    expect(resolveReviewStrategy("thermo-nuclear")).toBe("thermos");
+    expect(resolveReviewStrategy("multi-agent")).toBe("thermos");
   });
 
   it("parses provider-qualified model specs as self-routing pi models", () => {
@@ -125,6 +129,8 @@ describe("review strategy", () => {
       "openrouter/moonshotai/kimi-k2.7-code",
     ]);
     expect(plan.validator.label).toBe("deepseek/deepseek-v4-pro");
+    expect(plan.validatorReview?.lens.id).toBe("validator-self-review");
+    expect(plan.validatorReview?.model.label).toBe("deepseek/deepseek-v4-pro");
   });
 
   it("builds a council plan with four lenses and cycles provided models", () => {
@@ -147,9 +153,47 @@ describe("review strategy", () => {
       "openrouter/moonshotai/kimi-k2.7-code",
     ]);
     expect(plan.reusedModels).toBe(true);
+    expect(plan.validatorReview?.role).toBe("validator-review");
+  });
+
+  it("builds a thermos plan with N parallel audit agents and validator self-review", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "thermos",
+      reviewAgentCount: 6,
+      reviewModels: "together/moonshotai/Kimi-K2.7-Code,deepseek/deepseek-v4-pro,openai/gpt-5.5",
+      validatorModel: "openai/gpt-5.5",
+    });
+
+    expect(plan.strategy).toBe("thermos");
+    expect(plan.jobs).toHaveLength(6);
+    expect(plan.jobs.map((j) => j.lens.id)).toEqual([
+      "security-correctness",
+      "side-effects",
+      "devex-config",
+      "feature-gates",
+      "tests-ops",
+      "independent-audit-6",
+    ]);
+    expect(plan.jobs.map((j) => j.model.label)).toEqual([
+      "together/moonshotai/Kimi-K2.7-Code",
+      "deepseek/deepseek-v4-pro",
+      "openai/gpt-5.5",
+      "together/moonshotai/Kimi-K2.7-Code",
+      "deepseek/deepseek-v4-pro",
+      "openai/gpt-5.5",
+    ]);
+    expect(plan.reusedModels).toBe(true);
+    expect(plan.validator.label).toBe("openai/gpt-5.5");
+    expect(plan.validatorReview).toMatchObject({
+      role: "validator-review",
+      lens: { id: "validator-self-review" },
+      model: { label: "openai/gpt-5.5" },
+    });
   });
 
   it("downgrades expensive strategies one step at a time", () => {
+    expect(downgradeReviewStrategy("thermos")).toBe("council");
     expect(downgradeReviewStrategy("council")).toBe("crosscheck");
     expect(downgradeReviewStrategy("crosscheck")).toBe("solo");
     expect(downgradeReviewStrategy("solo")).toBeUndefined();
@@ -385,6 +429,8 @@ describe("review strategy", () => {
     expect(prompt).toContain("Available tools: `read`, `grep`, `find`, `ls`");
     expect(prompt).toContain("Do not paste raw diff blocks into your candidate report");
     expect(prompt).toContain("Do not claim external packages, GitHub Actions");
+    expect(prompt).toContain("Thermos-style audit calibration:");
+    expect(prompt).toContain("Never overstate severity; false positives are review failures.");
     expect(prompt).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
     expect(prompt).toContain("Finding acceptance gates:");
     expect(prompt).toContain("A finding must identify a concrete failure path from changed code");
@@ -395,6 +441,24 @@ describe("review strategy", () => {
     expect(prompt).toContain("(no description)");
     expect(prompt).toContain("<comments>");
     expect(prompt).toContain("<review_comments>");
+  });
+
+  it("can hide discussion from independent lens prompts for fresh audits", () => {
+    const prompt = buildLensPrompt({
+      data: dataFixture,
+      userRequest: "",
+      lens: {
+        id: "security-correctness",
+        title: "Security & Correctness Audit",
+        focus: "Bugs and security.",
+      },
+      modelLabel: "openai/gpt-5.5",
+      includeDiscussion: false,
+    });
+
+    expect(prompt).not.toContain("<comments>");
+    expect(prompt).not.toContain("<review_comments>");
+    expect(prompt).toContain("Do your audit with fresh eyes.");
   });
 
   it("uses the correct fallback user request for issue lens prompts", () => {

@@ -16,6 +16,12 @@ const PROVIDERS = {
     thinking: "high",
     keyInput: "openrouter_api_key",
   },
+  together: {
+    secret: "TOGETHER_API_KEY",
+    model: "moonshotai/Kimi-K2.7-Code",
+    thinking: "max",
+    keyInput: "together_api_key",
+  },
   anthropic: {
     secret: "ANTHROPIC_API_KEY",
     model: "claude-sonnet-4-6",
@@ -47,7 +53,7 @@ const DEFAULTS = {
   force: false,
 };
 
-const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 export function parseArgs(argv) {
   const options = { ...DEFAULTS };
@@ -126,8 +132,8 @@ export function finalizeOptions(options) {
   if (!providerDefaults) {
     throw new Error(`Unsupported provider: ${options.provider}. Choose one of: ${Object.keys(PROVIDERS).join(", ")}`);
   }
-  if (!["solo", "crosscheck", "council"].includes(options.strategy)) {
-    throw new Error("Unsupported strategy. Choose one of: solo, crosscheck, council");
+  if (!["solo", "crosscheck", "council", "thermos"].includes(options.strategy)) {
+    throw new Error("Unsupported strategy. Choose one of: solo, crosscheck, council, thermos");
   }
   if (options.maxCostUsd && (!Number.isFinite(Number(options.maxCostUsd)) || Number(options.maxCostUsd) <= 0)) {
     throw new Error("--max-cost-usd must be a positive number");
@@ -136,7 +142,7 @@ export function finalizeOptions(options) {
   const thinking = options.thinking ?? providerDefaults.thinking;
   assertValidSecretName(secret);
   if (!THINKING_LEVELS.has(thinking)) {
-    throw new Error("--thinking must be one of: off, minimal, low, medium, high, xhigh");
+    throw new Error("--thinking must be one of: off, minimal, low, medium, high, xhigh, max");
   }
   assertSafeActionRef(options.actionRef);
   assertSafeOutputPath(options.workflowPath, "--workflow");
@@ -292,11 +298,11 @@ Usage:
   npx --package github:selimozten/elek elek-init [options]
 
 Options:
-  --provider <name>       deepseek, openrouter, anthropic, openai, google
+  --provider <name>       deepseek, openrouter, together, anthropic, openai, google
   --model <id>            provider model id
   --secret <name>         GitHub Actions secret name for the provider key
-  --thinking <level>      off, minimal, low, medium, high, or xhigh
-  --strategy <name>       solo, crosscheck, or council
+  --thinking <level>      off, minimal, low, medium, high, xhigh, or max
+  --strategy <name>       solo, crosscheck, council, or thermos
   --max-cost-usd <n>      add a soft cost cap to .elek.yml
   --config                write .elek.yml, enabled by default
   --no-config             write only .github/workflows/elek.yml
