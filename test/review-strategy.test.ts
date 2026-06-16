@@ -514,6 +514,8 @@ describe("review strategy", () => {
     expect(prompt).toContain("drop it instead of posting a caveat.");
     expect(prompt).toContain("Fix: the smallest concrete change required");
     expect(prompt).toContain("Do not surface claims that external packages");
+    expect(prompt).toContain("temporary workflow-test scaffolding");
+    expect(prompt).toContain("omitted or disabled review-cost budget");
     expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
     expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");

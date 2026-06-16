@@ -226,8 +226,15 @@ describe("parseInputs", () => {
     expect(inputs.maxCrosscheckChangedLines).toBe(0);
   });
 
+  it("can explicitly disable inherited max_cost_usd action inputs", () => {
+    for (const value of ["0", "off", "none", "false", "disabled"]) {
+      process.env.INPUT_MAX_COST_USD = value;
+      expect(parseInputs().maxCostUsd).toBeNull();
+    }
+  });
+
   it("rejects invalid max_cost_usd action inputs", () => {
-    for (const value of ["0", "-0.05", "abc", "Infinity", ""]) {
+    for (const value of ["-0.05", "abc", "Infinity", ""]) {
       process.env.INPUT_MAX_COST_USD = value;
       expect(parseInputs().maxCostUsd).toBeUndefined();
     }

@@ -78,6 +78,13 @@ describe("buildPiArgs", () => {
     expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
     expect(args).not.toContain("--no-extensions");
   });
+
+  it("maps user-facing max thinking to pi's highest supported CLI level", () => {
+    const args = buildPiArgs({ ...baseInputs, thinking: "max" }, "/tmp/prompt.md", false);
+
+    expect(args).toContain("--thinking");
+    expect(args[args.indexOf("--thinking") + 1]).toBe("xhigh");
+  });
 });
 
 describe("buildPiEnv", () => {

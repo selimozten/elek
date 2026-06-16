@@ -11,7 +11,7 @@ export interface ElekConfig {
   validatorModel?: string;
   validatorThinking?: string;
   costRates?: string;
-  maxCostUsd?: number;
+  maxCostUsd?: number | null;
   maxCouncilChangedLines?: number;
   maxCrosscheckChangedLines?: number;
   severityThreshold?: "critical" | "important" | "minor";
@@ -187,6 +187,22 @@ function positiveNumber(value: unknown, key: string, warn: (message: string) => 
   return parsed;
 }
 
+function positiveNumberOrDisabled(
+  value: unknown,
+  key: string,
+  warn: (message: string) => void,
+): number | null | undefined {
+  const scalar = stringValue(value);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+    return undefined;
+  }
+  if (!scalar) return undefined;
+  const normalized = scalar.toLowerCase();
+  if (["0", "off", "none", "false", "disabled"].includes(normalized)) return null;
+  return positiveNumber(value, key, warn);
+}
+
 function nonNegativeInteger(value: unknown, key: string, warn: (message: string) => void): number | undefined {
   const scalar = stringValue(value);
   if (!scalar && value != null && typeof value !== "string") {
@@ -278,7 +294,7 @@ export function parseElekConfig(
         config.costRates = modelList(value, rawKey, warn);
         break;
       case "maxCostUsd":
-        config.maxCostUsd = positiveNumber(value, rawKey, warn);
+        config.maxCostUsd = positiveNumberOrDisabled(value, rawKey, warn);
         break;
       case "maxCouncilChangedLines":
       case "maxCrosscheckChangedLines":
@@ -737,7 +753,7 @@ export function formatConfigAuditLog(
     `validator_thinking=${config.validatorThinking ?? "(unset)"}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
-    `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
+    `max_cost_usd=${config.maxCostUsd === null ? "(disabled)" : config.maxCostUsd ?? "(unset)"}`,
     `max_council_changed_lines=${config.maxCouncilChangedLines ?? "(default)"}`,
     `max_crosscheck_changed_lines=${config.maxCrosscheckChangedLines ?? "(default)"}`,
     `knowledge_paths=${knowledgePaths}`,
@@ -753,7 +769,7 @@ export function formatConfigAuditLog(
     fields.push(`effective_validator_thinking=${effective.validatorThinking || "(same as reviewers)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
     fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
-    fields.push(`effective_max_cost_usd=${effective.maxCostUsd ?? "(unset)"}`);
+    fields.push(`effective_max_cost_usd=${effective.maxCostUsd === null ? "(disabled)" : effective.maxCostUsd ?? "(unset)"}`);
     fields.push(`effective_max_council_changed_lines=${effective.maxCouncilChangedLines ?? "(default)"}`);
     fields.push(`effective_max_crosscheck_changed_lines=${effective.maxCrosscheckChangedLines ?? "(default)"}`);
   }

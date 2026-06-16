@@ -154,8 +154,18 @@ knowledge_paths:
     ]);
   });
 
-  it("warns and skips boundary max_cost_usd values", () => {
-    for (const value of ["0", "-0.01", ".inf", ".nan"]) {
+  it("can explicitly disable max_cost_usd values", () => {
+    for (const value of ["0", "off", "none", "false", "disabled"]) {
+      const warnings: string[] = [];
+      const config = parseElekConfig(`max_cost_usd: ${value}\n`, (message) => warnings.push(message));
+
+      expect(config.maxCostUsd).toBeNull();
+      expect(warnings).toEqual([]);
+    }
+  });
+
+  it("warns and skips invalid max_cost_usd values", () => {
+    for (const value of ["-0.01", ".inf", ".nan"]) {
       const warnings: string[] = [];
       const config = parseElekConfig(`max_cost_usd: ${value}\n`, (message) => warnings.push(message));
 
@@ -810,6 +820,12 @@ instructions:
         instructions: [],
       })).toContain("knowledge_paths=(none)");
 
+      expect(formatConfigAuditLog(".elek.yml", {
+        maxCostUsd: null,
+        ignorePaths: [],
+        instructions: [],
+      })).toContain("max_cost_usd=(disabled)");
+
       expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
         ...baseInputs,
         reviewStrategy: "council",
@@ -829,6 +845,11 @@ instructions:
           "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3 | " +
           "effective_max_council_changed_lines=1200 | effective_max_crosscheck_changed_lines=0",
       );
+
+      expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
+        ...baseInputs,
+        maxCostUsd: null,
+      })).toContain("effective_max_cost_usd=(disabled)");
     } finally {
       if (previousEvent === undefined) {
         delete process.env.GITHUB_EVENT_NAME;

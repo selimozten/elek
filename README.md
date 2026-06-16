@@ -278,7 +278,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
-| `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; multi-lens strategies downgrade when known input-side estimates already exceed it |
+| `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; use `0`, `off`, or `none` to disable an inherited cap |
 | `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `council` downgrades; `0` disables |
 | `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `crosscheck` downgrades; `0` disables |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
@@ -533,6 +533,8 @@ known prompt/input-side cost before running multi-lens reviews; if that
 minimum estimate already exceeds the cap, it downgrades `thermos` to
 `council`, `council` to `crosscheck`, then `crosscheck` to `solo`. Provide
 `cost_rates` for custom models so the preflight guard can enforce the cap.
+Set `max_cost_usd: 0`, `off`, or `none` to explicitly disable a cap inherited
+from `.elek.yml` while testing a workflow.
 
 Changed-line guards run before cost estimates. By default, `thermos` and
 `council` downgrade above 1,200 changed diff lines and `crosscheck` downgrades

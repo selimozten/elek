@@ -22,9 +22,10 @@ function parseSeverityInput(value: string): ActionInputs["severityThreshold"] {
   return "";
 }
 
-function parseMaxCostInput(value: string): number | undefined {
+function parseMaxCostInput(value: string): number | null | undefined {
   const normalized = value.trim();
   if (!normalized) return undefined;
+  if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return null;
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     core.warning(`Ignoring invalid max_cost_usd input: ${normalized}`);

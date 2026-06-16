@@ -53,7 +53,7 @@ export interface ActionInputs {
    * strategy would exceed this cap before execution, elek downgrades to a
    * cheaper strategy.
    */
-  maxCostUsd?: number;
+  maxCostUsd?: number | null;
   /**
    * Optional maximum changed diff lines for council. Undefined uses elek's
    * default guard; 0 disables the size guard for council.

@@ -179,7 +179,8 @@ inputs:
     description: >
       Optional soft cap for estimated review cost in USD. If a multi-lens
       strategy already exceeds this cap before output tokens, elek downgrades
-      to a cheaper strategy.
+      to a cheaper strategy. Use 0, off, none, false, or disabled to explicitly
+      disable an inherited repo cap.
     required: false
     default: ""
   max_council_changed_lines:

@@ -130,7 +130,12 @@ export async function runPi(
   const env = buildPiEnv(inputs);
 
   console.log(`pi binary: ${piBin}`);
-  console.log(`Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`);
+  const cliThinking = piThinkingLevel(inputs.thinking);
+  console.log(
+    `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${
+      cliThinking === inputs.thinking ? inputs.thinking : `${inputs.thinking} (pi ${cliThinking})`
+    }`,
+  );
   const runModelLabel = modelLabelFor(inputs);
 
   const startTime = Date.now();
@@ -455,7 +460,7 @@ export function buildPiArgs(
 ): string[] {
   const args: string[] = [
     "--no-session",
-    "--thinking", inputs.thinking,
+    "--thinking", piThinkingLevel(inputs.thinking),
     "--no-skills",
     "--no-context-files",
   ];
@@ -485,6 +490,10 @@ export function buildPiArgs(
   args.push(`@${promptFile}`);
 
   return args;
+}
+
+function piThinkingLevel(value: string): string {
+  return value.trim().toLowerCase() === "max" ? "xhigh" : value;
 }
 
 /**
