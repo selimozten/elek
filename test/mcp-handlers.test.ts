@@ -213,11 +213,12 @@ describe("createInlineComment", () => {
       repo: "repo",
       pull_number: 42,
       path: "src/x.ts",
-      body: "nit: rename foo to bar",
       line: 10,
       side: "RIGHT",
       commit_id: "deadbeef", // pulled from PR head
     });
+    expect(params.body).toContain("nit: rename foo to bar");
+    expect(params.body).toContain("<!-- elek-finding:v1 id=");
     // single-line — start_line / start_side must NOT be present
     expect(params.start_line).toBeUndefined();
     expect(params.start_side).toBeUndefined();

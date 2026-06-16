@@ -223,7 +223,7 @@ export function buildPrompt(
     } else {
       parts.push(`   - The PR base branch is \`${baseBranch}\`. Use the \`<changed_files>\` block plus read/search tools to inspect changes.`);
     }
-    parts.push(`   - **Iterate on your prior reviews.** If \`<comments>\` contains a previous review you wrote (look for \`<!-- elek-bot:${modelLabel} -->\`), open with a status update for each prior finding — fixed, still present, or no longer relevant — *before* listing new findings. Don't repeat findings that were addressed.`);
+    parts.push("   - **Iterate on prior Elek reviews.** If `<comments>` contains a previous Elek review (look for `<!-- elek-bot`), open with a status update for each prior finding — fixed, still present, or no longer relevant — before listing new findings. Don't repeat findings that were addressed.");
   }
   parts.push("");
   parts.push("2. **Review thoroughly** — Check for:");

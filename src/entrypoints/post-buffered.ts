@@ -6,6 +6,11 @@
  * runs it against real fs/octokit when invoked as a CLI.
  */
 import { buildReviewCommentParams } from "../mcp/handlers";
+import {
+  appendFindingMarker,
+  extractFindingIds,
+  stableInlineFindingId,
+} from "../review/finding-markers";
 import { withGitHubRetry } from "../github/retry";
 
 /**
@@ -19,6 +24,7 @@ export type PostBufferedOctokit = {
     createReview?: (params: any) => Promise<any>;
     get: (params: any) => Promise<any>;
     listFiles?: (params: any) => Promise<any>;
+    listReviewComments?: (params: any) => Promise<any>;
   };
 };
 
@@ -34,6 +40,7 @@ export interface PostSummary {
   posted: number;
   skipped: number;
   failed: number;
+  duplicate?: number;
 }
 
 interface BufferedEntry {
@@ -151,6 +158,42 @@ async function buildCommentableMap(
   return map;
 }
 
+async function fetchPriorElekFindingIds(
+  octokit: PostBufferedOctokit,
+  env: PostBufferedDeps["env"],
+  log: (msg: string) => void,
+): Promise<Set<string>> {
+  const listReviewComments = octokit.pulls.listReviewComments;
+  if (!listReviewComments) return new Set();
+
+  const ids = new Set<string>();
+  try {
+    let page = 1;
+    while (page <= 10) {
+      const result = await withGitHubRetry(
+        () =>
+          listReviewComments({
+            owner: env.repoOwner,
+            repo: env.repoName,
+            pull_number: parseInt(env.prNumber, 10),
+            per_page: 100,
+            page,
+          }),
+        { label: "listReviewComments", log },
+      );
+      const comments = result.data as Array<{ body?: string }>;
+      for (const comment of comments) {
+        for (const id of extractFindingIds(comment.body)) ids.add(id);
+      }
+      if (comments.length < 100) break;
+      page++;
+    }
+  } catch (err) {
+    log(`prior elek finding lookup unavailable — ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return ids;
+}
+
 export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary> {
   const raw = deps.readBuffer();
   if (!raw.trim()) return { posted: 0, skipped: 0, failed: 0 };
@@ -162,6 +205,8 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
 
   const summary: PostSummary = { posted: 0, skipped: 0, failed: 0 };
   const log = deps.log ?? (() => {});
+  const priorFindingIds = await fetchPriorElekFindingIds(deps.octokit, deps.env, log);
+  const newFindingIds = new Set<string>();
   let commentableMap: Map<string, CommentableLines> | null = null;
   try {
     commentableMap = await buildCommentableMap(deps.octokit, deps.env);
@@ -212,8 +257,17 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
         continue;
       }
     }
+    const findingId = stableInlineFindingId(entry);
+    if (priorFindingIds.has(findingId) || newFindingIds.has(findingId)) {
+      summary.skipped++;
+      summary.duplicate = (summary.duplicate ?? 0) + 1;
+      log(`skipped duplicate elek finding ${findingId} ${entry.path}:${entry.line}`);
+      continue;
+    }
+    newFindingIds.add(findingId);
+
     const params = buildReviewCommentParams(
-      entry,
+      { ...entry, body: appendFindingMarker(entry.body, findingId) },
       deps.env,
       entry.commit_id ?? (await ensureHeadSha()),
     );

@@ -8,6 +8,7 @@ import {
   postBuffered,
   type PostBufferedDeps,
 } from "../src/entrypoints/post-buffered";
+import { stableInlineFindingId } from "../src/review/finding-markers";
 
 function makeDeps(overrides: Partial<PostBufferedDeps> = {}): {
   deps: PostBufferedDeps;
@@ -144,10 +145,11 @@ describe("postBuffered", () => {
       pull_number: 1,
       path: "src/a.ts",
       line: 10,
-      body: "nit",
       side: "RIGHT",
       commit_id: "headsha",
     });
+    expect(single.body).toContain("nit");
+    expect(single.body).toContain("<!-- elek-finding:v1 id=");
 
     const multi = calls[1].args as Record<string, unknown>;
     expect(multi).toMatchObject({
@@ -186,11 +188,10 @@ describe("postBuffered", () => {
       event: "COMMENT",
       commit_id: "headsha",
     });
-    expect(review.comments).toEqual([
+    expect(review.comments).toMatchObject([
       {
         path: "src/a.ts",
         line: 10,
-        body: "nit",
         side: "RIGHT",
       },
       {
@@ -199,9 +200,12 @@ describe("postBuffered", () => {
         start_side: "LEFT",
         line: 8,
         side: "LEFT",
-        body: "logic",
       },
     ]);
+    const comments = review.comments as Array<Record<string, unknown>>;
+    expect(comments[0].body).toContain("nit");
+    expect(comments[1].body).toContain("logic");
+    expect(comments[0].body).toContain("<!-- elek-finding:v1 id=");
   });
 
   it("falls back to individual comments when grouped review creation fails", async () => {
@@ -254,6 +258,24 @@ describe("postBuffered", () => {
     expect(summary.skipped).toBe(2);
     expect(summary.failed).toBe(0);
     expect(calls.length).toBe(1);
-    expect((calls[0].args as Record<string, unknown>).body).toBe("valid");
+    expect((calls[0].args as Record<string, unknown>).body).toContain("valid");
+  });
+
+  it("skips duplicate elek findings already posted on the PR", async () => {
+    const entry = { path: "src/a.ts", line: 10, body: "same finding" };
+    const findingId = stableInlineFindingId(entry);
+    const buffer = JSON.stringify(entry) + "\n";
+
+    const { deps, calls } = makeDeps({ readBuffer: () => buffer });
+    deps.octokit.pulls.listReviewComments = async () => ({
+      data: [{ body: `same finding\n\n<!-- elek-finding:v1 id=${findingId} -->` }],
+    });
+
+    const summary = await postBuffered(deps);
+
+    expect(summary.posted).toBe(0);
+    expect(summary.skipped).toBe(1);
+    expect(summary.duplicate).toBe(1);
+    expect(calls.length).toBe(0);
   });
 });

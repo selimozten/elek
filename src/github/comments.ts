@@ -1,14 +1,16 @@
 /**
  * GitHub comment management — create/update comments on PRs and issues.
  * Deduplicates by signature so the same comment is reused across pushes.
- * Uses the animated elek spinner from the action's home repo on `main`,
- * so fork PRs (where GITHUB_HEAD_REF doesn't exist in the base repo) work.
  */
 import type { GitHubEntityContext } from "../types.js";
+import { extractFindingIds, stripFindingMarkers } from "../review/finding-markers.js";
 import { spinnerHeader } from "./spinner.js";
 import { withGitHubRetry } from "./retry.js";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
+const ELEK_COMMENT_SIGNATURE = "<!-- elek-bot -->";
+const ELEK_LEGACY_COMMENT_PREFIX = "<!-- elek-bot:";
+const ELEK_SUPERSEDED_SIGNATURE = "<!-- elek-bot:superseded -->";
 
 // Loose adapter type matching @actions/github's getOctokit return shape.
 // Octokit's full types are deeply specific and don't structurally fit a
@@ -35,14 +37,39 @@ function jobRunLink(context: GitHubEntityContext): string {
   return `[View run](${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId})`;
 }
 
-/** Model-specific signature so dual reviews don't collide */
-function commentSignature(modelLabel: string): string {
-  const safeLabel = modelLabel
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/--/g, "- -");
-  return `<!-- elek-bot:${safeLabel} -->`;
+function commentSignature(_modelLabel: string): string {
+  return ELEK_COMMENT_SIGNATURE;
+}
+
+function isElekTrackingComment(body: string | undefined): boolean {
+  return Boolean(body?.includes(ELEK_COMMENT_SIGNATURE) || body?.includes(ELEK_LEGACY_COMMENT_PREFIX));
+}
+
+function isSupersededTrackingComment(body: string | undefined): boolean {
+  return Boolean(body?.includes(ELEK_SUPERSEDED_SIGNATURE));
+}
+
+function supersededBody(previousBody: string, latestUrl: string | undefined): string {
+  const detailsBody =
+    previousBody.length > 55_000
+      ? `${previousBody.slice(0, 55_000)}\n\n_...previous review truncated while marking it superseded_`
+      : previousBody;
+  return [
+    spinnerHeader("", "superseded by a newer run"),
+    "",
+    latestUrl
+      ? `This Elek review was superseded by [a newer run](${latestUrl}).`
+      : "This Elek review was superseded by a newer run.",
+    "",
+    "<details>",
+    "<summary>Previous review content</summary>",
+    "",
+    detailsBody,
+    "",
+    "</details>",
+    "",
+    ELEK_SUPERSEDED_SIGNATURE,
+  ].join("\n");
 }
 
 /**
@@ -54,15 +81,13 @@ function commentSignature(modelLabel: string): string {
  *
  * Pages through all comments since long-lived PRs may have many.
  */
-async function findExistingComment(
+async function findTrackingComments(
   octokit: GitHubApi,
   context: GitHubEntityContext,
-  modelLabel: string,
-): Promise<number | undefined> {
-  const sig = commentSignature(modelLabel);
+): Promise<Array<{ id: number; htmlUrl?: string; body: string }>> {
+  const matches: Array<{ id: number; htmlUrl?: string; body: string }> = [];
   try {
     let page = 1;
-    let lastMatchId: number | undefined;
     while (page <= 10) {
       const { data: comments } = await withGitHubRetry(
         () =>
@@ -76,15 +101,17 @@ async function findExistingComment(
         { label: "listComments" },
       );
       for (const c of comments) {
-        if (c.body?.includes(sig)) lastMatchId = c.id;
+        if (!isSupersededTrackingComment(c.body) && isElekTrackingComment(c.body)) {
+          matches.push({ id: c.id, htmlUrl: c.html_url, body: c.body || "" });
+        }
       }
       if (comments.length < 100) break;
       page++;
     }
-    return lastMatchId;
+    return matches;
   } catch (err) {
-    console.warn("findExistingComment failed:", (err as Error).message);
-    return undefined;
+    console.warn("findTrackingComments failed:", (err as Error).message);
+    return [];
   }
 }
 
@@ -107,22 +134,31 @@ export async function createTrackingComment(
     runLink,
   ].join("\n");
 
-  // Check for existing comment to reuse (model-specific)
-  const existingId = await findExistingComment(octokit, context, modelLabel);
+  // Reuse the newest active Elek comment. Older model-specific comments from
+  // previous Elek versions are marked superseded once so the PR has one clear
+  // current review thread.
+  const existingComments = await findTrackingComments(octokit, context);
+  const selected = existingComments.at(-1);
 
-  if (existingId) {
+  if (selected) {
     await withGitHubRetry(
       () =>
         octokit.rest.issues.updateComment({
           owner: context.repo.owner,
           repo: context.repo.repo,
-          comment_id: existingId,
+          comment_id: selected.id,
           body,
         }),
       { label: "updateComment" },
     );
-    console.log(`✓ Reused existing comment #${existingId}`);
-    return { id: existingId, htmlUrl: "" };
+    await markSupersededTrackingComments(
+      octokit,
+      context,
+      existingComments.filter((comment) => comment.id !== selected.id),
+      selected.htmlUrl,
+    );
+    console.log(`✓ Reused existing comment #${selected.id}`);
+    return { id: selected.id, htmlUrl: selected.htmlUrl || "" };
   }
 
   const { data } = await withGitHubRetry(
@@ -138,6 +174,31 @@ export async function createTrackingComment(
 
   console.log(`✓ Created tracking comment #${data.id}`);
   return { id: data.id, htmlUrl: data.html_url };
+}
+
+async function markSupersededTrackingComments(
+  octokit: GitHubApi,
+  context: GitHubEntityContext,
+  comments: Array<{ id: number; body: string }>,
+  latestUrl: string | undefined,
+): Promise<void> {
+  for (const comment of comments.slice(-20)) {
+    try {
+      await withGitHubRetry(
+        () =>
+          octokit.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: comment.id,
+            body: supersededBody(comment.body, latestUrl),
+          }),
+        { label: "markSupersededTrackingComment" },
+      );
+      console.log(`✓ Marked old elek comment #${comment.id} as superseded`);
+    } catch (err) {
+      console.warn(`Could not mark old elek comment #${comment.id} as superseded:`, err);
+    }
+  }
 }
 
 /**
@@ -253,7 +314,9 @@ export async function fetchReviewComments(
     // Include inline review comments
     for (const rc of reviewComments) {
       const loc = rc.path ? `${rc.path}:${rc.line || "?"}` : "";
-      comments.push(`[${loc}]: ${rc.body || ""}`);
+      const ids = extractFindingIds(rc.body);
+      const prefix = ids.length ? `Prior Elek finding ${ids.join(", ")} @ ${loc}` : loc;
+      comments.push(`[${prefix}]: ${stripFindingMarkers(rc.body || "")}`);
     }
 
     return comments;

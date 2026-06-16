@@ -485,6 +485,8 @@ export function buildSynthesisPrompt(params: {
     ``,
     `- Do not surface claims that external packages, GitHub Actions, model IDs, or APIs do not exist unless they are backed by current repo files, package-manager output, or workflow error logs.`,
     `- Treat existing comments and review comments as already-visible context; do not duplicate findings that have already been posted unless they remain unresolved and materially changed.`,
+    `- Prior Elek inline comments may appear as \`Prior Elek finding <id> @ path:line\`. Re-check them against the current diff. In final text, summarize whether prior Elek findings are fixed, still active, moved, or no longer relevant when that can be verified.`,
+    `- Do not call \`elek_review_create_inline_comment\` for a prior Elek finding that is still active at the same location with the same substance; the post step deduplicates exact repeats, but you should avoid generating them.`,
     `- Drop speculative, cosmetic, duplicate, stale, or pre-existing issues not rooted in added/modified code.`,
     `- Do not surface temporary workflow-test scaffolding as an Important finding when the PR body or user request explicitly says the change is for testing the review workflow; mention any follow-up such as pinning the action or restoring a budget as a summary note instead.`,
     `- Do not treat an omitted or disabled review-cost budget as a production finding unless the diff creates an immediate uncontrolled-spend path on the default branch. Cost policy warnings belong in the summary, not inline review comments.`,

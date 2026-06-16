@@ -620,8 +620,9 @@ async function run(): Promise<void> {
       : s;
 
   // Always post the review comment first (before git ops, which can fail)
+  let reviewBody = "";
   if (commentId) {
-    const reviewBody = [
+    reviewBody = [
       result.conclusion === "success"
         ? spinnerHeader(activeModelLabel, "analysis complete")
         : spinnerHeader(activeModelLabel, "encountered an issue"),
@@ -744,6 +745,23 @@ async function run(): Promise<void> {
       );
     } catch (err) {
       console.warn("post-buffered failed:", (err as Error).message);
+    }
+  }
+
+  if (commentId && reviewBody && (inlineSummary.duplicate ?? 0) > 0) {
+    const duplicateNote =
+      `_Inline lifecycle: skipped ${inlineSummary.duplicate} duplicate Elek inline finding(s) ` +
+      "already visible on this PR._";
+    try {
+      await updateTrackingComment(
+        octokit,
+        context,
+        commentId,
+        [reviewBody, "", duplicateNote].join("\n"),
+        modelLabel,
+      );
+    } catch (err) {
+      console.warn("Could not update tracking comment with inline lifecycle note:", err);
     }
   }
 
