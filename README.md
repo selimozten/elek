@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/elek-wordmark.svg" width="520" alt="elek" />
+  <img src="assets/elek-logo.png" width="360" alt="elek" />
 </p>
 
 <p align="center">

@@ -26,16 +26,13 @@ Secondary technical CTA:
 
 | Asset | Use |
 |---|---|
-| `assets/elek-logo.png` | Source crop from the supplied logo draft, kept as visual reference |
-| `assets/elek-mark.svg` | Icon, avatar, favicon source, compact placements |
-| `assets/elek-wordmark.svg` | README header, documentation header, lockups |
-| `assets/elek-card.svg` | Social preview, launch images, large brand placements |
-| `assets/elek-spinner.svg` | GitHub tracking comments and live progress states |
+| `assets/elek-logo.png` | Primary supplied PNG logo for README headers, documentation headers, GitHub comments, avatars, and product lockups |
+| `assets/elek-logo-purple.png` | Supplied purple wordmark PNG for single-color or light-background placements |
+| `assets/elek-logo-inverse.png` | Supplied inverse PNG for dark or purple-field placements |
 
 Keep the mark blocky and geometric. Do not add eyes, characters, mascots,
-glows, or extra review symbols around it. The SVG logo assets are built from
-paths, strokes, and fills so the core wordmark does not depend on Canva or
-runtime font loading.
+glows, or extra review symbols around it. Use the supplied square PNG files
+directly; the square canvas and long-shadow crop are intentional brand assets.
 
 ## Palette
 
@@ -68,8 +65,8 @@ Use Instrument Sans for the logo and short display lines. Use IBM Plex Sans for
 supporting copy, docs, and product UI. Do not use decorative serif, mono-only,
 or condensed display fonts for the primary brand.
 
-When rendering static assets, keep the platform fallbacks in the SVG so GitHub
-and package registries still render cleanly if they do not load remote fonts.
+Do not recreate the logo from live fonts in product surfaces. Use the supplied
+PNG files so GitHub, package registries, and hosted pages render the same shape.
 
 ## GitHub Avatar
 
