@@ -1,8 +1,13 @@
 # Architecture
 
+This document describes the public self-hosted GitHub Action runtime and open
+review engine. The planned hosted GitHub App should use the same review-only
+core and safety boundaries, but hosted queueing, billing, dashboards, and
+model-routing operations are outside this public repo.
+
 ## One-paragraph summary
 
-elek is a composite GitHub Action: action.yml installs Node + the pi CLI,
+The self-hosted runtime is a composite GitHub Action: action.yml installs Node + the pi CLI,
 then `tsx` invokes a single TypeScript orchestrator (`src/entrypoints/run.ts`)
 that parses the webhook event, fetches PR/issue data via the GitHub API,
 builds XML-tagged prompts, and spawns `pi --mode json` in child processes.

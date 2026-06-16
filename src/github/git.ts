@@ -90,11 +90,19 @@ export function pushBranch(branchName: string): void {
  * Get the git diff between two refs.
  */
 export function getGitDiff(baseRef: string, headRef: string): string {
-  // Fetch both refs first
-  execSync(`git fetch origin "${baseRef}" "${headRef}" --depth=100`, { stdio: "pipe" });
+  const headFetchRef = process.env.ELEK_HEAD_FETCH_REF || headRef;
+  const headRemoteRef = process.env.ELEK_HEAD_REMOTE_REF || headRef;
+
+  if (process.env.ELEK_HEAD_FETCH_REF) {
+    execSync(`git fetch origin "${baseRef}" --depth=100`, { stdio: "pipe" });
+    execSync(`git fetch origin "${headFetchRef}:refs/remotes/origin/${headRemoteRef}" --depth=100`, { stdio: "pipe" });
+  } else {
+    // Fetch both refs first
+    execSync(`git fetch origin "${baseRef}" "${headRef}" --depth=100`, { stdio: "pipe" });
+  }
 
   try {
-    return execSync(`git diff "origin/${baseRef}...origin/${headRef}"`, {
+    return execSync(`git diff "origin/${baseRef}...origin/${headRemoteRef}"`, {
       encoding: "utf-8",
       stdio: "pipe",
       maxBuffer: 50 * 1024 * 1024, // 50MB

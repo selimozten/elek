@@ -1,29 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">elek mark</title>
-  <desc id="desc">A minimal warm-toned elek monogram built from review lines and a validation stroke.</desc>
-  <style>
-    .back { fill: #f7f2ea; }
-    .line {
-      fill: none;
-      stroke: #171412;
-      stroke-width: 40;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .accent {
-      fill: none;
-      stroke: #c76d50;
-      stroke-width: 40;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .node { fill: #c76d50; }
-  </style>
-  <rect class="back" x="48" y="48" width="416" height="416" rx="92"/>
-  <path class="line" d="M126 152h232M126 256h162M126 360h232"/>
-  <path class="accent" d="M362 152 250 360"/>
-  <circle class="node" cx="362" cy="360" r="24"/>
+  <desc id="desc">A blocky purple and yellow elek e mark with a hard diagonal shadow.</desc>
+  <rect width="512" height="512" rx="88" fill="#fffdf7"/>
+  <path d="M108 338 282 512H512V360L418 266H246Z" fill="#8152a0"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 150H174Q124 150 124 200V312Q124 362 174 362H330M146 256H348" stroke="#8152a0" stroke-width="92"/>
+    <path d="M320 150H174Q124 150 124 200V312Q124 362 174 362H330M146 256H348" stroke="#fee15c" stroke-width="52"/>
+  </g>
 </svg>

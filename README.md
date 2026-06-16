@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/elek-wordmark.svg" width="390" alt="elek" />
+  <img src="assets/elek-wordmark.svg" width="520" alt="elek" />
 </p>
 
 <p align="center">
@@ -12,26 +12,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-171412.svg" alt="License: MIT" /></a>
 </p>
 
-elek is a model-agnostic GitHub Action that posts AI reviews on every PR. It works with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, and more.
+elek is a GitHub App-first AI review product in development. This public repo contains the open review engine, CLI tools, feedback analytics, and self-hosted GitHub Action runtime that make the review behavior auditable.
 
-It can run one reviewer, a two-lens cross-check, or a four-lens council. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+The planned hosted GitHub App will be the primary install path for branded, zero-config pull request reviews. The self-hosted Action works today for teams that want BYOK control, local auditability, or advanced workflow integration.
 
-```yaml
-# .github/workflows/elek.yml
-on: { pull_request: { types: [opened, synchronize] } }
-permissions: { contents: read, pull-requests: write, issues: write }
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
-```
+It can run one reviewer, a two-lens cross-check, or a four-lens council with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, xAI, and more. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+
+| Path | Status | Use it for |
+|---|---|---|
+| Hosted GitHub App | Planned primary path | Branded reviews, simple onboarding, hosted analytics, team settings |
+| Self-hosted GitHub Action | Available today | BYOK reviews, auditable runs, custom workflow control |
+| CLI tools | Available today | Feedback adjudication, saved-run analytics, benchmark evaluation |
 
 ## Why elek
 
@@ -43,11 +34,17 @@ jobs:
 | **Iterates on prior findings** | ✓ | often supported | partial |
 | **Structural safety** | ✓ no merge/approve/close paths | often broader PR API access | often broader repo access |
 | **Modules** | small TypeScript core | larger vendor stack | larger platform stack |
-| **Runtime** | Node 24 + tsx | provider CLI/runtime | provider CLI/runtime |
+| **Runtime** | Hosted App planned; Action/CLI available | provider CLI/runtime | provider CLI/runtime |
 
 **Bias toward cheap, capable models.** DeepSeek-v4-Pro plus Kimi K2.7 Code through OpenRouter gives you two independent review passes without defaulting to one expensive model. Run them in parallel for cross-validation; reserve premium validators for the highest-risk PRs.
 
-## Quick start
+## Hosted App status
+
+The public GitHub App install is planned and not yet open. Normal product
+onboarding should become "Install the elek GitHub App"; until that path is
+available, use the self-hosted Action below.
+
+## Advanced self-hosted quick start
 
 Fast path from your repository root:
 
@@ -55,7 +52,8 @@ Fast path from your repository root:
 npx --package github:selimozten/elek elek-init --provider deepseek
 ```
 
-This creates `.github/workflows/elek.yml` and `.elek.yml`.
+This creates `.github/workflows/elek.yml` and `.elek.yml` for the Action
+runtime.
 
 1. Add a provider API key to repo secrets (`Settings → Secrets and variables → Actions`):
 
@@ -230,6 +228,19 @@ flowchart LR
 A composite Action installs Node + pi + the MCP adapter, then `tsx` runs the orchestrator. Pi spawns the model, streams events back as JSONL, and elek converts those into a live checklist. The model calls our MCP server to buffer inline comments; a post-step drains the buffer to GitHub's PR review-comments API after pi exits.
 
 Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Public roadmap
+
+- **GitHub App primary install** — make the hosted elek App the default way to
+  add review-only AI to a repository, with the Action remaining the advanced
+  self-hosted runtime.
+- **Opt-in telemetry contract** — publish redacted telemetry schemas and client
+  redaction tests so teams can choose aggregate or finding-metadata reporting
+  without sending raw code, raw diffs, prompts, file paths, branch names,
+  commit SHAs, secrets, or author identities.
+- **Model-quality analytics** — build on `elek-feedback`, `elek-analytics`,
+  and `elek-eval` so teams can compare models by accepted findings, false
+  positives, cost, latency, and inline-comment health.
 
 ## Inputs
 
@@ -522,6 +533,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 - [`docs/examples.md`](docs/examples.md) — workflow recipes
 - [`docs/PRODUCT_RESEARCH.md`](docs/PRODUCT_RESEARCH.md) — market gaps and product roadmap
 - [`docs/BRAND.md`](docs/BRAND.md) — brand assets, palette, voice, and usage rules
+- [`docs/TELEMETRY.md`](docs/TELEMETRY.md) — opt-in telemetry consent levels and redaction contract
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents working on elek
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
 

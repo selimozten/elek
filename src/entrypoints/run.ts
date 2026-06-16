@@ -221,13 +221,17 @@ async function run(): Promise<void> {
   }
 
   // Create tracking comment with the elek spinner.
-  let commentId: number | undefined;
+  let commentId = parseExistingTrackingCommentId(process.env.ELEK_TRACKING_COMMENT_ID);
   if (inputs.stickyComment) {
-    try {
-      const comment = await createTrackingComment(octokit, context, modelLabel);
-      commentId = comment.id;
-    } catch (err) {
-      console.warn("Could not create tracking comment:", err);
+    if (commentId) {
+      console.log(`Using existing elek tracking comment #${commentId}`);
+    } else {
+      try {
+        const comment = await createTrackingComment(octokit, context, modelLabel);
+        commentId = comment.id;
+      } catch (err) {
+        console.warn("Could not create tracking comment:", err);
+      }
     }
   }
 
@@ -786,3 +790,9 @@ run().catch((err) => {
   core.setFailed(`Fatal: ${err.message}`);
   process.exit(1);
 });
+
+function parseExistingTrackingCommentId(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}

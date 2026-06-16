@@ -1,4 +1,8 @@
-# Setup guide
+# Self-hosted setup guide
+
+This guide covers the self-hosted GitHub Action runtime. The hosted GitHub App
+is the planned primary install path for normal product onboarding; the Action
+remains available for BYOK, auditable runs, and custom workflow control.
 
 ## Requirements
 
@@ -19,7 +23,9 @@ This creates:
 - `.github/workflows/elek.yml`
 - `.elek.yml`
 
-Then add the `DEEPSEEK_API_KEY` repository secret and open a PR.
+Then add the `DEEPSEEK_API_KEY` repository secret and open a PR. This creates
+the same review engine behavior the hosted App will build on, but runs inside
+your own GitHub Actions workflow.
 
 Useful variants:
 

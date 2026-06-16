@@ -1,7 +1,7 @@
 # Product research
 
-This document tracks the product bar for making elek a best-in-class
-open-source review bot.
+This document tracks the product bar for making elek a best-in-class,
+GitHub App-first review product with an auditable open core.
 
 ## Market pattern
 
@@ -21,12 +21,14 @@ The strongest review tools are converging on the same capabilities:
 
 elek should not compete by becoming a general coding agent. The winning lane is:
 
-- open source and BYOK
+- hosted GitHub App as the primary install and brand surface
+- open review engine, CLI tools, schemas, and self-hosted runtime
+- BYOK and self-hosting for teams that need control
 - review-only by default
 - structurally unable to approve, merge, or close
 - model agnostic through pi
-- transparent about model choice, review strategy, and cost
-- easy to adopt with one workflow file
+- transparent about model choice, review strategy, cost, and accepted finding rate
+- useful feedback analytics so teams can choose models by signal-to-noise
 
 ## Feature priorities
 
@@ -66,9 +68,14 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 
 ### Next
 
-1. Benchmark fixture runner: create local seeded PR worktrees from a
+1. GitHub App install path: make branded hosted reviews the primary onboarding
+   path while keeping the Action as the advanced self-hosted runtime.
+2. Public telemetry contract: add opt-in aggregate and finding-metadata schemas
+   plus redaction tests that prove raw code, diffs, prompts, file paths,
+   branch names, commit SHAs, secrets, and author identities are excluded.
+3. Benchmark fixture runner: create local seeded PR worktrees from a
    declarative suite so model comparisons can run end-to-end.
-2. Community model leaderboard: publish anonymized aggregate feedback reports
+4. Community model leaderboard: publish anonymized aggregate feedback reports
    so projects can compare model quality, cost, latency, and false positives.
 
 ## Model evaluation plan

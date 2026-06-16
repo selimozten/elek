@@ -6,6 +6,7 @@
  * runs it against real fs/octokit when invoked as a CLI.
  */
 import { buildReviewCommentParams } from "../mcp/handlers";
+import { withGitHubRetry } from "../github/retry";
 
 /**
  * Narrow Octokit slice the post-step uses. `any` for params + responses to
@@ -123,18 +124,23 @@ async function buildCommentableMap(
   octokit: PostBufferedOctokit,
   env: PostBufferedDeps["env"],
 ): Promise<Map<string, CommentableLines> | null> {
-  if (!octokit.pulls.listFiles) return null;
+  const listFiles = octokit.pulls.listFiles;
+  if (!listFiles) return null;
 
   const map = new Map<string, CommentableLines>();
   let page = 1;
   while (page <= 10) {
-    const result = await octokit.pulls.listFiles({
-      owner: env.repoOwner,
-      repo: env.repoName,
-      pull_number: parseInt(env.prNumber, 10),
-      per_page: 100,
-      page,
-    });
+    const result = await withGitHubRetry(
+      () =>
+        listFiles({
+          owner: env.repoOwner,
+          repo: env.repoName,
+          pull_number: parseInt(env.prNumber, 10),
+          per_page: 100,
+          page,
+        }),
+      { label: "listFiles" },
+    );
     const files = result.data as Array<{ filename: string; patch?: string }>;
     for (const file of files) {
       map.set(file.filename, commentableLinesForPatch(file.patch));
@@ -172,11 +178,15 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
     if (typeof headShaResolved === "string") return headShaResolved;
     if (headShaResolved === null) throw new Error("PR head SHA unavailable (prior fetch failed)");
     try {
-      const pr = await deps.octokit.pulls.get({
-        owner: deps.env.repoOwner,
-        repo: deps.env.repoName,
-        pull_number: parseInt(deps.env.prNumber, 10),
-      });
+      const pr = await withGitHubRetry(
+        () =>
+          deps.octokit.pulls.get({
+            owner: deps.env.repoOwner,
+            repo: deps.env.repoName,
+            pull_number: parseInt(deps.env.prNumber, 10),
+          }),
+        { label: "pulls.get" },
+      );
       const sha = pr.data.head.sha as string;
       headShaResolved = sha;
       return sha;
@@ -219,16 +229,21 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
   );
 
   if (deps.octokit.pulls.createReview && commitIds.size === 1) {
+    const createReview = deps.octokit.pulls.createReview;
     try {
       const [commitId] = [...commitIds];
-      await deps.octokit.pulls.createReview({
-        owner: deps.env.repoOwner,
-        repo: deps.env.repoName,
-        pull_number: parseInt(deps.env.prNumber, 10),
-        event: "COMMENT",
-        commit_id: commitId,
-        comments: prepared.map(toCreateReviewComment),
-      });
+      await withGitHubRetry(
+        () =>
+          createReview({
+            owner: deps.env.repoOwner,
+            repo: deps.env.repoName,
+            pull_number: parseInt(deps.env.prNumber, 10),
+            event: "COMMENT",
+            commit_id: commitId,
+            comments: prepared.map(toCreateReviewComment),
+          }),
+        { label: "createReview", log: log },
+      );
       summary.posted += prepared.length;
       log(`posted grouped review with ${prepared.length} inline comment(s)`);
       return summary;
@@ -243,7 +258,10 @@ export async function postBuffered(deps: PostBufferedDeps): Promise<PostSummary>
 
   for (const params of prepared) {
     try {
-      await deps.octokit.pulls.createReviewComment(params);
+      await withGitHubRetry(() => deps.octokit.pulls.createReviewComment(params), {
+        label: "createReviewComment",
+        log: log,
+      });
       summary.posted++;
       log(`posted ${params.path}:${params.line}`);
     } catch (err) {

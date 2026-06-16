@@ -1,41 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
   <title id="title">elek reviewing</title>
-  <desc id="desc">Animated elek review mark used while a model is reviewing.</desc>
+  <desc id="desc">Animated purple and yellow elek mark used while a model is reviewing.</desc>
   <style>
-    .back { fill: #f7f2ea; }
-
     .ring {
       fill: none;
-      stroke: #c76d50;
-      stroke-width: 12;
-      stroke-linecap: round;
-      stroke-dasharray: 36 138;
-    }
-
-    .line {
-      fill: none;
-      stroke: #171412;
+      stroke: #8152a0;
       stroke-width: 10;
       stroke-linecap: round;
-      stroke-linejoin: round;
+      stroke-dasharray: 34 132;
     }
-
-    .accent {
-      fill: none;
-      stroke: #c76d50;
-      stroke-width: 10;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .node { fill: #c76d50; }
   </style>
-  <rect class="back" x="3" y="3" width="122" height="122" rx="30"/>
+  <rect width="128" height="128" rx="22" fill="#fffdf7"/>
+  <path d="M30 86 74 128H128V96L106 74H58Z" fill="#8152a0"/>
   <circle class="ring" cx="64" cy="64" r="53">
-    <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 64 64" to="360 64 64" dur="1.25s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 64 64" to="360 64 64" dur="1.15s" repeatCount="indefinite"/>
   </circle>
-  <path class="line" d="M34 42h56M34 64h38M34 86h56"/>
-  <path class="accent" d="M91 42 64 86"/>
-  <circle class="node" cx="91" cy="86" r="6"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M82 38H46Q34 38 34 50V78Q34 90 46 90H84M38 64H88" stroke="#8152a0" stroke-width="22"/>
+    <path d="M82 38H46Q34 38 34 50V78Q34 90 46 90H84M38 64H88" stroke="#fee15c" stroke-width="12"/>
+  </g>
 </svg>

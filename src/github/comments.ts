@@ -6,6 +6,7 @@
  */
 import type { GitHubEntityContext } from "../types.js";
 import { spinnerHeader } from "./spinner.js";
+import { withGitHubRetry } from "./retry.js";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 
@@ -63,13 +64,17 @@ async function findExistingComment(
     let page = 1;
     let lastMatchId: number | undefined;
     while (page <= 10) {
-      const { data: comments } = await octokit.rest.issues.listComments({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        issue_number: context.entityNumber,
-        per_page: 100,
-        page,
-      });
+      const { data: comments } = await withGitHubRetry(
+        () =>
+          octokit.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.entityNumber,
+            per_page: 100,
+            page,
+          }),
+        { label: "listComments" },
+      );
       for (const c of comments) {
         if (c.body?.includes(sig)) lastMatchId = c.id;
       }
@@ -106,22 +111,30 @@ export async function createTrackingComment(
   const existingId = await findExistingComment(octokit, context, modelLabel);
 
   if (existingId) {
-    await octokit.rest.issues.updateComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      comment_id: existingId,
-      body,
-    });
+    await withGitHubRetry(
+      () =>
+        octokit.rest.issues.updateComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          comment_id: existingId,
+          body,
+        }),
+      { label: "updateComment" },
+    );
     console.log(`✓ Reused existing comment #${existingId}`);
     return { id: existingId, htmlUrl: "" };
   }
 
-  const { data } = await octokit.rest.issues.createComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    issue_number: context.entityNumber,
-    body,
-  });
+  const { data } = await withGitHubRetry(
+    () =>
+      octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.entityNumber,
+        body,
+      }),
+    { label: "createComment" },
+  );
 
   console.log(`✓ Created tracking comment #${data.id}`);
   return { id: data.id, htmlUrl: data.html_url };
@@ -138,12 +151,16 @@ export async function updateTrackingComment(
   modelLabel: string,
 ): Promise<void> {
   const sig = commentSignature(modelLabel);
-  await octokit.rest.issues.updateComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    comment_id: commentId,
-    body: body + "\n\n" + sig,
-  });
+  await withGitHubRetry(
+    () =>
+      octokit.rest.issues.updateComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        comment_id: commentId,
+        body: body + "\n\n" + sig,
+      }),
+    { label: "updateTrackingComment" },
+  );
 }
 
 /**
@@ -156,12 +173,16 @@ export async function postComment(
   modelLabel: string,
 ): Promise<void> {
   const sig = commentSignature(modelLabel);
-  await octokit.rest.issues.createComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    issue_number: context.entityNumber,
-    body: body + "\n\n" + sig,
-  });
+  await withGitHubRetry(
+    () =>
+      octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.entityNumber,
+        body: body + "\n\n" + sig,
+      }),
+    { label: "postComment" },
+  );
   console.log("✓ Posted fallback comment");
 }
 
@@ -175,13 +196,17 @@ export async function createPRReview(
   conclusion: "success" | "failure",
   modelLabel: string,
 ): Promise<void> {
-  await octokit.rest.pulls.createReview({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: context.entityNumber,
-    body: formatReviewBody(output, conclusion, context, modelLabel),
-    event: "COMMENT",
-  });
+  await withGitHubRetry(
+    () =>
+      octokit.rest.pulls.createReview({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: context.entityNumber,
+        body: formatReviewBody(output, conclusion, context, modelLabel),
+        event: "COMMENT",
+      }),
+    { label: "createPRReview" },
+  );
 
   console.log("✓ Posted PR review (COMMENT)");
 }
@@ -196,17 +221,25 @@ export async function fetchReviewComments(
   if (!context.isPR) return [];
 
   try {
-    const { data: reviews } = await octokit.rest.pulls.listReviews({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      pull_number: context.entityNumber,
-    });
+    const { data: reviews } = await withGitHubRetry(
+      () =>
+        octokit.rest.pulls.listReviews({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: context.entityNumber,
+        }),
+      { label: "listReviews" },
+    );
 
-    const { data: reviewComments } = await octokit.rest.pulls.listReviewComments({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      pull_number: context.entityNumber,
-    });
+    const { data: reviewComments } = await withGitHubRetry(
+      () =>
+        octokit.rest.pulls.listReviewComments({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: context.entityNumber,
+        }),
+      { label: "listReviewComments" },
+    );
 
     const comments: string[] = [];
 

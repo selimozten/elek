@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { buildPiArgs, runPi } from "../src/pi";
+import { __buildPiEnv, buildPiArgs, runPi } from "../src/pi";
 import type { ActionInputs } from "../src/types";
 
 const baseInputs: ActionInputs = {
@@ -75,6 +75,47 @@ describe("buildPiArgs", () => {
     expect(args).toContain("--model");
     expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
     expect(args).not.toContain("--no-extensions");
+  });
+});
+
+describe("buildPiEnv", () => {
+  const secretVars = ["SECRET_SHOULD_NOT_LEAK", "MY_DEPLOY_KEY", "AWS_BILLING_TOKEN"];
+
+  afterEach(() => {
+    for (const v of secretVars) delete process.env[v];
+    delete process.env.GITHUB_TOKEN;
+  });
+
+  it("does not leak arbitrary parent secrets into agent-mode child env", () => {
+    for (const v of secretVars) process.env[v] = "leaked-value";
+    process.env.GITHUB_TOKEN = "ghs_fake_token";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-fake";
+
+    const env = __buildPiEnv({ ...baseInputs, provider: "anthropic", mode: "agent" });
+
+    for (const v of secretVars) {
+      expect(env[v]).toBeUndefined();
+    }
+    // But the vars agent mode legitimately needs are still present.
+    expect(env.PATH).toBe(process.env.PATH);
+    expect(env.HOME).toBeDefined();
+    expect(env.GITHUB_TOKEN).toBe("ghs_fake_token");
+    expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-fake");
+    expect(env.PI_OFFLINE).toBe("1");
+
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it("review mode does not leak secrets and omits GITHUB_TOKEN", () => {
+    process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
+    process.env.GITHUB_TOKEN = "ghs_fake_token";
+
+    const env = __buildPiEnv({ ...baseInputs, mode: "review" });
+
+    expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
+    // GITHUB_TOKEN is only granted to agent mode (which runs git push).
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    expect(env.PATH).toBe(process.env.PATH);
   });
 });
 

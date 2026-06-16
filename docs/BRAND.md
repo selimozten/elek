@@ -1,8 +1,9 @@
 # elek brand
 
-Elek should feel precise, quiet, and review-focused: closer to a disciplined
-engineering tool than a mascot product. The identity uses warm neutrals and a
-single clay accent so it feels human without looking playful or loud.
+Elek should feel precise, geometric, and review-focused: closer to a memorable
+engineering product than a generic CI dashboard. The identity uses the supplied
+blocky elek wordmark direction: purple structure, yellow interior fills, white
+negative space, and hard long-shadow geometry.
 
 ## Positioning
 
@@ -13,34 +14,46 @@ Use this line when the product needs to be explained in one sentence:
 > Elek cross-checks pull requests with independent AI reviewers while keeping
 > every model inside a narrow, non-destructive tool surface.
 
+Primary product CTA once hosted onboarding is open:
+
+> Install the elek GitHub App.
+
+Secondary technical CTA:
+
+> Self-host with the GitHub Action.
+
 ## Logo Assets
 
 | Asset | Use |
 |---|---|
+| `assets/elek-logo.png` | Source crop from the supplied logo draft, kept as visual reference |
 | `assets/elek-mark.svg` | Icon, avatar, favicon source, compact placements |
 | `assets/elek-wordmark.svg` | README header, documentation header, lockups |
 | `assets/elek-card.svg` | Social preview, launch images, large brand placements |
 | `assets/elek-spinner.svg` | GitHub tracking comments and live progress states |
 
-Keep the mark simple. Do not add eyes, characters, mascots, shadows, glows, or
-extra review symbols around it. The logo should stay recognizable at 16px.
+Keep the mark blocky and geometric. Do not add eyes, characters, mascots,
+glows, or extra review symbols around it. The SVG logo assets are built from
+paths, strokes, and fills so the core wordmark does not depend on Canva or
+runtime font loading.
 
 ## Palette
 
 | Token | Hex | Use |
 |---|---|---|
-| Ink | `#171412` | Primary text and mark strokes |
-| Bone | `#f7f2ea` | Warm light backgrounds |
-| Warm | `#fbf7ef` | Social-card gradient start |
-| Sand | `#eaded2` | Social-card gradient end |
-| Clay | `#c76d50` | Validation stroke, active states, small accents |
-| Stone | `#6f6760` | Secondary text |
-| Tag-dark | `#cfc3b7` | Secondary wordmark text on dark surfaces |
-| Line | `#e1d5ca` | Borders and subtle separators |
+| Ink | `#171421` | Primary text |
+| Purple | `#8152a0` | Primary brand structure, buttons, shadows |
+| Purple-deep | `#5e367b` | Borders, depth, active states |
+| Purple-dark | `#332044` | Dark panels and dashboard surfaces |
+| Yellow | `#fee15c` | Logo fill, primary CTA, status accents |
+| Cream | `#fffdf7` | Light page backgrounds and logo negative space |
+| Stone | `#6f617a` | Secondary text |
+| Line | `#d8c6e6` | Borders and subtle separators |
 
-Use Clay sparingly. Most surfaces should be Ink on Bone, or Bone on Ink for
-dark placements. Avoid saturated greens, blues, and purple gradients; they make
-the product look like a generic CI dashboard instead of elek.
+Use Yellow as the active accent and Purple as the dominant brand field. Most
+surfaces should be Ink on Cream, Yellow on Purple, or Cream on Purple-dark.
+Avoid generic purple-blue gradients; the brand should read as hard-edged,
+blocky, and logo-led.
 
 ## Typography
 
@@ -60,7 +73,9 @@ and package registries still render cleanly if they do not load remote fonts.
 
 ## GitHub Avatar
 
-Workflow comments posted with the default `GITHUB_TOKEN` always appear as
+The hosted GitHub App should be the primary branded surface for elek reviews:
+the App name and avatar appear directly in the PR timeline. Workflow comments
+posted with the default `GITHUB_TOKEN` always appear as
 `github-actions[bot]`. GitHub Actions cannot override that avatar, even when
 the action has custom branding.
 

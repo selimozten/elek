@@ -1,4 +1,8 @@
-# Workflow examples
+# Self-hosted workflow examples
+
+These recipes are for the GitHub Action runtime. The hosted GitHub App is the
+planned primary install path; use these examples when you want BYOK execution,
+custom workflow wiring, or advanced self-hosted control.
 
 ## Generate starter files
 
@@ -12,7 +16,7 @@ Cost-aware multi-pass starter:
 npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
 ```
 
-## Auto-review on every push (recommended starting point)
+## Auto-review on every push (common self-hosted starting point)
 
 ```yaml
 # .github/workflows/elek.yml

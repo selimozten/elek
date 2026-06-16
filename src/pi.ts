@@ -411,21 +411,44 @@ export function buildPiArgs(
 
 /**
  * Build the environment variables for pi.
+ *
+ * Both review and agent modes use a strict allowlist instead of leaking
+ * `{ ...process.env }`. Agent mode runs a child that may execute shell (git
+ * commit/push), so blindly passing the parent env would expose every secret
+ * the workflow ever set to a process that can run arbitrary commands. Agent
+ * mode only gets a few extra GitHub/workflow vars beyond the review baseline
+ * — enough for git auth + pushing — never the whole environment.
  */
 function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = inputs.mode === "agent"
-    ? { ...process.env }
-    : {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME || "/root",
-        LANG: process.env.LANG,
-        LC_ALL: process.env.LC_ALL,
-        TMPDIR: process.env.TMPDIR,
-        RUNNER_TEMP: process.env.RUNNER_TEMP,
-        GITHUB_ACTION_PATH: process.env.GITHUB_ACTION_PATH,
-        PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
-        PI_PACKAGE_DIR: process.env.PI_PACKAGE_DIR,
-      };
+  const env: NodeJS.ProcessEnv = {};
+
+  // Baseline allowed in every mode: locale, temp dirs, and pi's own paths.
+  const baseAllowedVars = [
+    "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "RUNNER_TEMP",
+    "GITHUB_ACTION_PATH", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR",
+  ];
+
+  // Agent mode runs shell and pushes commits, so it additionally needs the
+  // standard GitHub Actions context vars and the token git auth relies on.
+  // This is deliberately narrow — NOT the full parent environment.
+  const agentExtraVars = [
+    "GITHUB_TOKEN", "GH_TOKEN",
+    "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER",
+    "GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_GRAPHQL_URL",
+    "GITHUB_RUN_ID", "GITHUB_RUN_NUMBER", "GITHUB_SHA", "GITHUB_REF",
+    "GITHUB_REF_NAME", "GITHUB_HEAD_REF", "GITHUB_BASE_REF",
+    "GITHUB_WORKSPACE", "GITHUB_EVENT_NAME", "GITHUB_ACTOR",
+    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
+    "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
+  ];
+
+  const allowedVars = inputs.mode === "agent"
+    ? [...baseAllowedVars, ...agentExtraVars]
+    : baseAllowedVars;
+
+  for (const v of allowedVars) {
+    if (process.env[v] !== undefined) env[v] = process.env[v];
+  }
 
   Object.assign(env, {
     HOME: process.env.HOME || "/root",
@@ -449,3 +472,9 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   return env;
 }
+
+/**
+ * Test seam: the env builder is internal, but tests need to assert the
+ * agent-mode allowlist doesn't leak arbitrary parent secrets.
+ */
+export const __buildPiEnv = buildPiEnv;
