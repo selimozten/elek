@@ -28,12 +28,17 @@ export interface ActionInputs {
    * - solo: one reviewer, current behavior
    * - crosscheck: two independent read-only lenses, then synthesis
    * - council: four independent read-only lenses, then synthesis
+   * - thermos: N independent Thermos-style audit lenses, then synthesis
    */
   reviewStrategy: string;
   /** Optional comma-separated model specs for reviewer lenses. */
   reviewModels: string;
+  /** Optional number of parallel reviewer agents for thermos strategy. */
+  reviewAgentCount?: number;
   /** Optional model spec for final validation/synthesis. */
   validatorModel: string;
+  /** Optional thinking level for final validation/synthesis. */
+  validatorThinking: string;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";
   /** Show estimated review cost in logs, outputs, and comments. */
@@ -48,15 +53,15 @@ export interface ActionInputs {
    * strategy would exceed this cap before execution, elek downgrades to a
    * cheaper strategy.
    */
-  maxCostUsd?: number;
+  maxCostUsd?: number | null;
   /**
-   * Optional maximum changed diff lines for council. Undefined uses elek's
-   * default guard; 0 disables the size guard for council.
+   * Optional changed-line warning threshold for council/thermos. Undefined
+   * uses elek's default warning threshold; 0 disables the warning.
    */
   maxCouncilChangedLines?: number;
   /**
-   * Optional maximum changed diff lines for crosscheck. Undefined uses elek's
-   * default guard; 0 disables the size guard for crosscheck.
+   * Optional changed-line warning threshold for crosscheck. Undefined uses
+   * elek's default warning threshold; 0 disables the warning.
    */
   maxCrosscheckChangedLines?: number;
 }
@@ -100,7 +105,7 @@ export interface PiRunResult {
     outputTokens: number;
     estimated: boolean;
     modelLabel: string;
-    source: "builtin" | "override" | "unknown";
+    source: "builtin" | "override" | "provider" | "unknown";
   };
 }
 

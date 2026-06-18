@@ -4,8 +4,9 @@ import { mcpToolGuidance } from "../github/mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
+import { formatChangedFilesForPrompt } from "./diff-context.js";
 
-export type ReviewStrategy = "solo" | "crosscheck" | "council";
+export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
 
 export interface ModelSpec {
   provider: string;
@@ -22,11 +23,13 @@ export interface ReviewLens {
 export interface ReviewJob {
   lens: ReviewLens;
   model: ModelSpec;
+  role?: "reviewer" | "validator-review";
 }
 
 export interface ReviewPlan {
   strategy: ReviewStrategy;
   jobs: ReviewJob[];
+  validatorReview?: ReviewJob;
   validator: ModelSpec;
   reusedModels: boolean;
 }
@@ -47,8 +50,10 @@ export interface BudgetPlanResult {
   events: BudgetPlanEvent[];
 }
 
-const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 1_200;
-const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 3_000;
+const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 200_000;
+const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 200_000;
+const DEFAULT_CHANGED_FILES_PROMPT_CHARS = 200_000;
+const SYNTHESIS_CHANGED_FILES_PROMPT_CHARS = 200_000;
 
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
@@ -79,6 +84,48 @@ const COUNCIL_EXTRA_LENSES: ReviewLens[] = [
       "Rollout and rollback safety, migrations, configuration/env changes, observability, rate limits, retries, concurrency, partial updates, and production support burden.",
   },
 ];
+
+const THERMOS_LENSES: ReviewLens[] = [
+  {
+    id: "security-correctness",
+    title: "Security & Correctness Audit",
+    focus:
+      "Security vulnerabilities, auth/authz regressions, data corruption, data loss, race conditions, injection risks, and concrete user-visible breakage rooted in changed code.",
+  },
+  {
+    id: "side-effects",
+    title: "Breaking Side-Effects Audit",
+    focus:
+      "Cross-module and cross-package side effects, changed contracts, backward compatibility, hidden coupling, feature behavior regressions, and unintended breakage elsewhere in the codebase.",
+  },
+  {
+    id: "devex-config",
+    title: "DevEx & Config Audit",
+    focus:
+      "Developer workflow breakage, env var/config drift, local build/test/runtime changes, dependency or script requirements that alter normal development, and generated artifact drift.",
+  },
+  {
+    id: "feature-gates",
+    title: "Feature Gate & Exposure Audit",
+    focus:
+      "Feature-flag leaks, internal-only behavior becoming public, rollout/kill-switch gaps, permission bypasses, and incomplete gating around partially shipped features.",
+  },
+  {
+    id: "tests-ops",
+    title: "Tests & Operations Audit",
+    focus:
+      "Missing tests for changed behavior, weak assertions, migration/rollback risk, observability gaps, timeout/retry/idempotency issues, and production support burden.",
+  },
+];
+
+const VALIDATOR_REVIEW_LENS: ReviewLens = {
+  id: "validator-self-review",
+  title: "Final Model Independent Audit",
+  focus:
+    "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues.",
+};
+
+const MAX_THERMOS_REVIEW_AGENTS = 8;
 
 export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
   return (normalizeReviewStrategy(raw) as ReviewStrategy | undefined) ?? "solo";
@@ -122,26 +169,52 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   const validator = parseModelSpec(inputs.validatorModel, inputs);
   if (strategy === "solo") return { strategy, jobs: [], validator, reusedModels: false };
 
+  const parsedModels = parseModelList(inputs.reviewModels, inputs);
   const lenses =
     strategy === "crosscheck"
       ? CROSSCHECK_LENSES
-      : [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES];
-
-  const parsedModels = parseModelList(inputs.reviewModels, inputs);
+      : strategy === "council"
+        ? [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES]
+        : thermosLenses(inputs.reviewAgentCount, parsedModels.length);
   const models = parsedModels.length > 0 ? parsedModels : [parseModelSpec("", inputs)];
   const reusedModels = lenses.length > models.length;
   const jobs = lenses.map((lens, i) => ({
     lens,
     model: models[i % models.length],
+    role: "reviewer" as const,
   }));
+  const validatorReview = {
+    lens: VALIDATOR_REVIEW_LENS,
+    model: validator,
+    role: "validator-review" as const,
+  };
 
-  return { strategy, jobs, validator, reusedModels };
+  return { strategy, jobs, validatorReview, validator, reusedModels };
 }
 
 export function downgradeReviewStrategy(strategy: ReviewStrategy): ReviewStrategy | undefined {
+  if (strategy === "thermos") return "council";
   if (strategy === "council") return "crosscheck";
   if (strategy === "crosscheck") return "solo";
   return undefined;
+}
+
+function thermosLenses(requestedCount: number | undefined, modelCount: number): ReviewLens[] {
+  const count = Math.min(
+    MAX_THERMOS_REVIEW_AGENTS,
+    Math.max(1, requestedCount ?? Math.max(THERMOS_LENSES.length, modelCount)),
+  );
+  if (count <= THERMOS_LENSES.length) return THERMOS_LENSES.slice(0, count);
+  const lenses = [...THERMOS_LENSES];
+  for (let i = THERMOS_LENSES.length + 1; i <= count; i++) {
+    lenses.push({
+      id: `independent-audit-${i}`,
+      title: `Independent Audit ${i}`,
+      focus:
+        "Fresh Thermos-style audit from another angle: changed-code bugs, security, breaking behavior, feature leaks, developer workflow breakage, and missing high-signal tests.",
+    });
+  }
+  return lenses;
 }
 
 export function resolveReviewPlanSupport(
@@ -175,7 +248,7 @@ export function selectReviewPlanWithinBudget(args: {
   const events: BudgetPlanEvent[] = [];
   const maxCostUsd = args.inputs.maxCostUsd;
 
-  if (!support.enabled || maxCostUsd === undefined) {
+  if (!support.enabled || maxCostUsd == null) {
     return { plan, support, events };
   }
 
@@ -234,7 +307,7 @@ export function countChangedDiffLines(diff: string | undefined): number | undefi
 }
 
 function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInputs): number | undefined {
-  if (strategy === "council") {
+  if (strategy === "council" || strategy === "thermos") {
     const limit = inputs.maxCouncilChangedLines ?? DEFAULT_MAX_COUNCIL_CHANGED_LINES;
     return limit === 0 ? undefined : limit;
   }
@@ -245,45 +318,42 @@ function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInp
   return undefined;
 }
 
+function changedLineLimitNameForStrategy(strategy: ReviewStrategy): string {
+  if (strategy === "thermos" || strategy === "council") return "max_council_changed_lines";
+  if (strategy === "crosscheck") return "max_crosscheck_changed_lines";
+  return "max_changed_lines";
+}
+
 export function selectReviewPlanWithinDiffSize(args: {
   inputs: ActionInputs;
   initialPlan: ReviewPlan;
   supportContext: { isPR: boolean; mode: string };
   changedLines: number | undefined;
 }): BudgetPlanResult {
-  let plan = args.initialPlan;
-  let support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+  const plan = args.initialPlan;
+  const support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
   const events: BudgetPlanEvent[] = [];
 
   if (!support.enabled || args.changedLines === undefined) {
     return { plan, support, events };
   }
 
-  for (;;) {
-    const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
-    if (limit === undefined || args.changedLines <= limit) break;
-
-    const downgraded = downgradeReviewStrategy(plan.strategy);
-    if (!downgraded) break;
+  const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
+  if (limit !== undefined && args.changedLines > limit) {
     events.push({
       level: "warn",
       message:
         `[size] changed_lines=${args.changedLines} strategy=${plan.strategy} ` +
-        `max_${plan.strategy}_changed_lines=${limit}; downgrading to ${downgraded}.`,
+        `${changedLineLimitNameForStrategy(plan.strategy)}=${limit}; preserving ${plan.strategy} coverage ` +
+        "and using per-file diff prompt slices.",
     });
-    plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
-    support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
-    if (!support.enabled) break;
   }
 
   return { plan, support, events };
 }
 
-function changedFilesBlock(data: GitHubData, maxChars = 60_000): string {
-  if (!data.diff) return "(diff unavailable; inspect files from the workspace if needed)";
-  return data.diff.length > maxChars
-    ? `${data.diff.slice(0, maxChars)}\n\n... diff truncated for prompt budget; use read/grep/find/ls tools for more context.`
-    : data.diff;
+function changedFilesBlock(data: GitHubData, maxChars = DEFAULT_CHANGED_FILES_PROMPT_CHARS): string {
+  return formatChangedFilesForPrompt(data.diff, maxChars);
 }
 
 export function buildLensPrompt(params: {
@@ -292,8 +362,9 @@ export function buildLensPrompt(params: {
   lens: ReviewLens;
   modelLabel: string;
   repoConfig?: ElekConfig;
+  includeDiscussion?: boolean;
 }): string {
-  const { data, userRequest, lens, modelLabel, repoConfig } = params;
+  const { data, userRequest, lens, modelLabel, repoConfig, includeDiscussion = true } = params;
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
   const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
@@ -313,6 +384,13 @@ export function buildLensPrompt(params: {
     `- Do not claim external packages, GitHub Actions, model IDs, or APIs do not exist unless you can verify it from current repo files, package-manager output, or workflow error logs.`,
     `- Never present unfinished research when the repo contains the code needed to verify it.`,
     `- Prefer a few high-confidence findings over a long list of speculative notes.`,
+    ``,
+    `Thermos-style audit calibration:`,
+    `- Be extremely thorough tracing side effects, but report only medium-to-high risk issues with verified impact.`,
+    `- Catch breaking functionality, breaking developer workflow, security vulnerabilities, and feature-gate leaks rooted in this diff.`,
+    `- If the branch intentionally changes behavior and the blast radius is clear and constrained, do not report intended breakage as a bug.`,
+    `- Never overstate severity; false positives are review failures.`,
+    `- Do your audit with fresh eyes. Do not depend on existing PR discussion; the final validator will compare discussion after candidate reports are produced.`,
     ``,
     `Review calibration:`,
     ...reviewContractBullets(),
@@ -348,10 +426,10 @@ export function buildLensPrompt(params: {
     "```",
     `</changed_files>`,
     ``,
-    data.comments.length
+    includeDiscussion && data.comments.length
       ? `<comments>\n${data.comments.map((c) => `- ${c}`).join("\n")}\n</comments>\n`
       : "",
-    data.reviewComments.length
+    includeDiscussion && data.reviewComments.length
       ? `<review_comments>\n${data.reviewComments.map((c) => `- ${c}`).join("\n")}\n</review_comments>\n`
       : "",
     `Output format:`,
@@ -401,7 +479,11 @@ export function buildSynthesisPrompt(params: {
     ``,
     `- Do not surface claims that external packages, GitHub Actions, model IDs, or APIs do not exist unless they are backed by current repo files, package-manager output, or workflow error logs.`,
     `- Treat existing comments and review comments as already-visible context; do not duplicate findings that have already been posted unless they remain unresolved and materially changed.`,
+    `- Prior Elek inline comments may appear as \`Prior Elek finding <id> @ path:line\`. Re-check them against the current diff. In final text, summarize whether prior Elek findings are fixed, still active, moved, or no longer relevant when that can be verified.`,
+    `- Do not call \`elek_review_create_inline_comment\` for a prior Elek finding that is still active at the same location with the same substance; the post step deduplicates exact repeats, but you should avoid generating them.`,
     `- Drop speculative, cosmetic, duplicate, stale, or pre-existing issues not rooted in added/modified code.`,
+    `- Do not surface temporary workflow-test scaffolding as an Important finding when the PR body or user request explicitly says the change is for testing the review workflow; mention any follow-up such as pinning the action or restoring a budget as a summary note instead.`,
+    `- Do not treat an omitted or disabled review-cost budget as a production finding unless the diff creates an immediate uncontrolled-spend path on the default branch. Cost policy warnings belong in the summary, not inline review comments.`,
     `- If two reviewers found the same issue independently, treat that as stronger signal, but still verify it yourself.`,
     `- Prefer a small number of precise, actionable comments over noisy coverage.`,
     `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available are elek review-comment tools.`,
@@ -432,7 +514,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data, 60_000),
+    changedFilesBlock(data, SYNTHESIS_CHANGED_FILES_PROMPT_CHARS),
     "```",
     `</changed_files>`,
     ``,

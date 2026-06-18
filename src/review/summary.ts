@@ -4,7 +4,7 @@ import type { PostSummary } from "../entrypoints/post-buffered.js";
 import { uniqueFindingId, type ParsedReviewFinding } from "./findings.js";
 
 export interface ReviewRunMetric {
-  role: "reviewer" | "validator";
+  role: "reviewer" | "validator-review" | "validator";
   lensId?: string;
   lensTitle?: string;
   modelLabel: string;
@@ -15,7 +15,7 @@ export interface ReviewRunMetric {
   outputTokens: number;
   costUsd: number;
   costEstimated: boolean;
-  pricingSource: "builtin" | "override" | "unknown";
+  pricingSource: ReviewCost["source"];
 }
 
 export interface ReviewSummaryInput {
@@ -61,6 +61,15 @@ export function metricFromPiRun(
 export function buildReviewSummary(input: ReviewSummaryInput) {
   const entityType = input.context.isPR ? "pull_request" : "issue";
   const usedFindingIds = new Set<string>();
+  const inlineComments: Record<string, number> = {
+    posted: input.inlineComments.posted,
+    skipped: input.inlineComments.skipped,
+    failed: input.inlineComments.failed,
+  };
+  if ((input.inlineComments.duplicate ?? 0) > 0) {
+    inlineComments.duplicate = input.inlineComments.duplicate ?? 0;
+  }
+
   return {
     version: 1,
     generatedAt: input.finishedAt.toISOString(),
@@ -90,11 +99,7 @@ export function buildReviewSummary(input: ReviewSummaryInput) {
       branchName: input.branchName || "",
       commentId: input.commentId ? String(input.commentId) : "",
     },
-    inlineComments: {
-      posted: input.inlineComments.posted,
-      skipped: input.inlineComments.skipped,
-      failed: input.inlineComments.failed,
-    },
+    inlineComments,
     findings: (input.findings ?? []).map((finding, index) => ({
       ...finding,
       id: uniqueFindingId(finding.title, index, usedFindingIds, finding.id),

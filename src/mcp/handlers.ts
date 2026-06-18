@@ -2,6 +2,7 @@
  * Review-only MCP handlers — pure functions, no MCP SDK, no real I/O.
  * The server shim wires these into McpServer; tests import them directly.
  */
+import { appendFindingMarker, stableInlineFindingId } from "../review/finding-markers.js";
 
 export interface OctokitLike {
   pulls: {
@@ -95,7 +96,7 @@ export function buildReviewCommentParams(
     repo: env.repoName,
     pull_number: parseInt(env.prNumber, 10),
     path: entry.path,
-    body: entry.body,
+    body: appendFindingMarker(entry.body, stableInlineFindingId(entry)),
     side,
     commit_id: entry.commit_id ?? fallbackSha,
   };

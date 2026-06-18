@@ -76,6 +76,8 @@ import {
   type ReviewRunMetric,
 } from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
+import { preparePublicReviewOutput } from "../review/public-output.js";
+import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
 import { sanitize } from "../mcp/handlers.js";
 import type { PostSummary } from "./post-buffered.js";
 
@@ -379,6 +381,7 @@ async function run(): Promise<void> {
       lens: job.lens,
       modelLabel: job.model.label,
       repoConfig: effectiveRepoConfig,
+      includeDiscussion: false,
     });
     lensPromptCache.set(key, lensPrompt);
     return lensPrompt;
@@ -388,7 +391,8 @@ async function run(): Promise<void> {
     // Defensive only: the budget selector stops before estimating solo plans.
     if (plan.strategy === "solo") return [];
 
-    const lensCosts = plan.jobs.map((job) => estimatePromptOnlyCost({
+    const reviewerJobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
+    const lensCosts = reviewerJobs.map((job) => estimatePromptOnlyCost({
       modelLabel: job.model.label,
       prompt: lensPromptFor(job),
       costRates: inputs.costRates,
@@ -401,7 +405,7 @@ async function run(): Promise<void> {
         modelLabel: plan.validator.label,
         jobRunLink,
         commentId,
-        reports: plan.jobs.map((job) => ({
+        reports: reviewerJobs.map((job) => ({
           lens: job.lens,
           modelLabel: job.model.label,
           output: "(candidate report pending)",
@@ -469,7 +473,7 @@ async function run(): Promise<void> {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | validator: ${reviewPlan.validator.label}`,
+        .join(", ")} | validator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | validator: ${reviewPlan.validator.label}`,
     );
     if (reviewPlan.reusedModels) {
       console.warn(
@@ -478,7 +482,6 @@ async function run(): Promise<void> {
     }
 
     if (commentId) {
-      const code = (value: string) => `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
       try {
         await updateTrackingComment(
           octokit,
@@ -487,9 +490,12 @@ async function run(): Promise<void> {
           [
             spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
-            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}: ${code(j.model.label)}`),
+            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}`),
+            reviewPlan.validatorReview
+              ? `- ${reviewPlan.validatorReview.lens.title}`
+              : "",
             "",
-            `Final validation: ${code(reviewPlan.validator.label)}`,
+            `Final validation`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
           modelLabel,
@@ -499,13 +505,17 @@ async function run(): Promise<void> {
       }
     }
 
+    const reviewerJobs = reviewPlan.validatorReview ? [...reviewPlan.jobs, reviewPlan.validatorReview] : reviewPlan.jobs;
     const lensRuns = await Promise.all(
-      reviewPlan.jobs.map(async (job) => {
+      reviewerJobs.map(async (job) => {
         const lensPrompt = lensPromptFor(job);
         const lensInputs = {
           ...piInputs,
           provider: job.model.provider,
           model: job.model.model,
+          thinking: job.role === "validator-review"
+            ? inputs.validatorThinking || inputs.thinking
+            : inputs.thinking,
           tools: lensTools,
           mode: "review",
         };
@@ -526,7 +536,7 @@ async function run(): Promise<void> {
 
     for (const { job, lensResult } of lensRuns) {
       runCosts.push(costFromPiResult(lensResult));
-      runMetrics.push(metricFromPiRun(lensResult, "reviewer", {
+      runMetrics.push(metricFromPiRun(lensResult, job.role || "reviewer", {
         lensId: job.lens.id,
         lensTitle: job.lens.title,
       }));
@@ -543,6 +553,7 @@ async function run(): Promise<void> {
       ...piInputs,
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
+      thinking: inputs.validatorThinking || inputs.thinking,
       tools: piTools,
       mode: "review",
     };
@@ -592,7 +603,17 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
-  const parsedFindings = parseReviewFindings(safeOutput);
+  const publicReview = preparePublicReviewOutput(result.output, result.conclusion);
+  const publicOutput = publicReview.body;
+  const publicConclusion =
+    result.conclusion === "success" && publicReview.usable ? "success" : "failure";
+  if (publicReview.filtered) {
+    console.warn(
+      `[review-output] filtered internal delivery text from public review ` +
+      `(removed_paragraphs=${publicReview.removedParagraphs})`,
+    );
+  }
+  const parsedFindings = parseReviewFindings(publicOutput);
   runMetrics.push(metricFromPiRun(result, "validator"));
   const costTotal = aggregateCosts(runCosts);
   const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
@@ -611,13 +632,14 @@ async function run(): Promise<void> {
       : s;
 
   // Always post the review comment first (before git ops, which can fail)
+  let reviewBody = "";
   if (commentId) {
-    const reviewBody = [
-      result.conclusion === "success"
+    reviewBody = [
+      publicConclusion === "success"
         ? spinnerHeader(activeModelLabel, "analysis complete")
         : spinnerHeader(activeModelLabel, "encountered an issue"),
       "",
-      truncate(safeOutput),
+      truncate(publicOutput),
       ...(inputs.showCost ? ["", `_${costLine}_`] : []),
       "",
       `[View run](${jobRunLink})`,
@@ -682,9 +704,9 @@ async function run(): Promise<void> {
   if (context.isPR && !commentId) {
     try {
       const reviewOutput = inputs.showCost
-        ? `${truncate(safeOutput)}\n\n_${costLine}_`
-        : truncate(safeOutput);
-      await createPRReview(octokit, context, reviewOutput, result.conclusion, activeModelLabel);
+        ? `${truncate(publicOutput)}\n\n_${costLine}_`
+        : truncate(publicOutput);
+      await createPRReview(octokit, context, reviewOutput, publicConclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -697,11 +719,11 @@ async function run(): Promise<void> {
         octokit,
         context,
         [
-          result.conclusion === "success"
+          publicConclusion === "success"
             ? spinnerHeader(activeModelLabel, "analysis complete")
             : spinnerHeader(activeModelLabel, "encountered an issue"),
           "",
-          truncate(safeOutput),
+          truncate(publicOutput),
           ...(inputs.showCost ? ["", `_${costLine}_`] : []),
           "",
           `[View run](${jobRunLink})`,
@@ -738,12 +760,56 @@ async function run(): Promise<void> {
     }
   }
 
+  const inlineFallbackBuffer =
+    context.isPR && inlineSummary.posted === 0 && (inlineSummary.duplicate ?? 0) === 0
+      ? inlineReviewBufferFromFindings(parsedFindings)
+      : "";
+  if (context.isPR && inlineFallbackBuffer.trim()) {
+    try {
+      const summary = await postBuffered({
+        readBuffer: () => inlineFallbackBuffer,
+        // Host-side fallback for models that returned structured findings
+        // but did not call the inline-comment MCP tool.
+        octokit: octokit.rest,
+        env: {
+          repoOwner: context.repo.owner,
+          repoName: context.repo.repo,
+          prNumber: String(context.entityNumber),
+        },
+        log: (m) => console.log(`[post-findings] ${m}`),
+      });
+      inlineSummary = mergePostSummaries(inlineSummary, summary);
+      console.log(
+        `[post-findings] posted=${summary.posted} skipped=${summary.skipped} failed=${summary.failed}`,
+      );
+    } catch (err) {
+      console.warn("post-findings failed:", (err as Error).message);
+    }
+  }
+
+  if (commentId && reviewBody && (inlineSummary.duplicate ?? 0) > 0) {
+    const duplicateNote =
+      `_Inline lifecycle: skipped ${inlineSummary.duplicate} duplicate Elek inline finding(s) ` +
+      "already visible on this PR._";
+    try {
+      await updateTrackingComment(
+        octokit,
+        context,
+        commentId,
+        [reviewBody, "", duplicateNote].join("\n"),
+        modelLabel,
+      );
+    } catch (err) {
+      console.warn("Could not update tracking comment with inline lifecycle note:", err);
+    }
+  }
+
   // ── Phase 6: Set outputs ─────────────────────────────────────────────
   core.setOutput("conclusion", result.conclusion);
   core.setOutput("branch_name", workBranch || "");
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
-  core.setOutput("summary", safeOutput.substring(0, 1000));
+  core.setOutput("summary", publicOutput.substring(0, 1000));
   core.setOutput("cost_usd", costTotal.costUsd.toFixed(6));
   core.setOutput("input_tokens", String(costTotal.inputTokens));
   core.setOutput("output_tokens", String(costTotal.outputTokens));
@@ -795,4 +861,14 @@ function parseExistingTrackingCommentId(value: string | undefined): number | und
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function mergePostSummaries(a: PostSummary, b: PostSummary): PostSummary {
+  const duplicate = (a.duplicate ?? 0) + (b.duplicate ?? 0);
+  return {
+    posted: a.posted + b.posted,
+    skipped: a.skipped + b.skipped,
+    failed: a.failed + b.failed,
+    ...(duplicate > 0 ? { duplicate } : {}),
+  };
 }

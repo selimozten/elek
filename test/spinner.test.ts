@@ -2,26 +2,22 @@ import { describe, expect, it } from "bun:test";
 import { spinnerHeader, spinnerHtml } from "../src/github/spinner";
 
 describe("spinner branding", () => {
-  it("renders an elek-branded inline image", () => {
-    const html = spinnerHtml();
-
-    expect(html).toContain("assets/elek-logo.png");
-    expect(html).toContain('alt="elek"');
-    expect(html).toContain('width="18"');
+  it("does not render an external inline image", () => {
+    expect(spinnerHtml()).toBe("");
   });
 
-  it("renders the elek name with the model and status", () => {
+  it("renders the elek name with status only", () => {
     const html = spinnerHeader("deepseek/deepseek-v4-pro", "analysis complete");
 
     expect(html).toContain("<strong>elek</strong>");
-    expect(html).toContain("<strong>deepseek/deepseek-v4-pro</strong>");
     expect(html).toContain("analysis complete");
+    expect(html).not.toContain("deepseek/deepseek-v4-pro");
+    expect(html).not.toContain("<img");
   });
 
-  it("escapes model labels before rendering GitHub HTML", () => {
+  it("escapes status text before rendering GitHub HTML", () => {
     const html = spinnerHeader('openrouter/<bad>"model\'x', "done > now");
 
-    expect(html).toContain("openrouter/&lt;bad&gt;&quot;model&#39;x");
     expect(html).toContain("done &gt; now");
     expect(html).not.toContain('<bad>"model');
   });

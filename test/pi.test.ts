@@ -23,7 +23,9 @@ const baseInputs: ActionInputs = {
   mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
+  reviewAgentCount: undefined,
   validatorModel: "",
+  validatorThinking: "",
   severityThreshold: "",
   showCost: true,
   costRates: "",
@@ -75,6 +77,13 @@ describe("buildPiArgs", () => {
     expect(args).toContain("--model");
     expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
     expect(args).not.toContain("--no-extensions");
+  });
+
+  it("maps user-facing max thinking to pi's highest supported CLI level", () => {
+    const args = buildPiArgs({ ...baseInputs, thinking: "max" }, "/tmp/prompt.md", false);
+
+    expect(args).toContain("--thinking");
+    expect(args[args.indexOf("--thinking") + 1]).toBe("xhigh");
   });
 });
 
@@ -131,6 +140,46 @@ describe("buildPiEnv", () => {
 });
 
 describe("runPi", () => {
+  it("uses provider-reported JSON usage when pi emits exact token and cost data", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-usage-"));
+    const fakePi = join(dir, "pi");
+    writeFileSync(fakePi, [
+      "#!/usr/bin/env bash",
+      "cat <<'JSON'",
+      "{\"type\":\"session\",\"id\":\"session-1\"}",
+      "{\"type\":\"turn_start\"}",
+      "{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":1234,\"output\":56,\"cost\":{\"total\":0.00789}},\"stopReason\":\"stop\"}}",
+      "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":1234,\"output\":56,\"cost\":{\"total\":0.00789}},\"stopReason\":\"stop\"}]}",
+      "JSON",
+      "",
+    ].join("\n"), "utf-8");
+    chmodSync(fakePi, 0o755);
+    process.env.PI_EXECUTABLE = fakePi;
+
+    try {
+      const result = await runPi(
+        "review this change",
+        { ...baseInputs, provider: "together", model: "together/moonshotai/Kimi-K2.7-Code" },
+        undefined,
+        false,
+        { promptName: "usage-test" },
+      );
+
+      expect(result.conclusion).toBe("success");
+      expect(result.output).toBe("done");
+      expect(result.usage).toMatchObject({
+        inputTokens: 1234,
+        outputTokens: 56,
+        estimated: false,
+        modelLabel: "together/moonshotai/Kimi-K2.7-Code",
+        source: "provider",
+      });
+      expect(result.costUsd).toBe(0.00789);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns a failure result when pi exceeds the configured timeout", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-timeout-"));
     const fakePi = join(dir, "pi");

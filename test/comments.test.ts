@@ -26,7 +26,7 @@ const context: GitHubEntityContext = {
 };
 
 describe("comment branding", () => {
-  it("keeps model labels from breaking the hidden tracking signature", async () => {
+  it("uses one stable hidden tracking signature instead of model-specific signatures", async () => {
     let postedBody = "";
     const octokit = {
       rest: {
@@ -48,7 +48,53 @@ describe("comment branding", () => {
 
     await createTrackingComment(octokit, context, "openrouter/<foo&bar-->baz");
 
-    expect(postedBody).toContain("<!-- elek-bot:openrouter/&lt;foo&amp;bar- -&gt;baz -->");
-    expect(postedBody).not.toContain("<!-- elek-bot:openrouter/<foo&bar-->baz -->");
+    expect(postedBody).toContain("<!-- elek-bot -->");
+    expect(postedBody).not.toContain("openrouter/<foo&bar-->baz");
+  });
+
+  it("reuses the newest legacy model-specific comment and marks older ones superseded", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    const octokit = {
+      rest: {
+        issues: {
+          listComments: async () => ({
+            data: [
+              {
+                id: 1,
+                html_url: "https://example.test/comment/1",
+                body: "old kimi review\n\n<!-- elek-bot:together/kimi -->",
+              },
+              {
+                id: 2,
+                html_url: "https://example.test/comment/2",
+                body: "old qwen review\n\n<!-- elek-bot:together/qwen -->",
+              },
+            ],
+          }),
+          updateComment: async (params: any) => {
+            updates.push(params);
+            return { data: {} };
+          },
+          createComment: async () => {
+            throw new Error("should reuse existing comment");
+          },
+        },
+        pulls: {
+          createReview: async () => ({ data: {} }),
+          listReviews: async () => ({ data: [] }),
+          listReviewComments: async () => ({ data: [] }),
+        },
+      },
+    };
+
+    const result = await createTrackingComment(octokit, context, "openai/gpt-5.5");
+
+    expect(result.id).toBe(2);
+    expect(updates.length).toBe(2);
+    expect(updates[0]).toMatchObject({ comment_id: 2 });
+    expect(String(updates[0].body)).toContain("<!-- elek-bot -->");
+    expect(updates[1]).toMatchObject({ comment_id: 1 });
+    expect(String(updates[1].body)).toContain("superseded by a newer run");
+    expect(String(updates[1].body)).toContain("old kimi review");
   });
 });

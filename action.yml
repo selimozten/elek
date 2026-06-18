@@ -25,7 +25,7 @@ inputs:
     required: false
     default: ""
   thinking:
-    description: "Portable pi thinking level: off, minimal, low, medium, high, xhigh. Provider adapters map to native efforts, e.g. Claude max."
+    description: "Portable pi thinking level: off, minimal, low, medium, high, xhigh, max. Provider adapters map to native efforts."
     required: false
     default: "medium"
 
@@ -129,19 +129,35 @@ inputs:
           validator/synthesizer posts only high-confidence findings.
         council — four independent read-only lenses for larger/high-risk PRs,
           then final validation/synthesis.
+        thermos — N independent Thermos-style audit agents for high-risk PRs,
+          then final validation/synthesis.
     required: false
     default: ""
   review_models:
     description: >
-      Optional comma-separated model specs for crosscheck/council reviewer
-      lenses. Examples: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code.
+      Optional comma-separated model specs for multi-agent reviewer
+      lenses. Examples: together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro.
       If omitted, the primary provider/model is reused for every lens.
+    required: false
+    default: ""
+  review_agent_count:
+    description: >
+      Optional number of parallel reviewer agents for review_strategy=thermos.
+      Valid range: 1-8. If omitted, thermos uses the larger of five default
+      audit lenses or the number of review_models supplied.
     required: false
     default: ""
   validator_model:
     description: >
       Optional model spec for final validation/synthesis. Example:
       deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
+    required: false
+    default: ""
+  validator_thinking:
+    description: >
+      Optional thinking level for final validation/synthesis. Leave empty to
+      reuse thinking. Useful when cheap reviewer agents run high/max reasoning
+      but a frontier final model should use medium reasoning.
     required: false
     default: ""
   severity_threshold:
@@ -155,7 +171,7 @@ inputs:
   cost_rates:
     description: >
       Optional pricing overrides as model=inputPerMillion:outputPerMillion,
-      e.g. openai/gpt-5.5=1.25:10,anthropic/claude-sonnet-4-6=3:15.
+      e.g. openai/gpt-5.5=5:30,custom/provider-model=1.25:10.
       Prices are USD per 1M tokens.
     required: false
     default: ""
@@ -163,19 +179,22 @@ inputs:
     description: >
       Optional soft cap for estimated review cost in USD. If a multi-lens
       strategy already exceeds this cap before output tokens, elek downgrades
-      to a cheaper strategy.
+      to a cheaper strategy. Use 0, off, none, false, or disabled to explicitly
+      disable an inherited repo cap.
     required: false
     default: ""
   max_council_changed_lines:
     description: >
-      Maximum changed diff lines before council automatically downgrades.
-      Empty uses elek's default guard; 0 disables the council size guard.
+      Changed-line warning threshold for council/thermos. Large PRs keep
+      their requested strategy; elek slices diff context by file instead.
+      Empty uses elek's default warning threshold; 0 disables the warning.
     required: false
     default: ""
   max_crosscheck_changed_lines:
     description: >
-      Maximum changed diff lines before crosscheck automatically downgrades.
-      Empty uses elek's default guard; 0 disables the crosscheck size guard.
+      Changed-line warning threshold for crosscheck. Large PRs keep their
+      requested strategy; elek slices diff context by file instead.
+      Empty uses elek's default warning threshold; 0 disables the warning.
     required: false
     default: ""
 
@@ -274,7 +293,9 @@ runs:
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
         INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
+        INPUT_REVIEW_AGENT_COUNT: ${{ inputs.review_agent_count }}
         INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
+        INPUT_VALIDATOR_THINKING: ${{ inputs.validator_thinking }}
         INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}

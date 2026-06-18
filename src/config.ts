@@ -7,9 +7,11 @@ import type { ActionInputs } from "./types.js";
 export interface ElekConfig {
   reviewStrategy?: string;
   reviewModels?: string;
+  reviewAgentCount?: number;
   validatorModel?: string;
+  validatorThinking?: string;
   costRates?: string;
-  maxCostUsd?: number;
+  maxCostUsd?: number | null;
   maxCouncilChangedLines?: number;
   maxCrosscheckChangedLines?: number;
   severityThreshold?: "critical" | "important" | "minor";
@@ -35,7 +37,9 @@ export interface ElekConfigLoadResult {
 type ElekConfigKey =
   | "reviewStrategy"
   | "reviewModels"
+  | "reviewAgentCount"
   | "validatorModel"
+  | "validatorThinking"
   | "costRates"
   | "maxCostUsd"
   | "maxCouncilChangedLines"
@@ -55,7 +59,9 @@ export class ElekConfigParseError extends Error {
 const KEY_MAP: Record<string, ElekConfigKey> = {
   review_strategy: "reviewStrategy",
   review_models: "reviewModels",
+  review_agent_count: "reviewAgentCount",
   validator_model: "validatorModel",
+  validator_thinking: "validatorThinking",
   cost_rates: "costRates",
   max_cost_usd: "maxCostUsd",
   max_council_changed_lines: "maxCouncilChangedLines",
@@ -70,6 +76,7 @@ const SEVERITIES = new Set(["critical", "important", "minor"]);
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_PROMPT_LIST_ITEMS = 50;
 const MAX_PROMPT_ENTRY_CHARS = 500;
+const MAX_REVIEW_AGENT_COUNT = 8;
 const MAX_KNOWLEDGE_FILES = 8;
 const MAX_KNOWLEDGE_FILE_BYTES = 12_000;
 const MAX_KNOWLEDGE_TOTAL_BYTES = 48_000;
@@ -85,6 +92,13 @@ const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
   council: "council",
   swarm: "council",
   panel: "council",
+  thermos: "thermos",
+  thermo: "thermos",
+  thermonuclear: "thermos",
+  "thermo-nuclear": "thermos",
+  nuclear: "thermos",
+  multiagent: "thermos",
+  "multi-agent": "thermos",
 };
 
 export function normalizeReviewStrategy(raw: string | undefined): string | undefined {
@@ -173,6 +187,22 @@ function positiveNumber(value: unknown, key: string, warn: (message: string) => 
   return parsed;
 }
 
+function positiveNumberOrDisabled(
+  value: unknown,
+  key: string,
+  warn: (message: string) => void,
+): number | null | undefined {
+  const scalar = stringValue(value);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+    return undefined;
+  }
+  if (!scalar) return undefined;
+  const normalized = scalar.toLowerCase();
+  if (["0", "off", "none", "false", "disabled"].includes(normalized)) return null;
+  return positiveNumber(value, key, warn);
+}
+
 function nonNegativeInteger(value: unknown, key: string, warn: (message: string) => void): number | undefined {
   const scalar = stringValue(value);
   if (!scalar && value != null && typeof value !== "string") {
@@ -182,6 +212,21 @@ function nonNegativeInteger(value: unknown, key: string, warn: (message: string)
   if (!scalar) return undefined;
   const parsed = Number(scalar);
   if (!Number.isInteger(parsed) || parsed < 0) {
+    warn(`Ignoring invalid ${key}: ${scalar}`);
+    return undefined;
+  }
+  return parsed;
+}
+
+function boundedReviewAgentCount(value: unknown, key: string, warn: (message: string) => void): number | undefined {
+  const scalar = stringValue(value);
+  if (!scalar && value != null && typeof value !== "string") {
+    warn(`Ignoring non-scalar ${key} value`);
+    return undefined;
+  }
+  if (!scalar) return undefined;
+  const parsed = Number(scalar);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_REVIEW_AGENT_COUNT) {
     warn(`Ignoring invalid ${key}: ${scalar}`);
     return undefined;
   }
@@ -242,11 +287,14 @@ export function parseElekConfig(
       case "reviewModels":
         config.reviewModels = modelList(value, rawKey, warn);
         break;
+      case "reviewAgentCount":
+        config.reviewAgentCount = boundedReviewAgentCount(value, rawKey, warn);
+        break;
       case "costRates":
         config.costRates = modelList(value, rawKey, warn);
         break;
       case "maxCostUsd":
-        config.maxCostUsd = positiveNumber(value, rawKey, warn);
+        config.maxCostUsd = positiveNumberOrDisabled(value, rawKey, warn);
         break;
       case "maxCouncilChangedLines":
       case "maxCrosscheckChangedLines":
@@ -277,6 +325,15 @@ export function parseElekConfig(
         const scalar = stringValue(value);
         if (scalar) {
           config.validatorModel = scalar;
+        } else if (value != null) {
+          warn(`Ignoring non-scalar ${rawKey} value`);
+        }
+        break;
+      }
+      case "validatorThinking": {
+        const scalar = stringValue(value);
+        if (scalar) {
+          config.validatorThinking = scalar;
         } else if (value != null) {
           warn(`Ignoring non-scalar ${rawKey} value`);
         }
@@ -625,7 +682,9 @@ export function mergeBasePolicyWithWorkspaceGuidance(
   return {
     reviewStrategy: basePolicy.reviewStrategy,
     reviewModels: basePolicy.reviewModels,
+    reviewAgentCount: basePolicy.reviewAgentCount,
     validatorModel: basePolicy.validatorModel,
+    validatorThinking: basePolicy.validatorThinking,
     costRates: basePolicy.costRates,
     maxCostUsd: basePolicy.maxCostUsd,
     maxCouncilChangedLines: basePolicy.maxCouncilChangedLines,
@@ -645,8 +704,14 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
       !inputs.reviewStrategy && config.reviewStrategy ? config.reviewStrategy : inputs.reviewStrategy,
     reviewModels:
       !inputs.reviewModels && config.reviewModels ? config.reviewModels : inputs.reviewModels,
+    reviewAgentCount:
+      inputs.reviewAgentCount === undefined && config.reviewAgentCount !== undefined
+        ? config.reviewAgentCount
+        : inputs.reviewAgentCount,
     validatorModel:
       !inputs.validatorModel && config.validatorModel ? config.validatorModel : inputs.validatorModel,
+    validatorThinking:
+      !inputs.validatorThinking && config.validatorThinking ? config.validatorThinking : inputs.validatorThinking,
     severityThreshold:
       !inputs.severityThreshold && config.severityThreshold ? config.severityThreshold : inputs.severityThreshold,
     costRates: !inputs.costRates && config.costRates ? config.costRates : inputs.costRates,
@@ -683,10 +748,12 @@ export function formatConfigAuditLog(
     `source=${disabled ? "(disabled)" : source}`,
     `review_strategy=${config.reviewStrategy ?? "(unset)"}`,
     `review_models=${config.reviewModels ?? "(unset)"}`,
+    `review_agent_count=${config.reviewAgentCount ?? "(unset)"}`,
     `validator_model=${config.validatorModel ?? "(unset)"}`,
+    `validator_thinking=${config.validatorThinking ?? "(unset)"}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
-    `max_cost_usd=${config.maxCostUsd ?? "(unset)"}`,
+    `max_cost_usd=${config.maxCostUsd === null ? "(disabled)" : config.maxCostUsd ?? "(unset)"}`,
     `max_council_changed_lines=${config.maxCouncilChangedLines ?? "(default)"}`,
     `max_crosscheck_changed_lines=${config.maxCrosscheckChangedLines ?? "(default)"}`,
     `knowledge_paths=${knowledgePaths}`,
@@ -697,10 +764,12 @@ export function formatConfigAuditLog(
   if (effective) {
     fields.push(`effective_review_strategy=${effective.reviewStrategy || "solo"}`);
     fields.push(`effective_review_models=${effective.reviewModels || "(primary model)"}`);
+    fields.push(`effective_review_agent_count=${effective.reviewAgentCount ?? "(unset)"}`);
     fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
+    fields.push(`effective_validator_thinking=${effective.validatorThinking || "(same as reviewers)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
     fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
-    fields.push(`effective_max_cost_usd=${effective.maxCostUsd ?? "(unset)"}`);
+    fields.push(`effective_max_cost_usd=${effective.maxCostUsd === null ? "(disabled)" : effective.maxCostUsd ?? "(unset)"}`);
     fields.push(`effective_max_council_changed_lines=${effective.maxCouncilChangedLines ?? "(default)"}`);
     fields.push(`effective_max_crosscheck_changed_lines=${effective.maxCrosscheckChangedLines ?? "(default)"}`);
   }
