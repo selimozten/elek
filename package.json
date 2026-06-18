@@ -37,6 +37,9 @@
     "@types/node": "24.13.2",
     "typescript": "5.9.3"
   },
+  "overrides": {
+    "undici": "8.5.0"
+  },
   "keywords": [
     "github-actions",
     "code-review",
