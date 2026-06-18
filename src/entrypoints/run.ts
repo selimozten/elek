@@ -231,20 +231,9 @@ async function run(): Promise<void> {
     workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment with the elek spinner.
+  // Defer sticky-comment creation until after strategy size/cost selection so
+  // the hidden lane signature matches the final posting model from the start.
   let commentId = parseExistingTrackingCommentId(process.env.ELEK_TRACKING_COMMENT_ID);
-  if (inputs.stickyComment) {
-    if (commentId) {
-      console.log(`Using existing elek tracking comment #${commentId}`);
-    } else {
-      try {
-        const comment = await createTrackingComment(octokit, context, trackingModelLabel);
-        commentId = comment.id;
-      } catch (err) {
-        console.warn("Could not create tracking comment:", err);
-      }
-    }
-  }
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
   const data = await fetchGitHubData(context, octokit);
@@ -258,20 +247,11 @@ async function run(): Promise<void> {
     }
   }
 
-  let prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
-    useMcp: mcpEnabled,
-    allowEdit: resolvedMode.allowEdit,
-    tools: piTools,
-    repoConfig: effectiveRepoConfig,
-  });
-
-  // Write prompt to file
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
-  writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
-
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
+  let prompt = "";
 
   // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json.
   // We choose the home-config path so the file (which carries GITHUB_TOKEN
@@ -464,6 +444,28 @@ async function run(): Promise<void> {
   trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
   activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
+
+  if (inputs.stickyComment) {
+    if (commentId) {
+      console.log(`Using existing elek tracking comment #${commentId}`);
+    } else {
+      try {
+        const comment = await createTrackingComment(octokit, context, trackingModelLabel);
+        commentId = comment.id;
+      } catch (err) {
+        console.warn("Could not create tracking comment:", err);
+      }
+    }
+  }
+
+  prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
+    useMcp: mcpEnabled,
+    allowEdit: resolvedMode.allowEdit,
+    tools: piTools,
+    repoConfig: effectiveRepoConfig,
+  });
+  writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+
   const runCosts: ReviewCost[] = [];
   const runMetrics: ReviewRunMetric[] = [];
 

@@ -12,6 +12,7 @@ const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
 const ELEK_UNSCOPED_COMMENT_SIGNATURE = "<!-- elek-bot -->";
 const ELEK_LEGACY_COMMENT_PREFIX = "<!-- elek-bot:";
 const ELEK_SUPERSEDED_SIGNATURE = "<!-- elek-bot:superseded -->";
+const ELEK_TRACKING_SIGNATURE_RE = /<!--\s*elek-bot(?::[^>]*)?\s*-->/gi;
 
 // Loose adapter type matching @actions/github's getOctokit return shape.
 // Octokit's full types are deeply specific and don't structurally fit a
@@ -63,7 +64,10 @@ function classifyTrackingComment(
 ): TrackingCommentKind | undefined {
   if (!body || isSupersededTrackingComment(body)) return undefined;
 
-  const scopedLane = body.match(/<!--\s*elek-bot:lane:([a-f0-9]{12,64})\s*-->/i)?.[1]?.toLowerCase();
+  const scopedLanes = [...body.matchAll(/<!--\s*elek-bot:lane:([a-f0-9]{12,64})\s*-->/gi)]
+    .map((match) => match[1]?.toLowerCase())
+    .filter((lane): lane is string => Boolean(lane));
+  const scopedLane = scopedLanes.at(-1);
   if (scopedLane) {
     return scopedLane === trackingLane(modelLabel) ? "matching" : "other";
   }
@@ -255,14 +259,13 @@ export async function updateTrackingComment(
   body: string,
   modelLabel: string,
 ): Promise<void> {
-  const sig = commentSignature(modelLabel);
   await withGitHubRetry(
     () =>
       octokit.rest.issues.updateComment({
         owner: context.repo.owner,
         repo: context.repo.repo,
         comment_id: commentId,
-        body: body + "\n\n" + sig,
+        body: withCommentSignature(body, modelLabel),
       }),
     { label: "updateTrackingComment" },
   );
@@ -277,18 +280,25 @@ export async function postComment(
   body: string,
   modelLabel: string,
 ): Promise<void> {
-  const sig = commentSignature(modelLabel);
   await withGitHubRetry(
     () =>
       octokit.rest.issues.createComment({
         owner: context.repo.owner,
         repo: context.repo.repo,
         issue_number: context.entityNumber,
-        body: body + "\n\n" + sig,
+        body: withCommentSignature(body, modelLabel),
       }),
     { label: "postComment" },
   );
   console.log("✓ Posted fallback comment");
+}
+
+function withCommentSignature(body: string, modelLabel: string): string {
+  const cleanedBody = body
+    .replace(ELEK_TRACKING_SIGNATURE_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+  return cleanedBody ? `${cleanedBody}\n\n${commentSignature(modelLabel)}` : commentSignature(modelLabel);
 }
 
 /**
