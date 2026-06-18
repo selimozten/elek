@@ -71,6 +71,33 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("inspect the diff");
   });
 
+  it("drops leading self-narration before the public review body", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "I now have a thorough understanding of all the changed files. Let me compile my review.",
+        "",
+        "## Review Summary",
+        "This PR has one correctness issue.",
+        "",
+        "### Missing tenant check",
+        "- Severity: critical",
+        "- Confidence: high",
+        "- Path: `src/auth.ts`",
+        "- Line: 42",
+        "- Evidence: the new query omits tenant_id",
+        "- Impact: users can see another tenant's data",
+        "- Fix: add tenant_id to the lookup predicate",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toStartWith("## Review Summary");
+    expect(result.body).not.toContain("thorough understanding");
+    expect(result.body).not.toContain("Let me compile");
+  });
+
   it("still redacts token-shaped strings in public review text", () => {
     const result = preparePublicReviewOutput(
       [

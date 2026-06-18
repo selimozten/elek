@@ -30,6 +30,14 @@ const REVIEW_SIGNAL_PATTERNS = [
   /\bFindings\b/i,
 ];
 
+const REVIEW_SIGNAL_LINE_PATTERNS = [
+  /^#{2,3}\s+/,
+  /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
+  /\bNo high-confidence\b/i,
+  /\bReview Summary\b/i,
+  /\bFindings\b/i,
+];
+
 export function preparePublicReviewOutput(
   output: string,
   conclusion: "success" | "failure",
@@ -68,7 +76,13 @@ export function preparePublicReviewOutput(
     }
   }
 
-  const body = kept.join("\n\n").trim();
+  const preludeStripped = stripNonReviewPrelude(kept);
+  if (preludeStripped.filtered) {
+    filtered = true;
+    removedParagraphs += preludeStripped.removedParagraphs;
+  }
+
+  const body = preludeStripped.paragraphs.join("\n\n").trim();
   if (!body || !hasReviewSignal(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
@@ -100,4 +114,40 @@ function hasInternalDeliveryMarker(text: string): boolean {
 
 function hasReviewSignal(text: string): boolean {
   return REVIEW_SIGNAL_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function stripNonReviewPrelude(paragraphs: string[]): {
+  paragraphs: string[];
+  filtered: boolean;
+  removedParagraphs: number;
+} {
+  const firstReviewParagraph = paragraphs.findIndex(hasReviewSignal);
+  if (firstReviewParagraph < 0) {
+    return { paragraphs, filtered: false, removedParagraphs: 0 };
+  }
+
+  const stripped = paragraphs.slice(firstReviewParagraph);
+  let trimmedFirstLinePrelude = false;
+  const first = stripped[0];
+  if (first) {
+    stripped[0] = stripLeadingLinesBeforeReviewSignal(first);
+    trimmedFirstLinePrelude = stripped[0] !== first;
+  }
+
+  return {
+    paragraphs: stripped.filter(Boolean),
+    filtered: firstReviewParagraph > 0 || trimmedFirstLinePrelude,
+    removedParagraphs: firstReviewParagraph,
+  };
+}
+
+function stripLeadingLinesBeforeReviewSignal(paragraph: string): string {
+  const lines = paragraph.split("\n");
+  const firstReviewLine = lines.findIndex(hasReviewSignalLine);
+  if (firstReviewLine <= 0) return paragraph;
+  return lines.slice(firstReviewLine).join("\n").trim();
+}
+
+function hasReviewSignalLine(line: string): boolean {
+  return REVIEW_SIGNAL_LINE_PATTERNS.some((pattern) => pattern.test(line));
 }

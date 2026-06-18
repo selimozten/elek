@@ -77,6 +77,7 @@ import {
 } from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
 import { preparePublicReviewOutput } from "../review/public-output.js";
+import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
 import { sanitize } from "../mcp/handlers.js";
 import type { PostSummary } from "./post-buffered.js";
 
@@ -759,6 +760,33 @@ async function run(): Promise<void> {
     }
   }
 
+  const inlineFallbackBuffer =
+    context.isPR && inlineSummary.posted === 0 && (inlineSummary.duplicate ?? 0) === 0
+      ? inlineReviewBufferFromFindings(parsedFindings)
+      : "";
+  if (context.isPR && inlineFallbackBuffer.trim()) {
+    try {
+      const summary = await postBuffered({
+        readBuffer: () => inlineFallbackBuffer,
+        // Host-side fallback for models that returned structured findings
+        // but did not call the inline-comment MCP tool.
+        octokit: octokit.rest,
+        env: {
+          repoOwner: context.repo.owner,
+          repoName: context.repo.repo,
+          prNumber: String(context.entityNumber),
+        },
+        log: (m) => console.log(`[post-findings] ${m}`),
+      });
+      inlineSummary = mergePostSummaries(inlineSummary, summary);
+      console.log(
+        `[post-findings] posted=${summary.posted} skipped=${summary.skipped} failed=${summary.failed}`,
+      );
+    } catch (err) {
+      console.warn("post-findings failed:", (err as Error).message);
+    }
+  }
+
   if (commentId && reviewBody && (inlineSummary.duplicate ?? 0) > 0) {
     const duplicateNote =
       `_Inline lifecycle: skipped ${inlineSummary.duplicate} duplicate Elek inline finding(s) ` +
@@ -833,4 +861,14 @@ function parseExistingTrackingCommentId(value: string | undefined): number | und
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function mergePostSummaries(a: PostSummary, b: PostSummary): PostSummary {
+  const duplicate = (a.duplicate ?? 0) + (b.duplicate ?? 0);
+  return {
+    posted: a.posted + b.posted,
+    skipped: a.skipped + b.skipped,
+    failed: a.failed + b.failed,
+    ...(duplicate > 0 ? { duplicate } : {}),
+  };
 }
