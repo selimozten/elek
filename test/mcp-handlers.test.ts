@@ -110,6 +110,24 @@ describe("updateTrackingComment", () => {
       body: "## working on it\n- [x] read",
     });
   });
+
+  it("rejects public tracking updates that contain internal delivery failures", async () => {
+    const { deps, calls } = makeDeps({
+      env: {
+        repoOwner: "octo",
+        repoName: "repo",
+        prNumber: "42",
+        trackingCommentId: "555",
+      },
+    });
+
+    const result = await updateTrackingComment(deps, {
+      body: "The elek_review_create_inline_comment tool failed with args: must be string, so I cannot post comments.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls.length).toBe(0);
+  });
 });
 
 describe("sanitize", () => {

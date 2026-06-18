@@ -126,11 +126,11 @@ inputs:
       Review orchestration strategy:
         solo (resolved when unset) — one model reviews and posts.
         crosscheck — two independent read-only review lenses, then a final
-          validator/synthesizer posts only high-confidence findings.
+          orchestrator/validator posts only high-confidence findings.
         council — four independent read-only lenses for larger/high-risk PRs,
-          then final validation/synthesis.
+          then final orchestrator validation/synthesis.
         thermos — N independent Thermos-style audit agents for high-risk PRs,
-          then final validation/synthesis.
+          then final orchestrator validation/synthesis.
     required: false
     default: ""
   review_models:
@@ -149,15 +149,16 @@ inputs:
     default: ""
   validator_model:
     description: >
-      Optional model spec for final validation/synthesis. Example:
+      Optional model spec for the final orchestrator that validates reviewer
+      reports and posts findings. Example:
       deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
     required: false
     default: ""
   validator_thinking:
     description: >
-      Optional thinking level for final validation/synthesis. Leave empty to
+      Optional thinking level for the final orchestrator. Leave empty to
       reuse thinking. Useful when cheap reviewer agents run high/max reasoning
-      but a frontier final model should use medium reasoning.
+      but a frontier orchestrator should use medium reasoning.
     required: false
     default: ""
   severity_threshold:

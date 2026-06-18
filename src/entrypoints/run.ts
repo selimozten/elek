@@ -212,6 +212,15 @@ async function run(): Promise<void> {
   );
   const piInputs = { ...inputs, tools: piTools };
 
+  let reviewPlan = resolveReviewPlan(inputs);
+  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+    isPR: context.isPR,
+    mode: resolvedMode.mode,
+  });
+  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
+
+  const trackingModelLabel = reviewPlanSupport.enabled ? reviewPlan.validator.label : modelLabel;
+
   // Determine base branch
   const baseBranch =
     inputs.baseBranch || context.pr?.baseRef || context.repo.defaultBranch;
@@ -229,7 +238,7 @@ async function run(): Promise<void> {
       console.log(`Using existing elek tracking comment #${commentId}`);
     } else {
       try {
-        const comment = await createTrackingComment(octokit, context, modelLabel);
+        const comment = await createTrackingComment(octokit, context, trackingModelLabel);
         commentId = comment.id;
       } catch (err) {
         console.warn("Could not create tracking comment:", err);
@@ -324,7 +333,7 @@ async function run(): Promise<void> {
   //   "done" (run finished)      → "Review complete" ✓
   let toolsSeen = 0;
   let textStreamed = false;
-  let activeModelLabel = modelLabel;
+  let activeModelLabel = trackingModelLabel;
 
   let lastUpdate = 0;
   let lastBody = "";
@@ -357,18 +366,11 @@ async function run(): Promise<void> {
     lastUpdate = now;
     lastBody = body;
     try {
-      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, body, trackingModelLabel);
     } catch (err) {
       console.warn("progress update failed:", (err as Error).message);
     }
   };
-
-  let reviewPlan = resolveReviewPlan(inputs);
-  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
-    isPR: context.isPR,
-    mode: resolvedMode.mode,
-  });
-  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
 
   const lensPromptCache = new Map<string, string>();
   const lensPromptFor = (job: ReviewJob): string => {
@@ -473,7 +475,7 @@ async function run(): Promise<void> {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | validator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | validator: ${reviewPlan.validator.label}`,
+        .join(", ")} | orchestrator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
     );
     if (reviewPlan.reusedModels) {
       console.warn(
@@ -495,10 +497,10 @@ async function run(): Promise<void> {
               ? `- ${reviewPlan.validatorReview.lens.title}`
               : "",
             "",
-            `Final validation`,
+            `Orchestrator validation and posting`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
-          modelLabel,
+          trackingModelLabel,
         );
       } catch (err) {
         console.warn("Could not update strategy status:", err);
@@ -646,11 +648,11 @@ async function run(): Promise<void> {
     ].join("\n");
 
     try {
-      await updateTrackingComment(octokit, context, commentId, reviewBody, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, reviewBody, trackingModelLabel);
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
-        await postComment(octokit, context, reviewBody, modelLabel);
+        await postComment(octokit, context, reviewBody, trackingModelLabel);
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
@@ -797,7 +799,7 @@ async function run(): Promise<void> {
         context,
         commentId,
         [reviewBody, "", duplicateNote].join("\n"),
-        modelLabel,
+        trackingModelLabel,
       );
     } catch (err) {
       console.warn("Could not update tracking comment with inline lifecycle note:", err);

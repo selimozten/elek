@@ -71,6 +71,52 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("inspect the diff");
   });
 
+  it("does not treat internal analysis headings as public review structure", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Analysis",
+        "I need to inspect the changed files and then decide how to deliver comments.",
+        "",
+        "### Tool status",
+        "The MCP call failed, so I should explain that in the final answer.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(false);
+    expect(result.body).toContain("usable public review");
+    expect(result.body).not.toContain("## Analysis");
+    expect(result.body).not.toContain("MCP call failed");
+  });
+
+  it("strips internal analysis headings before the actual review", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Analysis",
+        "I have read the files and will now write the public comment.",
+        "",
+        "## Review Summary",
+        "The change introduces one correctness issue.",
+        "",
+        "### Missing tenant check",
+        "- Severity: critical",
+        "- Confidence: high",
+        "- Path: `src/auth.ts`",
+        "- Line: 42",
+        "- Evidence: the new query omits tenant_id",
+        "- Impact: users can see another tenant's data",
+        "- Fix: add tenant_id to the lookup predicate",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toStartWith("## Review Summary");
+    expect(result.body).not.toContain("## Analysis");
+    expect(result.body).not.toContain("I have read the files");
+  });
+
   it("drops leading self-narration before the public review body", () => {
     const result = preparePublicReviewOutput(
       [

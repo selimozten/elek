@@ -158,6 +158,48 @@ describe("review cost estimates", () => {
     expect(total.estimated).toBe(true);
   });
 
+  it("formats unknown pricing as unknown instead of implying a free review", () => {
+    const total = aggregateCosts([
+      {
+        inputTokens: 43720,
+        outputTokens: 0,
+        costUsd: 0,
+        estimated: true,
+        modelLabel: "custom/frontier-model",
+        source: "unknown",
+      },
+    ]);
+
+    expect(formatCostLine(total)).toBe(
+      "Estimated review cost: unknown (43,720 in / 0 out tokens; missing price data for custom/frontier-model)",
+    );
+  });
+
+  it("formats partial cost totals when some model prices are unknown", () => {
+    const total = aggregateCosts([
+      {
+        inputTokens: 1000,
+        outputTokens: 250,
+        costUsd: 0.01,
+        estimated: true,
+        modelLabel: "known/model",
+        source: "builtin",
+      },
+      {
+        inputTokens: 500,
+        outputTokens: 50,
+        costUsd: 0,
+        estimated: true,
+        modelLabel: "unknown/model",
+        source: "unknown",
+      },
+    ]);
+
+    expect(formatCostLine(total)).toBe(
+      "Estimated review cost: at least $0.0100 (1,500 in / 300 out tokens; missing price data for unknown/model)",
+    );
+  });
+
   it("preserves pricing source from pi results", () => {
     const cost = costFromPiResult({
       conclusion: "success",

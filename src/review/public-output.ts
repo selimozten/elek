@@ -16,14 +16,17 @@ const INTERNAL_DELIVERY_PATTERNS = [
   /\belek_review_[a-z_]+\b/i,
   /\bargs\s*:\s*must be string\b/i,
   /\bpi-mcp-adapter\b/i,
+  /\bMCP\s+call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
   /\b(?:gateway|transport)(?:-level)?\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
   /\btool[-\s]?call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
   /\b(?:failed|failing|unable|cannot|could not)\s+to\s+(?:post|create|update).{0,80}\bcomment\b/i,
   /\bconsole output is discarded\b/i,
+  /\b(?:I need to|I should|I will|I'll|Let me|I have read|I've read|I have now|I've now)\b/i,
+  /^#{2,3}\s+(?:analysis|tool status|internal(?:\s+reasoning)?|scratch(?:\s+work)?|thinking(?:\s+trace)?)\b/im,
 ];
 
 const REVIEW_SIGNAL_PATTERNS = [
-  /^#{2,3}\s+/m,
+  /^#{2,3}\s+(?:review summary|findings|recommendations)\b/im,
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,
@@ -31,7 +34,7 @@ const REVIEW_SIGNAL_PATTERNS = [
 ];
 
 const REVIEW_SIGNAL_LINE_PATTERNS = [
-  /^#{2,3}\s+/,
+  /^#{2,3}\s+(?:review summary|findings|recommendations)\b/i,
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,

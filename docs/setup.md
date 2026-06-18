@@ -168,11 +168,11 @@ visible review is posted:
 | `review_strategy` | Behavior |
 |---|---|
 | `solo` | One model reviews and posts. |
-| `crosscheck` | Risk + design lenses run read-only, then a final validator posts. |
-| `council` | Risk + design + tests + operations lenses run read-only, then a final validator posts. |
+| `crosscheck` | Risk + design lenses run read-only, then a final orchestrator validates and posts. |
+| `council` | Risk + design + tests + operations lenses run read-only, then a final orchestrator validates and posts. |
 
 Candidate reviewers cannot post comments. They run without MCP access; only the
-final validator can call elek's review tools.
+final orchestrator can call elek's review tools.
 
 Non-solo strategies currently require `mode: review`. If `crosscheck` or
 `council` is configured with `review+edit` or `agent`, elek runs a solo review
@@ -214,7 +214,7 @@ Supported keys:
 |---|---|
 | `review_strategy` | Default strategy when the workflow input is unset |
 | `review_models` | Default reviewer model list |
-| `validator_model` | Default final validation model |
+| `validator_model` | Default final orchestrator/validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | Soft cap; downgrade multi-lens reviews when known input-side estimates already exceed it |
 | `max_council_changed_lines` | Changed-line cap before `council` downgrades; `0` disables |

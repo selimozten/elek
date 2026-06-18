@@ -6,9 +6,10 @@ import type { GitHubEntityContext } from "../types.js";
 import { extractFindingIds, stripFindingMarkers } from "../review/finding-markers.js";
 import { spinnerHeader } from "./spinner.js";
 import { withGitHubRetry } from "./retry.js";
+import { createHash } from "crypto";
 
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || "https://github.com";
-const ELEK_COMMENT_SIGNATURE = "<!-- elek-bot -->";
+const ELEK_UNSCOPED_COMMENT_SIGNATURE = "<!-- elek-bot -->";
 const ELEK_LEGACY_COMMENT_PREFIX = "<!-- elek-bot:";
 const ELEK_SUPERSEDED_SIGNATURE = "<!-- elek-bot:superseded -->";
 
@@ -31,18 +32,49 @@ type GitHubApi = {
   };
 };
 
+type TrackingCommentKind = "matching" | "unscoped" | "other";
+type TrackingComment = {
+  id: number;
+  htmlUrl?: string;
+  body: string;
+  kind: TrackingCommentKind;
+};
+
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const repo = context.repo.fullName;
   return `[View run](${GITHUB_SERVER_URL}/${repo}/actions/runs/${runId})`;
 }
 
-function commentSignature(_modelLabel: string): string {
-  return ELEK_COMMENT_SIGNATURE;
+function commentSignature(modelLabel: string): string {
+  return `<!-- elek-bot:lane:${trackingLane(modelLabel)} -->`;
 }
 
-function isElekTrackingComment(body: string | undefined): boolean {
-  return Boolean(body?.includes(ELEK_COMMENT_SIGNATURE) || body?.includes(ELEK_LEGACY_COMMENT_PREFIX));
+function trackingLane(modelLabel: string): string {
+  return createHash("sha256")
+    .update(modelLabel.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 12);
+}
+
+function classifyTrackingComment(
+  body: string | undefined,
+  modelLabel: string,
+): TrackingCommentKind | undefined {
+  if (!body || isSupersededTrackingComment(body)) return undefined;
+
+  const scopedLane = body.match(/<!--\s*elek-bot:lane:([a-f0-9]{12,64})\s*-->/i)?.[1]?.toLowerCase();
+  if (scopedLane) {
+    return scopedLane === trackingLane(modelLabel) ? "matching" : "other";
+  }
+
+  if (body.includes(ELEK_UNSCOPED_COMMENT_SIGNATURE)) return "unscoped";
+
+  const exactLegacySignature = `<!-- elek-bot:${modelLabel} -->`;
+  if (body.includes(exactLegacySignature)) return "matching";
+  if (body.includes(ELEK_LEGACY_COMMENT_PREFIX)) return "other";
+
+  return undefined;
 }
 
 function isSupersededTrackingComment(body: string | undefined): boolean {
@@ -84,8 +116,9 @@ function supersededBody(previousBody: string, latestUrl: string | undefined): st
 async function findTrackingComments(
   octokit: GitHubApi,
   context: GitHubEntityContext,
-): Promise<Array<{ id: number; htmlUrl?: string; body: string }>> {
-  const matches: Array<{ id: number; htmlUrl?: string; body: string }> = [];
+  modelLabel: string,
+): Promise<TrackingComment[]> {
+  const matches: TrackingComment[] = [];
   try {
     let page = 1;
     while (page <= 10) {
@@ -101,8 +134,9 @@ async function findTrackingComments(
         { label: "listComments" },
       );
       for (const c of comments) {
-        if (!isSupersededTrackingComment(c.body) && isElekTrackingComment(c.body)) {
-          matches.push({ id: c.id, htmlUrl: c.html_url, body: c.body || "" });
+        const kind = classifyTrackingComment(c.body, modelLabel);
+        if (kind) {
+          matches.push({ id: c.id, htmlUrl: c.html_url, body: c.body || "", kind });
         }
       }
       if (comments.length < 100) break;
@@ -134,11 +168,15 @@ export async function createTrackingComment(
     runLink,
   ].join("\n");
 
-  // Reuse the newest active Elek comment. Older model-specific comments from
-  // previous Elek versions are marked superseded once so the PR has one clear
-  // current review thread.
-  const existingComments = await findTrackingComments(octokit, context);
-  const selected = existingComments.at(-1);
+  // Reuse only this posting lane's newest active comment. Read-only reviewer
+  // models never create comments, and other model lanes must not be overwritten
+  // by the orchestrator/final model for this run. Old unscoped comments are
+  // migrated away from because they are what caused cross-model overwrites.
+  const existingComments = await findTrackingComments(octokit, context, modelLabel);
+  const selected = existingComments.filter((comment) => comment.kind === "matching").at(-1);
+  const supersededAfterUpdate = existingComments.filter((comment) =>
+    comment.kind !== "other" && comment.id !== selected?.id
+  );
 
   if (selected) {
     await withGitHubRetry(
@@ -154,7 +192,7 @@ export async function createTrackingComment(
     await markSupersededTrackingComments(
       octokit,
       context,
-      existingComments.filter((comment) => comment.id !== selected.id),
+      supersededAfterUpdate,
       selected.htmlUrl,
     );
     console.log(`✓ Reused existing comment #${selected.id}`);
@@ -173,6 +211,12 @@ export async function createTrackingComment(
   );
 
   console.log(`✓ Created tracking comment #${data.id}`);
+  await markSupersededTrackingComments(
+    octokit,
+    context,
+    existingComments.filter((comment) => comment.kind === "unscoped"),
+    data.html_url,
+  );
   return { id: data.id, htmlUrl: data.html_url };
 }
 

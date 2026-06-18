@@ -97,7 +97,7 @@ describe("review summary", () => {
         metricFromPiRun(reviewer, "reviewer", { lensId: "correctness", lensTitle: "Correctness" }),
         metricFromPiRun(validator, "validator-review", {
           lensId: "validator-self-review",
-          lensTitle: "Final Model Independent Audit",
+          lensTitle: "Orchestrator Independent Audit",
         }),
         metricFromPiRun(validator, "validator"),
       ],
