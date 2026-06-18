@@ -142,6 +142,20 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("finished reviewing");
   });
 
+  it("keeps common non-standard review headings even with prose findings", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Code Health",
+        "The update is coherent and I do not see a blocking correctness issue.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(false);
+    expect(result.body).toContain("## Code Health");
+  });
+
   it("drops leading self-narration before the public review body", () => {
     const result = preparePublicReviewOutput(
       [
