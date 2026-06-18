@@ -1,4 +1,5 @@
 import { sanitize } from "../mcp/handlers.js";
+import { hasInternalDeliveryMarker } from "./delivery-patterns.js";
 
 export interface PublicReviewOutput {
   body: string;
@@ -11,19 +12,6 @@ const GENERIC_FAILURE =
   "Elek could not complete this review run. See the workflow logs for details.";
 const GENERIC_INTERNAL_ONLY =
   "Elek completed the model run, but the model did not return a usable public review. No public findings were posted from that response.";
-
-const INTERNAL_DELIVERY_PATTERNS = [
-  /\belek_review_[a-z_]+\b/i,
-  /\bargs\s*:\s*must be string\b/i,
-  /\bpi-mcp-adapter\b/i,
-  /\bMCP\s+call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-  /\b(?:gateway|transport)(?:-level)?\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-  /\btool[-\s]?call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-  /\b(?:failed|failing|unable|cannot|could not)\s+to\s+(?:post|create|update).{0,80}\bcomment\b/i,
-  /\bconsole output is discarded\b/i,
-  /\b(?:I need to|I should|I will|I'll|Let me|I have read|I've read|I have now|I've now)\b/i,
-  /^#{2,3}\s+(?:analysis|tool status|internal(?:\s+reasoning)?|scratch(?:\s+work)?|thinking(?:\s+trace)?)\b/im,
-];
 
 const REVIEW_SIGNAL_PATTERNS = [
   /^#{2,3}\s+(?:review summary|findings|recommendations)\b/im,
@@ -109,10 +97,6 @@ function splitParagraphs(text: string): string[] {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-}
-
-function hasInternalDeliveryMarker(text: string): boolean {
-  return INTERNAL_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function hasReviewSignal(text: string): boolean {

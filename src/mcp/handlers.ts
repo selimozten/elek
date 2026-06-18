@@ -3,6 +3,7 @@
  * The server shim wires these into McpServer; tests import them directly.
  */
 import { appendFindingMarker, stableInlineFindingId } from "../review/finding-markers.js";
+import { hasInternalDeliveryMarker } from "../review/delivery-patterns.js";
 
 export interface OctokitLike {
   pulls: {
@@ -49,7 +50,7 @@ export async function updateTrackingComment(
     return { ok: false, error: `trackingCommentId "${id}" is not a valid number` };
   }
   const safeBody = sanitize(args.body);
-  if (containsInternalDeliveryText(safeBody)) {
+  if (hasInternalDeliveryMarker(safeBody)) {
     return {
       ok: false,
       error: "tracking comment update rejected because body contains internal delivery/debug text",
@@ -131,20 +132,6 @@ export function sanitize(body: string): string {
   return body
     .replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, "[REDACTED]")
     .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]");
-}
-
-function containsInternalDeliveryText(body: string): boolean {
-  return [
-    /\belek_review_[a-z_]+\b/i,
-    /\bargs\s*:\s*must be string\b/i,
-    /\bpi-mcp-adapter\b/i,
-    /\bMCP\s+call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-    /\b(?:gateway|transport)(?:-level)?\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-    /\btool[-\s]?call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-    /\b(?:failed|failing|unable|cannot|could not)\s+to\s+(?:post|create|update).{0,80}\bcomment\b/i,
-    /\bconsole output is discarded\b/i,
-    /^#{2,3}\s+(?:analysis|tool status|internal(?:\s+reasoning)?|scratch(?:\s+work)?|thinking(?:\s+trace)?)\b/im,
-  ].some((pattern) => pattern.test(body));
 }
 
 export async function createInlineComment(

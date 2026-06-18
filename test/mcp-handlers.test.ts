@@ -128,6 +128,24 @@ describe("updateTrackingComment", () => {
     expect(result.ok).toBe(false);
     expect(calls.length).toBe(0);
   });
+
+  it("rejects tracking updates with internal analysis narration from the shared guard", async () => {
+    const { deps, calls } = makeDeps({
+      env: {
+        repoOwner: "octo",
+        repoName: "repo",
+        prNumber: "42",
+        trackingCommentId: "555",
+      },
+    });
+
+    const result = await updateTrackingComment(deps, {
+      body: "## Analysis\nI need to inspect files before I decide how to post the review.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls.length).toBe(0);
+  });
 });
 
 describe("sanitize", () => {
