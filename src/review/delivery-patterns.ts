@@ -1,4 +1,4 @@
-export const INTERNAL_DELIVERY_PATTERNS: RegExp[] = [
+export const INTERNAL_DELIVERY_PATTERNS: readonly RegExp[] = [
   /\belek_review_[a-z_]+\b/i,
   /\bargs\s*:\s*must be string\b/i,
   /\bpi-mcp-adapter\b/i,
@@ -9,7 +9,7 @@ export const INTERNAL_DELIVERY_PATTERNS: RegExp[] = [
   /\bconsole output is discarded\b/i,
   /\b(?:I need to|I should|I will|I'll|Let me|I have read|I've read|I have now|I've now)\b/i,
   /^#{2,3}\s+(?:analysis|tool status|internal(?:\s+reasoning)?|scratch(?:\s+work)?|thinking(?:\s+trace)?)\b/im,
-];
+] as const;
 
 export function hasInternalDeliveryMarker(text: string): boolean {
   return INTERNAL_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));

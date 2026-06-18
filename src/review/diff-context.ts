@@ -13,8 +13,6 @@ const MAX_FILE_SLICE_CHARS = 4_000;
 const DEFAULT_FULL_DIFF_THRESHOLD_CHARS = 80_000;
 
 export interface DiffPromptOptions {
-  /** Force representative slices even when the full diff fits the hard prompt ceiling. */
-  preferSliced?: boolean;
   /**
    * Full diffs larger than this use representative slices. The hard maxChars
    * remains the absolute ceiling; this threshold keeps model behavior tool-first.
@@ -67,7 +65,6 @@ export function formatChangedFilesForPrompt(
   const fullDiffWithOverview = `${overview}\n\n# Full diff\n${diff}`;
   const fullDiffThreshold = options.fullDiffThresholdChars ?? DEFAULT_FULL_DIFF_THRESHOLD_CHARS;
   if (
-    !options.preferSliced &&
     fullDiffWithOverview.length <= maxChars &&
     fullDiffWithOverview.length <= fullDiffThreshold
   ) {
