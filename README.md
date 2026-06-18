@@ -184,8 +184,8 @@ with:
   review_models: together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max
   validator_model: openai/gpt-5.5
   validator_thinking: medium
-  max_council_changed_lines: 1200
-  max_crosscheck_changed_lines: 3000
+  max_council_changed_lines: 200000
+  max_crosscheck_changed_lines: 200000
 ```
 
 For expensive models, a good pattern is cheap/open parallel reviewers at high or
@@ -194,8 +194,8 @@ During initial testing, omit `max_cost_usd` so the full fan-out runs and tune a
 budget later from observed review summaries. If the selected multi-lens
 strategy already exceeds `max_cost_usd` before output tokens are counted, elek
 downgrades to the next cheaper strategy.
-If a PR exceeds a changed-line guard, elek also downgrades before starting
-model calls.
+Changed-line thresholds do not downgrade the strategy; large PRs keep their
+requested review coverage and elek slices prompt diff context by file.
 
 ## Cross-Model Review
 
@@ -279,8 +279,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; use `0`, `off`, or `none` to disable an inherited cap |
-| `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `council` downgrades; `0` disables |
-| `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line cap before `crosscheck` downgrades; `0` disables |
+| `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `council`/`thermos`; `0` disables |
+| `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `crosscheck`; `0` disables |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -396,8 +396,8 @@ review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
-max_council_changed_lines: 1200
-max_crosscheck_changed_lines: 3000
+max_council_changed_lines: 200000
+max_crosscheck_changed_lines: 200000
 severity_threshold: important
 
 knowledge_paths:
@@ -426,7 +426,7 @@ server-side filter. If an existing config file has malformed YAML, elek fails
 the run instead of silently dropping repo policy.
 
 On pull requests, policy fields (`review_strategy`, `review_models`,
-`validator_model`, `cost_rates`, `max_cost_usd`, changed-line guards, and
+`validator_model`, `cost_rates`, `max_cost_usd`, changed-line warning thresholds, and
 `severity_threshold`) are loaded from the base branch when available. Guidance
 fields (`knowledge_paths`, `ignore_paths`, and `instructions`) come from the checked-out branch so
 contributors can propose review guidance changes without controlling cost or
@@ -524,8 +524,8 @@ with:
   show_cost: true
   cost_rates: openai/gpt-5.5=5:30,custom/provider-model=1.25:10
   max_cost_usd: "0.10"
-  max_council_changed_lines: 1200
-  max_crosscheck_changed_lines: 3000
+  max_council_changed_lines: 200000
+  max_crosscheck_changed_lines: 200000
 ```
 
 `max_cost_usd` is a soft guard for strategy selection. elek estimates the
@@ -536,11 +536,13 @@ minimum estimate already exceeds the cap, it downgrades `thermos` to
 Set `max_cost_usd: 0`, `off`, or `none` to explicitly disable a cap inherited
 from `.elek.yml` while testing a workflow.
 
-Changed-line guards run before cost estimates. By default, `thermos` and
-`council` downgrade above 1,200 changed diff lines and `crosscheck` downgrades
-above 3,000. Override with `max_council_changed_lines` and
-`max_crosscheck_changed_lines`, or set either value to `0` to disable that
-guard.
+Changed-line thresholds run before cost estimates and log a warning only. By
+default, `thermos` and `council` warn above 200,000 changed diff lines and
+`crosscheck` warns above 200,000. Large PRs keep their requested strategy; elek
+includes a full file overview and slices diff context by file so early large
+docs/workflow changes do not hide later application files. Override with
+`max_council_changed_lines` and `max_crosscheck_changed_lines`, or set either
+value to `0` to disable that warning.
 
 Running two cheap models in crosscheck mode often costs less than one premium
 validator while surfacing disagreements that a single pass misses.

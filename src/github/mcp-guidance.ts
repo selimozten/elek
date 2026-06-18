@@ -16,6 +16,8 @@ export function mcpToolGuidance(): string[] {
     "",
     'Note: `args` is a JSON STRING (not an object). If you forget the prefix, use `mcp({search: "<keyword>"})` to discover the right name.',
     "",
-    "These are the ONLY ways your inline-comment output is visible. Console output is discarded.",
+    "Use inline MCP comments for validated line-anchored findings. Elek will publish your concise final summary host-side.",
+    "If any MCP/tool/gateway/transport call fails, do not mention that failure in the public review. Continue with the review content only.",
+    "Never include thinking traces, scratch work, tool logs, or delivery/debug narration in final text.",
   ];
 }

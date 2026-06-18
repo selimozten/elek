@@ -1,0 +1,103 @@
+import { sanitize } from "../mcp/handlers.js";
+
+export interface PublicReviewOutput {
+  body: string;
+  usable: boolean;
+  filtered: boolean;
+  removedParagraphs: number;
+}
+
+const GENERIC_FAILURE =
+  "Elek could not complete this review run. See the workflow logs for details.";
+const GENERIC_INTERNAL_ONLY =
+  "Elek completed the model run, but the model did not return a usable public review. No public findings were posted from that response.";
+
+const INTERNAL_DELIVERY_PATTERNS = [
+  /\belek_review_[a-z_]+\b/i,
+  /\bargs\s*:\s*must be string\b/i,
+  /\bpi-mcp-adapter\b/i,
+  /\b(?:gateway|transport)(?:-level)?\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
+  /\btool[-\s]?call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
+  /\b(?:failed|failing|unable|cannot|could not)\s+to\s+(?:post|create|update).{0,80}\bcomment\b/i,
+  /\bconsole output is discarded\b/i,
+];
+
+const REVIEW_SIGNAL_PATTERNS = [
+  /^#{2,3}\s+/m,
+  /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
+  /\bNo high-confidence\b/i,
+  /\bReview Summary\b/i,
+  /\bFindings\b/i,
+];
+
+export function preparePublicReviewOutput(
+  output: string,
+  conclusion: "success" | "failure",
+): PublicReviewOutput {
+  const safe = sanitize(output).trim();
+  if (conclusion === "failure") {
+    return {
+      body: GENERIC_FAILURE,
+      usable: false,
+      filtered: safe.length > 0,
+      removedParagraphs: safe ? splitParagraphs(safe).length : 0,
+    };
+  }
+
+  const paragraphs = splitParagraphs(safe);
+  const kept: string[] = [];
+  let removedParagraphs = 0;
+  let filtered = false;
+
+  for (const paragraph of paragraphs) {
+    if (!hasInternalDeliveryMarker(paragraph)) {
+      kept.push(paragraph);
+      continue;
+    }
+
+    filtered = true;
+    const cleaned = paragraph
+      .split("\n")
+      .filter((line) => !hasInternalDeliveryMarker(line))
+      .join("\n")
+      .trim();
+    if (cleaned && hasReviewSignal(cleaned)) {
+      kept.push(cleaned);
+    } else {
+      removedParagraphs++;
+    }
+  }
+
+  const body = kept.join("\n\n").trim();
+  if (!body || !hasReviewSignal(body)) {
+    return {
+      body: GENERIC_INTERNAL_ONLY,
+      usable: false,
+      filtered: true,
+      removedParagraphs: Math.max(removedParagraphs, paragraphs.length),
+    };
+  }
+
+  return {
+    body,
+    usable: true,
+    filtered,
+    removedParagraphs,
+  };
+}
+
+function splitParagraphs(text: string): string[] {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function hasInternalDeliveryMarker(text: string): boolean {
+  return INTERNAL_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function hasReviewSignal(text: string): boolean {
+  return REVIEW_SIGNAL_PATTERNS.some((pattern) => pattern.test(text));
+}

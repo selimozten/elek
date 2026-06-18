@@ -4,6 +4,7 @@ import { mcpToolGuidance } from "../github/mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
+import { formatChangedFilesForPrompt } from "./diff-context.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
 
@@ -49,8 +50,10 @@ export interface BudgetPlanResult {
   events: BudgetPlanEvent[];
 }
 
-const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 1_200;
-const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 3_000;
+const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 200_000;
+const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 200_000;
+const DEFAULT_CHANGED_FILES_PROMPT_CHARS = 200_000;
+const SYNTHESIS_CHANGED_FILES_PROMPT_CHARS = 200_000;
 
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
@@ -327,39 +330,30 @@ export function selectReviewPlanWithinDiffSize(args: {
   supportContext: { isPR: boolean; mode: string };
   changedLines: number | undefined;
 }): BudgetPlanResult {
-  let plan = args.initialPlan;
-  let support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
+  const plan = args.initialPlan;
+  const support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
   const events: BudgetPlanEvent[] = [];
 
   if (!support.enabled || args.changedLines === undefined) {
     return { plan, support, events };
   }
 
-  for (;;) {
-    const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
-    if (limit === undefined || args.changedLines <= limit) break;
-
-    const downgraded = downgradeReviewStrategy(plan.strategy);
-    if (!downgraded) break;
+  const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
+  if (limit !== undefined && args.changedLines > limit) {
     events.push({
       level: "warn",
       message:
         `[size] changed_lines=${args.changedLines} strategy=${plan.strategy} ` +
-        `${changedLineLimitNameForStrategy(plan.strategy)}=${limit}; downgrading to ${downgraded}.`,
+        `${changedLineLimitNameForStrategy(plan.strategy)}=${limit}; preserving ${plan.strategy} coverage ` +
+        "and using per-file diff prompt slices.",
     });
-    plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
-    support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
-    if (!support.enabled) break;
   }
 
   return { plan, support, events };
 }
 
-function changedFilesBlock(data: GitHubData, maxChars = 60_000): string {
-  if (!data.diff) return "(diff unavailable; inspect files from the workspace if needed)";
-  return data.diff.length > maxChars
-    ? `${data.diff.slice(0, maxChars)}\n\n... diff truncated for prompt budget; use read/grep/find/ls tools for more context.`
-    : data.diff;
+function changedFilesBlock(data: GitHubData, maxChars = DEFAULT_CHANGED_FILES_PROMPT_CHARS): string {
+  return formatChangedFilesForPrompt(data.diff, maxChars);
 }
 
 export function buildLensPrompt(params: {
@@ -520,7 +514,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data, 60_000),
+    changedFilesBlock(data, SYNTHESIS_CHANGED_FILES_PROMPT_CHARS),
     "```",
     `</changed_files>`,
     ``,

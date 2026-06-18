@@ -76,6 +76,7 @@ import {
   type ReviewRunMetric,
 } from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
+import { preparePublicReviewOutput } from "../review/public-output.js";
 import { sanitize } from "../mcp/handlers.js";
 import type { PostSummary } from "./post-buffered.js";
 
@@ -601,7 +602,17 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
-  const parsedFindings = parseReviewFindings(safeOutput);
+  const publicReview = preparePublicReviewOutput(result.output, result.conclusion);
+  const publicOutput = publicReview.body;
+  const publicConclusion =
+    result.conclusion === "success" && publicReview.usable ? "success" : "failure";
+  if (publicReview.filtered) {
+    console.warn(
+      `[review-output] filtered internal delivery text from public review ` +
+      `(removed_paragraphs=${publicReview.removedParagraphs})`,
+    );
+  }
+  const parsedFindings = parseReviewFindings(publicOutput);
   runMetrics.push(metricFromPiRun(result, "validator"));
   const costTotal = aggregateCosts(runCosts);
   const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
@@ -623,11 +634,11 @@ async function run(): Promise<void> {
   let reviewBody = "";
   if (commentId) {
     reviewBody = [
-      result.conclusion === "success"
+      publicConclusion === "success"
         ? spinnerHeader(activeModelLabel, "analysis complete")
         : spinnerHeader(activeModelLabel, "encountered an issue"),
       "",
-      truncate(safeOutput),
+      truncate(publicOutput),
       ...(inputs.showCost ? ["", `_${costLine}_`] : []),
       "",
       `[View run](${jobRunLink})`,
@@ -692,9 +703,9 @@ async function run(): Promise<void> {
   if (context.isPR && !commentId) {
     try {
       const reviewOutput = inputs.showCost
-        ? `${truncate(safeOutput)}\n\n_${costLine}_`
-        : truncate(safeOutput);
-      await createPRReview(octokit, context, reviewOutput, result.conclusion, activeModelLabel);
+        ? `${truncate(publicOutput)}\n\n_${costLine}_`
+        : truncate(publicOutput);
+      await createPRReview(octokit, context, reviewOutput, publicConclusion, activeModelLabel);
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -707,11 +718,11 @@ async function run(): Promise<void> {
         octokit,
         context,
         [
-          result.conclusion === "success"
+          publicConclusion === "success"
             ? spinnerHeader(activeModelLabel, "analysis complete")
             : spinnerHeader(activeModelLabel, "encountered an issue"),
           "",
-          truncate(safeOutput),
+          truncate(publicOutput),
           ...(inputs.showCost ? ["", `_${costLine}_`] : []),
           "",
           `[View run](${jobRunLink})`,
@@ -770,7 +781,7 @@ async function run(): Promise<void> {
   core.setOutput("branch_name", workBranch || "");
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
-  core.setOutput("summary", safeOutput.substring(0, 1000));
+  core.setOutput("summary", publicOutput.substring(0, 1000));
   core.setOutput("cost_usd", costTotal.costUsd.toFixed(6));
   core.setOutput("input_tokens", String(costTotal.inputTokens));
   core.setOutput("output_tokens", String(costTotal.outputTokens));

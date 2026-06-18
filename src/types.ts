@@ -55,13 +55,13 @@ export interface ActionInputs {
    */
   maxCostUsd?: number | null;
   /**
-   * Optional maximum changed diff lines for council. Undefined uses elek's
-   * default guard; 0 disables the size guard for council.
+   * Optional changed-line warning threshold for council/thermos. Undefined
+   * uses elek's default warning threshold; 0 disables the warning.
    */
   maxCouncilChangedLines?: number;
   /**
-   * Optional maximum changed diff lines for crosscheck. Undefined uses elek's
-   * default guard; 0 disables the size guard for crosscheck.
+   * Optional changed-line warning threshold for crosscheck. Undefined uses
+   * elek's default warning threshold; 0 disables the warning.
    */
   maxCrosscheckChangedLines?: number;
 }

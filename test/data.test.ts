@@ -37,11 +37,10 @@ describe("buildPrompt", () => {
     expect(out).toContain("</changed_files>");
   });
 
-  it("truncates a giant diff with a (... N more lines) marker", () => {
-    const big = Array.from({ length: 600 }, (_, i) => `+ line ${i}`).join("\n");
+  it("truncates a giant unstructured diff with a prompt-budget marker", () => {
+    const big = Array.from({ length: 20_000 }, (_, i) => `+ line ${i}`).join("\n");
     const out = buildPrompt({ ...baseData, diff: big }, "", "m", "j");
-    expect(out).toContain("... (");
-    expect(out).toContain("more lines)");
+    expect(out).toContain("... diff truncated for prompt budget");
   });
 
   it("includes user_request and metadata blocks", () => {

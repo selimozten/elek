@@ -6,6 +6,9 @@ import { getGitDiff } from "./git.js";
 import { mcpToolGuidance } from "./mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
+import { formatChangedFilesForPrompt } from "../review/diff-context.js";
+
+const CHANGED_FILES_PROMPT_CHARS = 200_000;
 
 type MinimalOctokit = {
   rest: {
@@ -146,17 +149,9 @@ export function buildPrompt(
 
   // ── Diff (PR only) ──
   if (data.diff) {
-    const maxLines = 500;
-    const diffLines = data.diff.split("\n");
-    const truncated =
-      diffLines.length > maxLines
-        ? diffLines.slice(0, maxLines).join("\n") +
-          `\n... (${diffLines.length - maxLines} more lines)`
-        : data.diff;
-
     parts.push("<changed_files>");
     parts.push("```diff");
-    parts.push(truncated);
+    parts.push(formatChangedFilesForPrompt(data.diff, CHANGED_FILES_PROMPT_CHARS));
     parts.push("```");
     parts.push("</changed_files>");
     parts.push("");

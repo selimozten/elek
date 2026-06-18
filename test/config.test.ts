@@ -305,8 +305,8 @@ instructions:
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
-      maxCouncilChangedLines: 1200,
-      maxCrosscheckChangedLines: 3000,
+      maxCouncilChangedLines: 200000,
+      maxCrosscheckChangedLines: 200000,
       severityThreshold: "important",
       knowledgePaths: ["base-only.md"],
       knowledge: [{ path: "base-only.md", text: "Base knowledge.", truncated: false }],
@@ -335,8 +335,8 @@ instructions:
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
-      maxCouncilChangedLines: 1200,
-      maxCrosscheckChangedLines: 3000,
+      maxCouncilChangedLines: 200000,
+      maxCrosscheckChangedLines: 200000,
       severityThreshold: "important",
       knowledgePaths: ["docs/review.md"],
       knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
@@ -792,7 +792,7 @@ instructions:
         severityThreshold: "important",
         costRates: "deepseek/model-b=1:2",
         maxCostUsd: 0.3,
-        maxCouncilChangedLines: 1200,
+        maxCouncilChangedLines: 200000,
         maxCrosscheckChangedLines: 0,
         ignorePaths: ["docs/**"],
         instructions: ["Treat migrations as operational risk."],
@@ -801,7 +801,7 @@ instructions:
           "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
           "review_agent_count=5 | validator_model=deepseek/model-b | validator_thinking=medium | " +
           "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | max_cost_usd=0.3 | " +
-          "max_council_changed_lines=1200 | max_crosscheck_changed_lines=0 | " +
+          "max_council_changed_lines=200000 | max_crosscheck_changed_lines=0 | " +
           "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
       );
 
@@ -836,14 +836,14 @@ instructions:
         severityThreshold: "critical",
         costRates: "deepseek/model-b=1:2",
         maxCostUsd: 0.3,
-        maxCouncilChangedLines: 1200,
+        maxCouncilChangedLines: 200000,
         maxCrosscheckChangedLines: 0,
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
           "effective_review_agent_count=5 | effective_validator_model=deepseek/model-b | " +
           "effective_validator_thinking=medium | effective_severity_threshold=critical | " +
           "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3 | " +
-          "effective_max_council_changed_lines=1200 | effective_max_crosscheck_changed_lines=0",
+          "effective_max_council_changed_lines=200000 | effective_max_crosscheck_changed_lines=0",
       );
 
       expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {

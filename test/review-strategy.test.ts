@@ -214,20 +214,19 @@ describe("review strategy", () => {
     expect(countChangedDiffLines(undefined)).toBeUndefined();
   });
 
-  it("downgrades council and crosscheck when changed lines exceed default size guards", () => {
-    const inputs = { ...baseInputs, reviewStrategy: "council" };
+  it("preserves thermos coverage when changed lines exceed default warning thresholds", () => {
+    const inputs = { ...baseInputs, reviewStrategy: "thermos" };
     const result = selectReviewPlanWithinDiffSize({
       inputs,
       initialPlan: resolveReviewPlan(inputs),
       supportContext: { isPR: true, mode: "review" },
-      changedLines: 3_500,
+      changedLines: 250_000,
     });
 
-    expect(result.plan.strategy).toBe("solo");
-    expect(result.support.enabled).toBe(false);
+    expect(result.plan.strategy).toBe("thermos");
+    expect(result.support.enabled).toBe(true);
     expect(result.events.map((event) => event.message)).toEqual([
-      "[size] changed_lines=3500 strategy=council max_council_changed_lines=1200; downgrading to crosscheck.",
-      "[size] changed_lines=3500 strategy=crosscheck max_crosscheck_changed_lines=3000; downgrading to solo.",
+      "[size] changed_lines=250000 strategy=thermos max_council_changed_lines=200000; preserving thermos coverage and using per-file diff prompt slices.",
     ]);
   });
 
@@ -520,6 +519,9 @@ describe("review strategy", () => {
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
     expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
     expect(prompt).toContain("`args` is a JSON STRING");
+    expect(prompt).toContain("Elek will publish your concise final summary host-side.");
+    expect(prompt).toContain("do not mention that failure in the public review");
+    expect(prompt).toContain("Never include thinking traces");
     expect(prompt).toContain('<reviewer_report lens="risk" title="Risk Review"');
     expect(prompt).toContain('<reviewer_report lens="design" title="Design Review"');
     expect(prompt).toContain("Potential issue in src/a.ts");
@@ -533,7 +535,7 @@ describe("review strategy", () => {
   it("uses a tighter diff budget for final synthesis prompts", () => {
     const longData = {
       ...dataFixture,
-      diff: `diff --git a/src/a.ts b/src/a.ts\n${"+x\n".repeat(40_000)}`,
+      diff: `diff --git a/src/a.ts b/src/a.ts\n${"+x\n".repeat(100_000)}`,
       comments: [],
       reviewComments: [],
     };
@@ -546,8 +548,8 @@ describe("review strategy", () => {
       reports: [],
     });
 
-    expect(prompt).toContain("... diff truncated for prompt budget");
-    expect(prompt.length).toBeLessThan(70_000);
+    expect(prompt).toContain("... diff truncated by file for prompt budget");
+    expect(prompt.length).toBeLessThan(220_000);
   });
 });
 

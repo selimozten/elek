@@ -185,14 +185,16 @@ inputs:
     default: ""
   max_council_changed_lines:
     description: >
-      Maximum changed diff lines before council automatically downgrades.
-      Empty uses elek's default guard; 0 disables the council size guard.
+      Changed-line warning threshold for council/thermos. Large PRs keep
+      their requested strategy; elek slices diff context by file instead.
+      Empty uses elek's default warning threshold; 0 disables the warning.
     required: false
     default: ""
   max_crosscheck_changed_lines:
     description: >
-      Maximum changed diff lines before crosscheck automatically downgrades.
-      Empty uses elek's default guard; 0 disables the crosscheck size guard.
+      Changed-line warning threshold for crosscheck. Large PRs keep their
+      requested strategy; elek slices diff context by file instead.
+      Empty uses elek's default warning threshold; 0 disables the warning.
     required: false
     default: ""
 

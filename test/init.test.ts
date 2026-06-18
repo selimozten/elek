@@ -87,8 +87,8 @@ describe("elek-init", () => {
 
     expect(config).toContain("review_strategy: crosscheck");
     expect(config).toContain("max_cost_usd: 0.05");
-    expect(config).toContain("max_council_changed_lines: 1200");
-    expect(config).toContain("max_crosscheck_changed_lines: 3000");
+    expect(config).toContain("max_council_changed_lines: 200000");
+    expect(config).toContain("max_crosscheck_changed_lines: 200000");
     expect(config).toContain("severity_threshold: important");
     expect(config).toContain("knowledge_paths:");
     expect(config).toContain("AGENTS.md");
