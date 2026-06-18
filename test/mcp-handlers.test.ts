@@ -355,6 +355,20 @@ describe("createInlineComment", () => {
     expect(entry.body).toContain("[REDACTED]");
   });
 
+  it("rejects inline comments that contain internal delivery narration", async () => {
+    const { deps, calls, buffer } = makeDeps();
+
+    const result = await createInlineComment(deps, {
+      path: "src/x.ts",
+      body: "The elek_review_create_inline_comment tool failed with args: must be string.",
+      line: 10,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(buffer.length).toBe(0);
+    expect(calls.length).toBe(0);
+  });
+
   it("strips GitHub token-shaped strings from the body before posting", async () => {
     const { deps, calls } = makeDeps();
 

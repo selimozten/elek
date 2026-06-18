@@ -151,6 +151,12 @@ export async function createInlineComment(
     };
   }
   const safeBody = sanitize(args.body);
+  if (hasInternalDeliveryMarker(safeBody)) {
+    return {
+      ok: false,
+      error: "inline comment rejected because body contains internal delivery/debug text",
+    };
+  }
 
   if (args.confirmed !== true) {
     const ts = (deps.now ?? (() => new Date()))().toISOString();

@@ -219,7 +219,7 @@ async function run(): Promise<void> {
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
 
-  const trackingModelLabel = reviewPlanSupport.enabled ? reviewPlan.validator.label : modelLabel;
+  let trackingModelLabel = reviewPlanSupport.enabled ? reviewPlan.validator.label : modelLabel;
 
   // Determine base branch
   const baseBranch =
@@ -461,6 +461,8 @@ async function run(): Promise<void> {
   }
 
   const useReviewPlan = reviewPlanSupport.enabled;
+  trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
+  activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
   const runCosts: ReviewCost[] = [];
   const runMetrics: ReviewRunMetric[] = [];
