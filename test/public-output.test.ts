@@ -117,6 +117,31 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("I have read the files");
   });
 
+  it("keeps non-standard review category headings when finding fields provide structure", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "I have finished reviewing the change.",
+        "",
+        "## Security Concern",
+        "",
+        "### Missing input validation",
+        "- Severity: important",
+        "- Confidence: high",
+        "- Path: `src/api.ts`",
+        "- Line: 12",
+        "- Evidence: the handler trusts raw input",
+        "- Impact: malformed input can reach persistence",
+        "- Fix: validate the request body before saving",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toStartWith("## Security Concern");
+    expect(result.body).not.toContain("finished reviewing");
+  });
+
   it("drops leading self-narration before the public review body", () => {
     const result = preparePublicReviewOutput(
       [

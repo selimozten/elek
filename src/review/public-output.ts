@@ -14,7 +14,7 @@ const GENERIC_INTERNAL_ONLY =
   "Elek completed the model run, but the model did not return a usable public review. No public findings were posted from that response.";
 
 const REVIEW_SIGNAL_PATTERNS = [
-  /^#{2,3}\s+(?:review summary|findings|recommendations)\b/im,
+  /^#{2,3}\s+(?=.*\b(?:review|finding|recommendation|security|correctness|performance|maintainability|bug|regression|race|leak|validation|cleanup|issue|concern)\b).+/im,
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,
@@ -22,7 +22,7 @@ const REVIEW_SIGNAL_PATTERNS = [
 ];
 
 const REVIEW_SIGNAL_LINE_PATTERNS = [
-  /^#{2,3}\s+(?:review summary|findings|recommendations)\b/i,
+  /^#{2,3}\s+(?=.*\b(?:review|finding|recommendation|security|correctness|performance|maintainability|bug|regression|race|leak|validation|cleanup|issue|concern)\b).+/i,
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,
