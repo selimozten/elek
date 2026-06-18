@@ -182,4 +182,45 @@ describe("public review output filtering", () => {
     expect(result.body).toContain("[REDACTED]");
     expect(result.body).not.toContain("ghp_AbCd");
   });
+
+  it("strips model-generated cost and run footers from usable review output", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Review Summary",
+        "No new findings that meet the acceptance gates.",
+        "",
+        "_Review cost: $0.0051 (1,553 in / 4,891 out tokens)_",
+        "",
+        "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(
+      [
+        "## Review Summary",
+        "No new findings that meet the acceptance gates.",
+      ].join("\n"),
+    );
+  });
+
+  it("strips combined host-managed footer paragraphs from model output", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Findings",
+        "No high-confidence findings.",
+        "",
+        "_Estimated review cost: at least $0.0123 (20,845 in / 0 out tokens; missing price data for model)_",
+        "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
+        "<!-- elek-bot:lane:aaaaaaaaaaaa -->",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(["## Findings", "No high-confidence findings."].join("\n"));
+  });
 });

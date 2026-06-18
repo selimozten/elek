@@ -73,7 +73,13 @@ export function preparePublicReviewOutput(
     removedParagraphs += preludeStripped.removedParagraphs;
   }
 
-  const body = preludeStripped.paragraphs.join("\n\n").trim();
+  const footerStripped = stripHostManagedFooter(preludeStripped.paragraphs);
+  if (footerStripped.filtered) {
+    filtered = true;
+    removedParagraphs += footerStripped.removedParagraphs;
+  }
+
+  const body = footerStripped.paragraphs.join("\n\n").trim();
   if (!body || !hasReviewSignal(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
@@ -137,4 +143,38 @@ function stripLeadingLinesBeforeReviewSignal(paragraph: string): string {
 
 function hasReviewSignalLine(line: string): boolean {
   return REVIEW_SIGNAL_LINE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function stripHostManagedFooter(paragraphs: string[]): {
+  paragraphs: string[];
+  filtered: boolean;
+  removedParagraphs: number;
+} {
+  const stripped = [...paragraphs];
+  let removedParagraphs = 0;
+  while (stripped.length > 0 && isHostManagedFooterParagraph(stripped[stripped.length - 1])) {
+    stripped.pop();
+    removedParagraphs++;
+  }
+  return {
+    paragraphs: stripped,
+    filtered: removedParagraphs > 0,
+    removedParagraphs,
+  };
+}
+
+function isHostManagedFooterParagraph(paragraph: string): boolean {
+  const lines = paragraph
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 && lines.every(isHostManagedFooterLine);
+}
+
+function isHostManagedFooterLine(line: string): boolean {
+  return (
+    /^_?(?:estimated\s+review\s+cost|review\s+cost):\s+.+_?$/i.test(line) ||
+    /^\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)$/i.test(line) ||
+    /^<!--\s*elek-bot(?::[^>]*)?\s*-->$/i.test(line)
+  );
 }
