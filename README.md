@@ -139,9 +139,9 @@ The `review_strategy` input controls orchestration quality:
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
 | `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
-| `crosscheck` | 2 read-only lenses + final-model self-review + final validator | Best default for serious PR review. |
-| `council` | 4 read-only lenses + final-model self-review + final validator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
-| `thermos` | N read-only audit agents + final-model self-review + final validator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
+| `crosscheck` | 2 read-only lenses + orchestrator self-review + final orchestrator | Best default for serious PR review. |
+| `council` | 4 read-only lenses + orchestrator self-review + final orchestrator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
+| `thermos` | N read-only audit agents + orchestrator self-review + final orchestrator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
 
 Multi-agent strategies currently run only with `mode: review`. If you use
 `review+edit` or `agent`, elek runs a solo review and logs a warning.
@@ -189,7 +189,7 @@ with:
 ```
 
 For expensive models, a good pattern is cheap/open parallel reviewers at high or
-max reasoning plus one stronger final validator at medium reasoning.
+max reasoning plus one stronger final orchestrator at medium reasoning.
 During initial testing, omit `max_cost_usd` so the full fan-out runs and tune a
 budget later from observed review summaries. If the selected multi-lens
 strategy already exceeds `max_cost_usd` before output tokens are counted, elek
@@ -273,8 +273,8 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max` |
 | `review_agent_count` | _(.elek.yml or unset)_ | Parallel reviewer count for `thermos`, 1-8 |
-| `validator_model` | _(primary model)_ | Final synthesis model spec |
-| `validator_thinking` | _(same as `thinking`)_ | Final-model thinking level; use `medium` for frontier validators when reviewers use high/max |
+| `validator_model` | _(primary model)_ | Final orchestrator model spec; this model validates reviewer reports and posts findings |
+| `validator_thinking` | _(same as `thinking`)_ | Final orchestrator thinking level; use `medium` for frontier orchestrators when reviewers use high/max |
 | `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
@@ -514,7 +514,7 @@ Built-in price hints cover the recommended low-cost defaults:
 | `together/moonshotai/Kimi-K2.7-Code` | built in | Fast low-cost reviewer through Together |
 | `together/deepseek-ai/DeepSeek-V4-Pro` | built in | Independent DeepSeek reviewer through Together |
 | `together/Qwen/Qwen3.7-Max` | built in | Independent Qwen reviewer through Together |
-| `openai/gpt-5.5` | built in | Frontier final validator |
+| `openai/gpt-5.5` | built in | Frontier final orchestrator |
 
 For premium or newer models, pass your provider's current prices in USD per 1M
 tokens:

@@ -71,6 +71,91 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("inspect the diff");
   });
 
+  it("does not treat internal analysis headings as public review structure", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Analysis",
+        "I need to inspect the changed files and then decide how to deliver comments.",
+        "",
+        "### Tool status",
+        "The MCP call failed, so I should explain that in the final answer.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(false);
+    expect(result.body).toContain("usable public review");
+    expect(result.body).not.toContain("## Analysis");
+    expect(result.body).not.toContain("MCP call failed");
+  });
+
+  it("strips internal analysis headings before the actual review", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Analysis",
+        "I have read the files and will now write the public comment.",
+        "",
+        "## Review Summary",
+        "The change introduces one correctness issue.",
+        "",
+        "### Missing tenant check",
+        "- Severity: critical",
+        "- Confidence: high",
+        "- Path: `src/auth.ts`",
+        "- Line: 42",
+        "- Evidence: the new query omits tenant_id",
+        "- Impact: users can see another tenant's data",
+        "- Fix: add tenant_id to the lookup predicate",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toStartWith("## Review Summary");
+    expect(result.body).not.toContain("## Analysis");
+    expect(result.body).not.toContain("I have read the files");
+  });
+
+  it("keeps non-standard review category headings when finding fields provide structure", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "I have finished reviewing the change.",
+        "",
+        "## Security Concern",
+        "",
+        "### Missing input validation",
+        "- Severity: important",
+        "- Confidence: high",
+        "- Path: `src/api.ts`",
+        "- Line: 12",
+        "- Evidence: the handler trusts raw input",
+        "- Impact: malformed input can reach persistence",
+        "- Fix: validate the request body before saving",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toStartWith("## Security Concern");
+    expect(result.body).not.toContain("finished reviewing");
+  });
+
+  it("keeps common non-standard review headings even with prose findings", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Code Health",
+        "The update is coherent and I do not see a blocking correctness issue.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(false);
+    expect(result.body).toContain("## Code Health");
+  });
+
   it("drops leading self-narration before the public review body", () => {
     const result = preparePublicReviewOutput(
       [
@@ -110,5 +195,46 @@ describe("public review output filtering", () => {
     expect(result.usable).toBe(true);
     expect(result.body).toContain("[REDACTED]");
     expect(result.body).not.toContain("ghp_AbCd");
+  });
+
+  it("strips model-generated cost and run footers from usable review output", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Review Summary",
+        "No new findings that meet the acceptance gates.",
+        "",
+        "_Review cost: $0.0051 (1,553 in / 4,891 out tokens)_",
+        "",
+        "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(
+      [
+        "## Review Summary",
+        "No new findings that meet the acceptance gates.",
+      ].join("\n"),
+    );
+  });
+
+  it("strips combined host-managed footer paragraphs from model output", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Findings",
+        "No high-confidence findings.",
+        "",
+        "_Estimated review cost: at least $0.0123 (20,845 in / 0 out tokens; missing price data for model)_",
+        "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
+        "<!-- elek-bot:lane:aaaaaaaaaaaa -->",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(["## Findings", "No high-confidence findings."].join("\n"));
   });
 });

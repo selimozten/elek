@@ -35,9 +35,9 @@ export interface ActionInputs {
   reviewModels: string;
   /** Optional number of parallel reviewer agents for thermos strategy. */
   reviewAgentCount?: number;
-  /** Optional model spec for final validation/synthesis. */
+  /** Optional model spec for the final orchestrator/validator. */
   validatorModel: string;
-  /** Optional thinking level for final validation/synthesis. */
+  /** Optional thinking level for the final orchestrator/validator. */
   validatorThinking: string;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";

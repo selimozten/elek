@@ -519,7 +519,8 @@ describe("review strategy", () => {
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
     expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
     expect(prompt).toContain("`args` is a JSON STRING");
-    expect(prompt).toContain("Elek will publish your concise final summary host-side.");
+    expect(prompt).toContain("Elek can post host-side inline fallbacks if tool delivery fails.");
+    expect(prompt).toContain("only this orchestrator run can publish final findings");
     expect(prompt).toContain("do not mention that failure in the public review");
     expect(prompt).toContain("Never include thinking traces");
     expect(prompt).toContain('<reviewer_report lens="risk" title="Risk Review"');

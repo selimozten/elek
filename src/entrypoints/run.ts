@@ -212,6 +212,15 @@ async function run(): Promise<void> {
   );
   const piInputs = { ...inputs, tools: piTools };
 
+  let reviewPlan = resolveReviewPlan(inputs);
+  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+    isPR: context.isPR,
+    mode: resolvedMode.mode,
+  });
+  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
+
+  let trackingModelLabel = reviewPlanSupport.enabled ? reviewPlan.validator.label : modelLabel;
+
   // Determine base branch
   const baseBranch =
     inputs.baseBranch || context.pr?.baseRef || context.repo.defaultBranch;
@@ -222,20 +231,9 @@ async function run(): Promise<void> {
     workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
-  // Create tracking comment with the elek spinner.
+  // Defer sticky-comment creation until after strategy size/cost selection so
+  // the hidden lane signature matches the final posting model from the start.
   let commentId = parseExistingTrackingCommentId(process.env.ELEK_TRACKING_COMMENT_ID);
-  if (inputs.stickyComment) {
-    if (commentId) {
-      console.log(`Using existing elek tracking comment #${commentId}`);
-    } else {
-      try {
-        const comment = await createTrackingComment(octokit, context, modelLabel);
-        commentId = comment.id;
-      } catch (err) {
-        console.warn("Could not create tracking comment:", err);
-      }
-    }
-  }
 
   // ── Phase 3: Fetch data & build prompt ───────────────────────────────
   const data = await fetchGitHubData(context, octokit);
@@ -249,20 +247,11 @@ async function run(): Promise<void> {
     }
   }
 
-  let prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
-    useMcp: mcpEnabled,
-    allowEdit: resolvedMode.allowEdit,
-    tools: piTools,
-    repoConfig: effectiveRepoConfig,
-  });
-
-  // Write prompt to file
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
-  writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
-
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
+  let prompt = "";
 
   // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json.
   // We choose the home-config path so the file (which carries GITHUB_TOKEN
@@ -324,7 +313,7 @@ async function run(): Promise<void> {
   //   "done" (run finished)      → "Review complete" ✓
   let toolsSeen = 0;
   let textStreamed = false;
-  let activeModelLabel = modelLabel;
+  let activeModelLabel = trackingModelLabel;
 
   let lastUpdate = 0;
   let lastBody = "";
@@ -357,18 +346,11 @@ async function run(): Promise<void> {
     lastUpdate = now;
     lastBody = body;
     try {
-      await updateTrackingComment(octokit, context, commentId, body, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, body, trackingModelLabel);
     } catch (err) {
       console.warn("progress update failed:", (err as Error).message);
     }
   };
-
-  let reviewPlan = resolveReviewPlan(inputs);
-  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
-    isPR: context.isPR,
-    mode: resolvedMode.mode,
-  });
-  if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
 
   const lensPromptCache = new Map<string, string>();
   const lensPromptFor = (job: ReviewJob): string => {
@@ -459,7 +441,31 @@ async function run(): Promise<void> {
   }
 
   const useReviewPlan = reviewPlanSupport.enabled;
+  trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
+  activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
+
+  if (inputs.stickyComment) {
+    if (commentId) {
+      console.log(`Using existing elek tracking comment #${commentId}`);
+    } else {
+      try {
+        const comment = await createTrackingComment(octokit, context, trackingModelLabel);
+        commentId = comment.id;
+      } catch (err) {
+        console.warn("Could not create tracking comment:", err);
+      }
+    }
+  }
+
+  prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
+    useMcp: mcpEnabled,
+    allowEdit: resolvedMode.allowEdit,
+    tools: piTools,
+    repoConfig: effectiveRepoConfig,
+  });
+  writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+
   const runCosts: ReviewCost[] = [];
   const runMetrics: ReviewRunMetric[] = [];
 
@@ -473,7 +479,7 @@ async function run(): Promise<void> {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | validator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | validator: ${reviewPlan.validator.label}`,
+        .join(", ")} | orchestrator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
     );
     if (reviewPlan.reusedModels) {
       console.warn(
@@ -495,10 +501,10 @@ async function run(): Promise<void> {
               ? `- ${reviewPlan.validatorReview.lens.title}`
               : "",
             "",
-            `Final validation`,
+            `Orchestrator validation and posting`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
-          modelLabel,
+          trackingModelLabel,
         );
       } catch (err) {
         console.warn("Could not update strategy status:", err);
@@ -646,11 +652,11 @@ async function run(): Promise<void> {
     ].join("\n");
 
     try {
-      await updateTrackingComment(octokit, context, commentId, reviewBody, modelLabel);
+      await updateTrackingComment(octokit, context, commentId, reviewBody, trackingModelLabel);
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
-        await postComment(octokit, context, reviewBody, modelLabel);
+        await postComment(octokit, context, reviewBody, trackingModelLabel);
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
@@ -797,7 +803,7 @@ async function run(): Promise<void> {
         context,
         commentId,
         [reviewBody, "", duplicateNote].join("\n"),
-        modelLabel,
+        trackingModelLabel,
       );
     } catch (err) {
       console.warn("Could not update tracking comment with inline lifecycle note:", err);

@@ -71,15 +71,15 @@ Defines the strategy names and prompt builders:
 
 ```
 solo       → existing one-model review
-crosscheck → Risk Review + Design Review, then final validation/synthesis
-council    → Risk + Design + Test Integrity + Operational Review, then final validation/synthesis
+crosscheck → Risk Review + Design Review, then final orchestrator validation/synthesis
+council    → Risk + Design + Test Integrity + Operational Review, then final orchestrator validation/synthesis
 ```
 
 Candidate reviewers run as independent `pi` processes with only
 `read,grep,find,ls`, no MCP proxy, and a filtered environment. Their output is
-internal evidence. The final validator receives the candidate reports, rejects
-speculative or duplicate findings, and is the only run allowed to call elek's
-review MCP tools.
+internal evidence. The final orchestrator receives the candidate reports,
+rejects speculative or duplicate findings, and is the only run allowed to call
+elek's review MCP tools.
 
 ### `src/pi.ts` — pi CLI runner
 

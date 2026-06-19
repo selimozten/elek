@@ -61,4 +61,33 @@ describe("diff prompt context", () => {
     expect(out).toContain("+  return validateTenant()");
     expect(out).toContain("diff truncated by file for prompt budget");
   });
+
+  it("switches large in-budget diffs to representative slices to preserve tool-first review", () => {
+    const largeGeneratedFile = Array.from({ length: 9_000 }, (_, i) => `+generated line ${i}`).join("\n");
+    const diff = [
+      "diff --git a/docs/generated.md b/docs/generated.md",
+      "--- a/docs/generated.md",
+      "+++ b/docs/generated.md",
+      "@@ -1 +1,9000 @@",
+      largeGeneratedFile,
+      "diff --git a/src/auth/server.go b/src/auth/server.go",
+      "--- a/src/auth/server.go",
+      "+++ b/src/auth/server.go",
+      "@@ -10,2 +10,4 @@",
+      " func lookup() {",
+      "+  query := db.User.First()",
+      "+  _ = query",
+      " }",
+    ].join("\n");
+
+    const out = formatChangedFilesForPrompt(diff, 200_000);
+
+    expect(diff.length).toBeLessThan(200_000);
+    expect(out).toContain("# Changed file overview (2 files");
+    expect(out).toContain("# Representative diff slices");
+    expect(out).not.toContain("# Full diff");
+    expect(out).toContain("diff --git a/src/auth/server.go b/src/auth/server.go");
+    expect(out).toContain("+  query := db.User.First()");
+    expect(out.length).toBeLessThan(diff.length);
+  });
 });

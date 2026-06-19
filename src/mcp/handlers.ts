@@ -3,6 +3,7 @@
  * The server shim wires these into McpServer; tests import them directly.
  */
 import { appendFindingMarker, stableInlineFindingId } from "../review/finding-markers.js";
+import { hasInternalDeliveryMarker } from "../review/delivery-patterns.js";
 
 export interface OctokitLike {
   pulls: {
@@ -48,12 +49,19 @@ export async function updateTrackingComment(
   if (!Number.isFinite(numericId)) {
     return { ok: false, error: `trackingCommentId "${id}" is not a valid number` };
   }
+  const safeBody = sanitize(args.body);
+  if (hasInternalDeliveryMarker(safeBody)) {
+    return {
+      ok: false,
+      error: "tracking comment update rejected because body contains internal delivery/debug text",
+    };
+  }
   try {
     const result = await deps.octokit.issues.updateComment({
       owner: deps.env.repoOwner,
       repo: deps.env.repoName,
       comment_id: numericId,
-      body: args.body,
+      body: safeBody,
     });
     return { ok: true, data: result.data };
   } catch (err) {
@@ -143,6 +151,12 @@ export async function createInlineComment(
     };
   }
   const safeBody = sanitize(args.body);
+  if (hasInternalDeliveryMarker(safeBody)) {
+    return {
+      ok: false,
+      error: "inline comment rejected because body contains internal delivery/debug text",
+    };
+  }
 
   if (args.confirmed !== true) {
     const ts = (deps.now ?? (() => new Date()))().toISOString();

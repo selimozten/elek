@@ -110,6 +110,42 @@ describe("updateTrackingComment", () => {
       body: "## working on it\n- [x] read",
     });
   });
+
+  it("rejects public tracking updates that contain internal delivery failures", async () => {
+    const { deps, calls } = makeDeps({
+      env: {
+        repoOwner: "octo",
+        repoName: "repo",
+        prNumber: "42",
+        trackingCommentId: "555",
+      },
+    });
+
+    const result = await updateTrackingComment(deps, {
+      body: "The elek_review_create_inline_comment tool failed with args: must be string, so I cannot post comments.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls.length).toBe(0);
+  });
+
+  it("rejects tracking updates with internal analysis narration from the shared guard", async () => {
+    const { deps, calls } = makeDeps({
+      env: {
+        repoOwner: "octo",
+        repoName: "repo",
+        prNumber: "42",
+        trackingCommentId: "555",
+      },
+    });
+
+    const result = await updateTrackingComment(deps, {
+      body: "## Analysis\nI need to inspect files before I decide how to post the review.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls.length).toBe(0);
+  });
 });
 
 describe("sanitize", () => {
@@ -317,6 +353,20 @@ describe("createInlineComment", () => {
     const entry = JSON.parse(buffer[0]);
     expect(entry.body).not.toContain("ghp_AbCd");
     expect(entry.body).toContain("[REDACTED]");
+  });
+
+  it("rejects inline comments that contain internal delivery narration", async () => {
+    const { deps, calls, buffer } = makeDeps();
+
+    const result = await createInlineComment(deps, {
+      path: "src/x.ts",
+      body: "The elek_review_create_inline_comment tool failed with args: must be string.",
+      line: 10,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(buffer.length).toBe(0);
+    expect(calls.length).toBe(0);
   });
 
   it("strips GitHub token-shaped strings from the body before posting", async () => {

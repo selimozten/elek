@@ -120,9 +120,9 @@ const THERMOS_LENSES: ReviewLens[] = [
 
 const VALIDATOR_REVIEW_LENS: ReviewLens = {
   id: "validator-self-review",
-  title: "Final Model Independent Audit",
+  title: "Orchestrator Independent Audit",
   focus:
-    "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues.",
+    "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues before posting.",
 };
 
 const MAX_THERMOS_REVIEW_AGENTS = 8;
@@ -390,7 +390,7 @@ export function buildLensPrompt(params: {
     `- Catch breaking functionality, breaking developer workflow, security vulnerabilities, and feature-gate leaks rooted in this diff.`,
     `- If the branch intentionally changes behavior and the blast radius is clear and constrained, do not report intended breakage as a bug.`,
     `- Never overstate severity; false positives are review failures.`,
-    `- Do your audit with fresh eyes. Do not depend on existing PR discussion; the final validator will compare discussion after candidate reports are produced.`,
+    `- Do your audit with fresh eyes. Do not depend on existing PR discussion; the final orchestrator will compare discussion after candidate reports are produced.`,
     ``,
     `Review calibration:`,
     ...reviewContractBullets(),
@@ -466,9 +466,9 @@ export function buildSynthesisPrompt(params: {
     .join("\n\n");
 
   return [
-    `You are elek's final review validator and synthesizer.`,
+    `You are elek's final review orchestrator, validator, and posting reviewer.`,
     ``,
-    `You have independent candidate reports from read-only reviewers. Treat every candidate finding as a hypothesis, not a fact.`,
+    `You have independent candidate reports from read-only reviewers. Treat every candidate finding as a hypothesis, not a fact. Read-only reviewers cannot post public comments; only this orchestrator run can publish final findings.`,
     ``,
     `Validation rules:`,
     `- Verify each surviving finding against the diff and repo context before surfacing it.`,
@@ -486,7 +486,7 @@ export function buildSynthesisPrompt(params: {
     `- Do not treat an omitted or disabled review-cost budget as a production finding unless the diff creates an immediate uncontrolled-spend path on the default branch. Cost policy warnings belong in the summary, not inline review comments.`,
     `- If two reviewers found the same issue independently, treat that as stronger signal, but still verify it yourself.`,
     `- Prefer a small number of precise, actionable comments over noisy coverage.`,
-    `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available are elek review-comment tools.`,
+    `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available to the orchestrator are elek review-comment tools.`,
     ``,
     `Use the MCP proxy for visible inline findings:`,
     ``,

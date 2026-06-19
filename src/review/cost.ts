@@ -173,7 +173,20 @@ export function formatTokenCount(tokens: number): string {
 
 export function formatCostLine(total: ReviewCostTotal): string {
   const prefix = total.estimated ? "Estimated review cost" : "Review cost";
-  return `${prefix}: ${formatUsd(total.costUsd)} (${formatTokenCount(total.inputTokens)} in / ${formatTokenCount(total.outputTokens)} out tokens)`;
+  const usage = `${formatTokenCount(total.inputTokens)} in / ${formatTokenCount(total.outputTokens)} out tokens`;
+  const unknownModels = [...new Set(
+    total.runs
+      .filter((run) => run.source === "unknown")
+      .map((run) => run.modelLabel),
+  )];
+  if (unknownModels.length > 0) {
+    const missing = `missing price data for ${unknownModels.join(", ")}`;
+    if (total.costUsd > 0) {
+      return `${prefix}: at least ${formatUsd(total.costUsd)} (${usage}; ${missing})`;
+    }
+    return `${prefix}: unknown (${usage}; ${missing})`;
+  }
+  return `${prefix}: ${formatUsd(total.costUsd)} (${usage})`;
 }
 
 export function estimatePromptOnlyCost(args: {

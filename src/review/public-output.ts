@@ -1,4 +1,5 @@
 import { sanitize } from "../mcp/handlers.js";
+import { hasInternalDeliveryMarker } from "./delivery-patterns.js";
 
 export interface PublicReviewOutput {
   body: string;
@@ -11,19 +12,11 @@ const GENERIC_FAILURE =
   "Elek could not complete this review run. See the workflow logs for details.";
 const GENERIC_INTERNAL_ONLY =
   "Elek completed the model run, but the model did not return a usable public review. No public findings were posted from that response.";
-
-const INTERNAL_DELIVERY_PATTERNS = [
-  /\belek_review_[a-z_]+\b/i,
-  /\bargs\s*:\s*must be string\b/i,
-  /\bpi-mcp-adapter\b/i,
-  /\b(?:gateway|transport)(?:-level)?\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-  /\btool[-\s]?call\s+(?:validation\s+)?(?:error|failure|failed)\b/i,
-  /\b(?:failed|failing|unable|cannot|could not)\s+to\s+(?:post|create|update).{0,80}\bcomment\b/i,
-  /\bconsole output is discarded\b/i,
-];
+const REVIEW_HEADING_KEYWORDS =
+  "review|finding|recommendation|security|correctness|performance|maintainability|bug|regression|race|leak|validation|cleanup|issue|concern|quality|design|architecture|coverage|testing|health|change";
 
 const REVIEW_SIGNAL_PATTERNS = [
-  /^#{2,3}\s+/m,
+  new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "im"),
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,
@@ -31,7 +24,7 @@ const REVIEW_SIGNAL_PATTERNS = [
 ];
 
 const REVIEW_SIGNAL_LINE_PATTERNS = [
-  /^#{2,3}\s+/,
+  new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "i"),
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
   /\bNo high-confidence\b/i,
   /\bReview Summary\b/i,
@@ -82,7 +75,13 @@ export function preparePublicReviewOutput(
     removedParagraphs += preludeStripped.removedParagraphs;
   }
 
-  const body = preludeStripped.paragraphs.join("\n\n").trim();
+  const footerStripped = stripHostManagedFooter(preludeStripped.paragraphs);
+  if (footerStripped.filtered) {
+    filtered = true;
+    removedParagraphs += footerStripped.removedParagraphs;
+  }
+
+  const body = footerStripped.paragraphs.join("\n\n").trim();
   if (!body || !hasReviewSignal(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
@@ -106,10 +105,6 @@ function splitParagraphs(text: string): string[] {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-}
-
-function hasInternalDeliveryMarker(text: string): boolean {
-  return INTERNAL_DELIVERY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function hasReviewSignal(text: string): boolean {
@@ -150,4 +145,38 @@ function stripLeadingLinesBeforeReviewSignal(paragraph: string): string {
 
 function hasReviewSignalLine(line: string): boolean {
   return REVIEW_SIGNAL_LINE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function stripHostManagedFooter(paragraphs: string[]): {
+  paragraphs: string[];
+  filtered: boolean;
+  removedParagraphs: number;
+} {
+  const stripped = [...paragraphs];
+  let removedParagraphs = 0;
+  while (stripped.length > 0 && isHostManagedFooterParagraph(stripped[stripped.length - 1])) {
+    stripped.pop();
+    removedParagraphs++;
+  }
+  return {
+    paragraphs: stripped,
+    filtered: removedParagraphs > 0,
+    removedParagraphs,
+  };
+}
+
+function isHostManagedFooterParagraph(paragraph: string): boolean {
+  const lines = paragraph
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 && lines.every(isHostManagedFooterLine);
+}
+
+function isHostManagedFooterLine(line: string): boolean {
+  return (
+    /^_?(?:estimated\s+review\s+cost|review\s+cost):\s+.+_?$/i.test(line) ||
+    /^\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)$/i.test(line) ||
+    /^<!--\s*elek-bot(?::[^>]*)?\s*-->$/i.test(line)
+  );
 }
