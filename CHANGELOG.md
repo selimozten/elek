@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-06-19
+
 ### Added
 
 - Brand guide documenting logo assets, palette, voice, and usage rules.
@@ -35,6 +37,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and how to use a GitHub App or bot token for a custom avatar.
 - Correct agent docs to distinguish GitHub Actions workflows from Dependabot
   configuration.
+- Clarify multi-agent review strategy docs and prompts around the orchestrator
+  model as the final validator and posting reviewer.
+- Preserve requested multi-agent review strategies for large pull requests by
+  warning on size thresholds instead of silently downgrading to solo review.
+- Prefer representative prioritized diff slices for large prompts so production
+  files remain visible when early docs or workflow changes are large.
+
+### Fixed
+
+- Prevent model tool-failure narration, MCP gateway errors, internal reasoning,
+  and model-owned delivery footers from being published as public review output.
+- Scope sticky tracking comments to the final posting lane so reviewer models
+  cannot overwrite each other's public comments.
+- Normalize tracking signatures during comment updates so stale lane markers do
+  not cause sticky-comment churn after strategy changes.
+- Reject internal delivery chatter in MCP tracking and inline-comment handlers
+  before it can be buffered or posted.
+- Post structured inline finding fallbacks from the host when the model returns
+  parseable findings but does not use the inline-comment tool.
+- Report unknown and partially known model pricing as unknown or "at least"
+  instead of implying an exact zero-cost review.
+- Keep valid public review headings such as "Code Health" while still rejecting
+  generic internal analysis headings.
 
 ### Removed
 
