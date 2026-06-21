@@ -30,6 +30,9 @@ Together, xAI, and more.
 If you want safer AI code review to become boring infrastructure, star the repo
 and try it on one real PR.
 
+See it reviewing a real tenant-isolation regression:
+[elek-demo#1](https://github.com/selimozten/elek-demo/pull/1).
+
 ## One-minute setup
 
 From your repository root:
