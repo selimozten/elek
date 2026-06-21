@@ -8,6 +8,11 @@ export interface PublicReviewOutput {
   removedParagraphs: number;
 }
 
+export interface PublicReviewOutputOptions {
+  internalModelLabels?: string[];
+  publicModelLabel?: string;
+}
+
 const GENERIC_FAILURE =
   "Elek could not complete this review run. See the workflow logs for details.";
 const GENERIC_INTERNAL_ONLY =
@@ -34,6 +39,7 @@ const REVIEW_SIGNAL_LINE_PATTERNS = [
 export function preparePublicReviewOutput(
   output: string,
   conclusion: "success" | "failure",
+  options: PublicReviewOutputOptions = {},
 ): PublicReviewOutput {
   const safe = sanitize(output).trim();
   if (conclusion === "failure") {
@@ -81,7 +87,11 @@ export function preparePublicReviewOutput(
     removedParagraphs += footerStripped.removedParagraphs;
   }
 
-  const body = footerStripped.paragraphs.join("\n\n").trim();
+  const body = redactInternalModelLabels(
+    footerStripped.paragraphs.join("\n\n").trim(),
+    options.internalModelLabels ?? [],
+    options.publicModelLabel,
+  );
   if (!body || !hasReviewSignal(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
@@ -177,6 +187,28 @@ function isHostManagedFooterLine(line: string): boolean {
   return (
     /^_?(?:estimated\s+review\s+cost|review\s+cost):\s+.+_?$/i.test(line) ||
     /^\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)$/i.test(line) ||
+    /^_?\*?.+?\s+·\s+\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)\*?_?$/i.test(line) ||
     /^<!--\s*elek-bot(?::[^>]*)?\s*-->$/i.test(line)
   );
+}
+
+function redactInternalModelLabels(
+  text: string,
+  internalModelLabels: string[],
+  publicModelLabel: string | undefined,
+): string {
+  const replacement = publicModelLabel?.trim();
+  if (!text || !replacement) return text;
+  return internalModelLabels
+    .map((label) => label.trim())
+    .filter((label) => label && label !== replacement)
+    .sort((a, b) => b.length - a.length)
+    .reduce(
+      (current, label) => current.replace(new RegExp(escapeRegExp(label), "g"), replacement),
+      text,
+    );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

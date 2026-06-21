@@ -77,6 +77,7 @@ import {
 } from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
 import { preparePublicReviewOutput } from "../review/public-output.js";
+import { modelLabelRedactionTerms, publicModelLabelFor } from "../review/public-label.js";
 import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
 import { sanitize } from "../mcp/handlers.js";
 import type { PostSummary } from "./post-buffered.js";
@@ -196,6 +197,7 @@ async function run(): Promise<void> {
 
   // ── Phase 2: Setup ───────────────────────────────────────────────────
   const modelLabel = modelLabelFor(inputs);
+  const publicModelLabel = publicModelLabelFor(modelLabel);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
@@ -463,6 +465,7 @@ async function run(): Promise<void> {
     allowEdit: resolvedMode.allowEdit,
     tools: piTools,
     repoConfig: effectiveRepoConfig,
+    publicModelLabel,
   });
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
@@ -572,6 +575,7 @@ async function run(): Promise<void> {
       commentId,
       reports,
       repoConfig: effectiveRepoConfig,
+      publicModelLabel,
     });
     writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
   }
@@ -609,7 +613,15 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
-  const publicReview = preparePublicReviewOutput(result.output, result.conclusion);
+  const publicReview = preparePublicReviewOutput(result.output, result.conclusion, {
+    internalModelLabels: modelLabelRedactionTerms([
+      modelLabel,
+      inputs.model,
+      trackingModelLabel,
+      activeModelLabel,
+    ]),
+    publicModelLabel,
+  });
   const publicOutput = publicReview.body;
   const publicConclusion =
     result.conclusion === "success" && publicReview.usable ? "success" : "failure";
@@ -689,7 +701,7 @@ async function run(): Promise<void> {
         pushBranch(workBranch);
 
         const changeNotice = [
-          `🔨 **${modelLabel}** also made code changes:`,
+          `**${publicModelLabel}** also made code changes:`,
           "",
           `Branch: \`${workBranch}\``,
           `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${workBranch})`,

@@ -53,6 +53,21 @@ describe("buildPrompt", () => {
     expect(out).toContain("model: deepseek/v4");
   });
 
+  it("uses the public model label for the generated footer instruction", () => {
+    const out = buildPrompt(
+      baseData,
+      "find bugs",
+      "deepseek/deepseek-v4-pro",
+      "https://github.com/acme/app/actions/runs/1",
+      555,
+      { publicModelLabel: "elek" },
+    );
+
+    expect(out).toContain("model: deepseek/deepseek-v4-pro");
+    expect(out).toContain("*elek · [View run](https://github.com/acme/app/actions/runs/1)*");
+    expect(out).not.toContain("*deepseek/deepseek-v4-pro · [View run]");
+  });
+
   it("falls back to default review prompt when userRequest is empty", () => {
     const out = buildPrompt(baseData, "", "m", "j");
     expect(out).toContain("Please review this pull request");

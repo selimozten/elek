@@ -237,4 +237,39 @@ describe("public review output filtering", () => {
     expect(result.filtered).toBe(true);
     expect(result.body).toBe(["## Findings", "No high-confidence findings."].join("\n"));
   });
+
+  it("strips model-prefixed run footers from model output", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Review Summary",
+        "No high-confidence findings.",
+        "",
+        "*deepseek/deepseek-v4-pro · [View run](https://github.com/selimozten/elek/actions/runs/27787137042)*",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(["## Review Summary", "No high-confidence findings."].join("\n"));
+  });
+
+  it("redacts configured internal model labels from public review text", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Review Summary",
+        "The deepseek/deepseek-v4-pro review found no high-confidence findings from deepseek-v4-pro.",
+      ].join("\n"),
+      "success",
+      {
+        internalModelLabels: ["deepseek/deepseek-v4-pro", "deepseek-v4-pro"],
+        publicModelLabel: "elek",
+      },
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.body).toContain("elek review");
+    expect(result.body).not.toContain("deepseek/deepseek-v4-pro");
+    expect(result.body).not.toContain("deepseek-v4-pro");
+  });
 });

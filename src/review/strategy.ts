@@ -448,12 +448,14 @@ export function buildSynthesisPrompt(params: {
   data: GitHubData;
   userRequest: string;
   modelLabel: string;
+  publicModelLabel?: string;
   jobRunLink: string;
   commentId?: number;
   reports: Array<{ lens: ReviewLens; modelLabel: string; output: string; conclusion: "success" | "failure" }>;
   repoConfig?: ElekConfig;
 }): string {
   const { data, userRequest, modelLabel, jobRunLink, commentId, reports, repoConfig } = params;
+  const publicModelLabel = params.publicModelLabel?.trim() || modelLabel;
   const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
   const reportBlock = reports
     .map((r) =>
@@ -534,6 +536,6 @@ export function buildSynthesisPrompt(params: {
     ...reviewFindingTemplate(),
     `- In your final text, include a concise review summary and a validation note naming which lenses ran.`,
     `- If no findings survive validation, say "No high-confidence issues survived cross-check validation."`,
-    `- End with: ${modelLabel} · ${jobRunLink}`,
+    `- End with: ${publicModelLabel} · ${jobRunLink}`,
   ].filter(Boolean).join("\n");
 }

@@ -533,6 +533,21 @@ describe("review strategy", () => {
     expect(prompt).toContain("comment_id: 123");
   });
 
+  it("uses the public model label in final synthesis output instructions", () => {
+    const prompt = buildSynthesisPrompt({
+      data: dataFixture,
+      userRequest: "",
+      modelLabel: "deepseek/deepseek-v4-pro",
+      publicModelLabel: "elek",
+      jobRunLink: "https://github.com/selimozten/elek/actions/runs/1",
+      reports: [],
+    });
+
+    expect(prompt).toContain("Final model: deepseek/deepseek-v4-pro");
+    expect(prompt).toContain("End with: elek · https://github.com/selimozten/elek/actions/runs/1");
+    expect(prompt).not.toContain("End with: deepseek/deepseek-v4-pro");
+  });
+
   it("uses a tighter diff budget for final synthesis prompts", () => {
     const longData = {
       ...dataFixture,

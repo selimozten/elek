@@ -108,7 +108,13 @@ export function buildPrompt(
   modelLabel: string,
   jobRunLink: string,
   commentId?: number,
-  options: { useMcp?: boolean; allowEdit?: boolean; tools?: string; repoConfig?: ElekConfig } = {},
+  options: {
+    useMcp?: boolean;
+    allowEdit?: boolean;
+    tools?: string;
+    repoConfig?: ElekConfig;
+    publicModelLabel?: string;
+  } = {},
 ): string {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
@@ -121,6 +127,7 @@ export function buildPrompt(
       .filter(Boolean),
   );
   const canRunShell = canEdit && toolSet.has("bash");
+  const publicModelLabel = options.publicModelLabel?.trim() || modelLabel;
 
   const parts: string[] = [];
 
@@ -290,7 +297,7 @@ export function buildPrompt(
 
   // ── Footer ──
   parts.push("---");
-  parts.push(`*${modelLabel} · [View run](${jobRunLink})*`);
+  parts.push(`*${publicModelLabel} · [View run](${jobRunLink})*`);
 
   return parts.join("\n");
 }
