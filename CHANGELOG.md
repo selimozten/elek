@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-06-21
+
+### Changed
+
+- Sharpen the public README pitch around review-only AI for pull requests and
+  move one-minute setup above the advanced workflow reference.
+- Hide hosted/internal model names from public review footer instructions when
+  `ELEK_PUBLIC_MODEL_LABEL` is configured, while preserving internal model
+  labels for tracking and analytics.
+- Redact configured internal model labels from public review output before
+  posting comments.
+
+### Fixed
+
+- Strip model-prefixed run footers from model-generated public review output.
+
 ## [1.1.3] - 2026-06-19
 
 ### Added
