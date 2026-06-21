@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Review-only AI for pull requests.</strong><br />
-  Cross-check changes with independent models while keeping every reviewer inside a narrow, non-destructive tool surface.
+  Cross-check PRs with independent AI reviewers while keeping every model inside a narrow, non-destructive tool surface.
 </p>
 
 <p align="center">
@@ -12,11 +12,48 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-171412.svg" alt="License: MIT" /></a>
 </p>
 
-elek is a GitHub App-first AI review product in development. This public repo contains the open review engine, CLI tools, feedback analytics, and self-hosted GitHub Action runtime that make the review behavior auditable.
+elek is an open AI code-review engine for GitHub pull requests. It posts
+normal review comments and inline threads, but it cannot approve, merge, close,
+or mutate your base branch in review mode. That constraint is structural: the
+MCP server only exposes review-comment tools, and the starter workflow grants
+read-only contents access.
 
-The planned hosted GitHub App will be the primary install path for branded, zero-config pull request reviews. The self-hosted Action works today for teams that want BYOK control, local auditability, or advanced workflow integration.
+Use it today as a self-hosted GitHub Action with your own model keys. The
+hosted GitHub App is the planned zero-config install path for teams that want
+branded reviews, centralized settings, and hosted analytics.
 
-It can run one reviewer, a two-lens cross-check, or a four-lens council with any provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral, Together, xAI, and more. Models can read code, search, and post review feedback. They cannot approve, merge, or close — that's a structural guarantee, not a runtime check.
+It can run one reviewer, a two-lens cross-check, or a four-lens council with any
+provider [pi](https://github.com/earendil-works/pi) supports: DeepSeek,
+OpenRouter, OpenAI, Anthropic, Google, Bedrock, Vertex, Groq, Mistral,
+Together, xAI, and more.
+
+If you want safer AI code review to become boring infrastructure, star the repo
+and try it on one real PR.
+
+## One-minute setup
+
+From your repository root:
+
+```bash
+npx --package github:selimozten/elek elek-init --provider deepseek
+```
+
+Then add one repo secret:
+
+```text
+DEEPSEEK_API_KEY
+```
+
+Commit the generated `.github/workflows/elek.yml` and `.elek.yml`, open a PR,
+and elek will post a live progress comment followed by a structured review with
+inline findings on changed lines.
+
+Prefer another provider?
+
+```bash
+npx --package github:selimozten/elek elek-init --provider openrouter --model moonshotai/kimi-k2.7-code
+npx --package github:selimozten/elek elek-init --provider anthropic --model claude-sonnet-4-6
+```
 
 | Path | Status | Use it for |
 |---|---|---|
@@ -44,16 +81,10 @@ The public GitHub App install is planned and not yet open. Normal product
 onboarding should become "Install the elek GitHub App"; until that path is
 available, use the self-hosted Action below.
 
-## Advanced self-hosted quick start
+## Self-hosted Action
 
-Fast path from your repository root:
-
-```bash
-npx --package github:selimozten/elek elek-init --provider deepseek
-```
-
-This creates `.github/workflows/elek.yml` and `.elek.yml` for the Action
-runtime.
+The initializer creates `.github/workflows/elek.yml` and `.elek.yml` for the
+Action runtime. If you prefer to wire it manually:
 
 1. Add a provider API key to repo secrets (`Settings → Secrets and variables → Actions`):
 
