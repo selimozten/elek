@@ -136,7 +136,7 @@ describe("buildPrompt", () => {
     expect(out).not.toContain("git add");
   });
 
-  it("tells review+edit models that elek handles git commands", () => {
+  it("can describe host-managed edits when sandboxed write/edit tools are allowed", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: true,
       allowEdit: true,

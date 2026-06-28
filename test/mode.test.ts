@@ -6,22 +6,21 @@ import { describe, it, expect } from "bun:test";
 import { resolveEffectivePiTools, resolveMode, resolvePiTools } from "../src/github/mode";
 
 describe("resolveMode", () => {
-  it("review (default) restricts pi tools to read-only + the mcp proxy", () => {
+  it("review (default) allows repo-scoped read/search plus the mcp proxy", () => {
     const m = resolveMode("review");
     expect(m.piTools.split(",").sort()).toEqual(["find", "grep", "ls", "mcp", "read"]);
     expect(m.useMcpServer).toBe(true);
     expect(m.allowEdit).toBe(false);
   });
 
-  it("review+edit adds write/edit tools and keeps the mcp proxy", () => {
+  it("review+edit remains read-only until mutation tools are sandboxed", () => {
     const m = resolveMode("review+edit");
-    expect(m.piTools).toContain("read");
-    expect(m.piTools).toContain("write");
-    expect(m.piTools).toContain("edit");
-    expect(m.piTools).toContain("mcp");
+    expect(m.piTools.split(",").sort()).toEqual(["find", "grep", "ls", "mcp", "read"]);
+    expect(m.piTools).not.toContain("write");
+    expect(m.piTools).not.toContain("edit");
     expect(m.piTools).not.toContain("bash");
     expect(m.useMcpServer).toBe(true);
-    expect(m.allowEdit).toBe(true);
+    expect(m.allowEdit).toBe(false);
   });
 
   it("agent mode = legacy behavior: full tool surface, no MCP injection", () => {
@@ -41,20 +40,12 @@ describe("resolveMode", () => {
 describe("resolvePiTools", () => {
   it("ignores tools overrides in review mode", () => {
     const mode = resolveMode("review");
-    expect(resolvePiTools(mode, "read,bash")).toBe("read,grep,find,ls,mcp");
+    expect(resolvePiTools(mode, "read,bash").split(",").sort()).toEqual(["find", "grep", "ls", "mcp", "read"]);
   });
 
   it("ignores tools overrides in review+edit mode", () => {
     const mode = resolveMode("review+edit");
-    expect(resolvePiTools(mode, "read,bash").split(",").sort()).toEqual([
-      "edit",
-      "find",
-      "grep",
-      "ls",
-      "mcp",
-      "read",
-      "write",
-    ]);
+    expect(resolvePiTools(mode, "read,bash").split(",").sort()).toEqual(["find", "grep", "ls", "mcp", "read"]);
   });
 
   it("allows tools overrides in legacy agent mode", () => {
@@ -71,20 +62,16 @@ describe("resolvePiTools", () => {
 describe("resolveEffectivePiTools", () => {
   it("keeps mcp when MCP is enabled", () => {
     const mode = resolveMode("review");
-    expect(resolveEffectivePiTools(mode, "", { mcpEnabled: true })).toBe(
-      "read,grep,find,ls,mcp",
-    );
+    expect(resolveEffectivePiTools(mode, "", { mcpEnabled: true })).toBe("read,grep,find,ls,mcp");
   });
 
   it("filters mcp when MCP is force-disabled", () => {
     const mode = resolveMode("review+edit");
     expect(resolveEffectivePiTools(mode, "", { mcpEnabled: false }).split(",").sort()).toEqual([
-      "edit",
       "find",
       "grep",
       "ls",
       "read",
-      "write",
     ]);
   });
 

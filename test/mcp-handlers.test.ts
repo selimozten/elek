@@ -178,6 +178,26 @@ describe("sanitize", () => {
     expect(out).toContain("found in logs");
     expect(out).not.toContain("ghp_AbCd");
   });
+
+  it("redacts provider API keys (sk-) and JWTs and AWS keys", () => {
+    const samples = [
+      "key: sk-abcdef0123456789ABCDEF",
+      "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N",
+      "aws AKIAIOSFODNN7EXAMPLE found",
+    ];
+    for (const sample of samples) {
+      const out = sanitize(sample);
+      expect(out).toContain("[REDACTED]");
+      expect(out).not.toContain("sk-abcdef0123456789ABCDEF");
+      expect(out).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    }
+  });
+
+  it("leaves commit SHAs and code blocks intact (no false positives)", () => {
+    const sha = "3e6d2c1a0b9f4e8d7c6b5a49382716f0a1b2c3d4"; // 40 hex git SHA
+    const text = `Last good commit: ${sha}\n\n\`\`\`\nconst x = 1;\n\`\`\``;
+    expect(sanitize(text)).toBe(text);
+  });
 });
 
 describe("buildReviewCommentParams", () => {

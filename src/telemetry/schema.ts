@@ -1,3 +1,5 @@
+import { detectSecretValue } from "../redaction.js";
+
 export type TelemetryConsentLevel = "none" | "aggregate" | "finding-metadata";
 export type TelemetrySource = "action" | "cli" | "github-app";
 export type FeedbackVerdict = "accepted" | "partial" | "rejected" | "unreviewed";
@@ -153,17 +155,30 @@ export function buildTelemetryEnvelope(args: {
 }
 
 export function assertTelemetryIsRedacted(value: unknown, path = ""): void {
-  if (!value || typeof value !== "object") return;
+  if (value === null || value === undefined) return;
+  if (typeof value === "string") {
+    const label = detectSecretValue(value);
+    if (label) {
+      throw new Error("Blocked telemetry value: " + (path || "<root>") + " (" + label + ")");
+    }
+    return;
+  }
+  if (typeof value !== "object") return;
   if (Array.isArray(value)) {
-    value.forEach((item, index) => assertTelemetryIsRedacted(item, `${path}${index}.`));
+    value.forEach((item, index) => assertTelemetryIsRedacted(item, path + index + "."));
     return;
   }
 
   for (const [key, child] of Object.entries(value)) {
     if (normalizedBlockedTelemetryKeys.has(normalizeTelemetryKey(key))) {
-      throw new Error(`Blocked telemetry field: ${path}${key}`);
+      throw new Error("Blocked telemetry field: " + path + key);
     }
-    assertTelemetryIsRedacted(child, `${path}${key}.`);
+    // Value-level check: even allowed keys must not carry secret/PII values.
+    const label = detectSecretValue(child);
+    if (label) {
+      throw new Error("Blocked telemetry value: " + path + key + " (" + label + ")");
+    }
+    assertTelemetryIsRedacted(child, path + key + ".");
   }
 }
 
