@@ -128,7 +128,6 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
-  configureGitAuth(githubToken, context);
 
   let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
   let canLoadBasePolicy = !context.isPR || Boolean(context.pr?.baseRef);
@@ -212,6 +211,12 @@ async function run(): Promise<void> {
   console.log(
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
   );
+  if (resolvedMode.mode === "review+edit" && !resolvedMode.allowEdit) {
+    console.warn("mode=review+edit is currently review-only until sandboxed file tools are available.");
+  }
+  if (resolvedMode.allowEdit) {
+    configureGitAuth(githubToken, context);
+  }
   const piInputs = { ...inputs, tools: piTools };
 
   let reviewPlan = resolveReviewPlan(inputs);
@@ -229,7 +234,7 @@ async function run(): Promise<void> {
 
   // Create an elek work branch for code changes (PRs only)
   let workBranch: string | undefined;
-  if (context.isPR) {
+  if (context.isPR && resolvedMode.allowEdit) {
     workBranch = createElekBranch(context, inputs.branchPrefix);
   }
 
@@ -255,12 +260,10 @@ async function run(): Promise<void> {
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
   let prompt = "";
 
-  // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json.
-  // We choose the home-config path so the file (which carries GITHUB_TOKEN
-  // in its env block) NEVER lands in the workspace — workspace files can be
-  // uploaded as artifacts, persisted between steps on self-hosted runners,
-  // or even committed by an over-eager model. Cleaned up in a finally block
-  // below regardless of whether pi succeeds.
+  // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json. The
+  // config must not contain secret values because review modes intentionally
+  // expose read/search tools. GITHUB_TOKEN is inherited by the MCP child from
+  // pi's environment; this file only contains non-secret routing metadata.
   const mcpConfigPath = mcpEnabled && context.isPR
     ? join(homedir(), ".config", "mcp", "mcp.json")
     : null;
@@ -282,7 +285,6 @@ async function run(): Promise<void> {
                 REPO_OWNER: context.repo.owner,
                 REPO_NAME: context.repo.repo,
                 PR_NUMBER: String(context.entityNumber),
-                GITHUB_TOKEN: githubToken,
                 ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
                 ELEK_BUFFER_PATH: bufferPath,
               },

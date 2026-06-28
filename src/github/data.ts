@@ -127,6 +127,7 @@ export function buildPrompt(
       .filter(Boolean),
   );
   const canRunShell = canEdit && toolSet.has("bash");
+  const hasLocalFileTools = ["read", "grep", "find", "ls"].some((tool) => toolSet.has(tool));
   const publicModelLabel = options.publicModelLabel?.trim() || modelLabel;
 
   const parts: string[] = [];
@@ -222,8 +223,10 @@ export function buildPrompt(
   if (isPR) {
     if (canRunShell) {
       parts.push(`   - The PR base branch is \`${baseBranch}\`. Use \`git diff origin/${baseBranch}...HEAD\` to see changes.`);
-    } else {
+    } else if (hasLocalFileTools) {
       parts.push(`   - The PR base branch is \`${baseBranch}\`. Use the \`<changed_files>\` block plus read/search tools to inspect changes.`);
+    } else {
+      parts.push(`   - The PR base branch is \`${baseBranch}\`. Use the supplied \`<changed_files>\` block as the code context.`);
     }
     parts.push("   - **Iterate on prior Elek reviews.** If `<comments>` contains a previous Elek review (look for `<!-- elek-bot`), open with a status update for each prior finding — fixed, still present, or no longer relevant — before listing new findings. Don't repeat findings that were addressed.");
   }
@@ -237,8 +240,12 @@ export function buildPrompt(
   parts.push("");
   if (canRunShell) {
     parts.push("3. **Use tools to gather context** — Read files referenced in the diff. Run relevant tests when the tool surface allows it.");
+  } else if (hasLocalFileTools) {
+    parts.push(`3. **Use tools to gather context** — Use the read, grep, find, and ls tools to inspect ${isPR ? "files referenced in the diff" : "relevant repository files"}. Do not claim tests passed unless the prompt, comments, or workflow logs provide that evidence.`);
+  } else if (isPR) {
+    parts.push("3. **Use the supplied context** — Base the review on the PR body, comments, and `<changed_files>` block. Do not claim tests passed unless the prompt, comments, or workflow logs provide that evidence.");
   } else {
-    parts.push("3. **Use tools to gather context** — Use the read, grep, find, and ls tools to inspect files referenced in the diff. Do not claim tests passed unless the prompt, comments, or workflow logs provide that evidence.");
+    parts.push("3. **Use the supplied context** — Base the review on the issue body and comments. Do not claim tests passed unless the prompt, comments, or workflow logs provide that evidence.");
   }
   parts.push("");
   parts.push("4. **Provide your review** — Be specific:");

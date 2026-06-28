@@ -139,13 +139,14 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 
 | `mode` | Tools | Inline comments | Edits | When to use |
 |---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | All review-only workflows |
-| `review+edit` | + `write,edit` | ✓ | pushes to `elek/*` branch | "Review and propose fixes" |
+| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Repo-scoped read-only code review |
+| `review+edit` | `read,grep,find,ls,mcp` | ✓ | ✗ | Read-only until sandboxed mutation tools are available |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
-`review+edit` does not give the model shell access. The model can make file
-edits with write/edit tools; elek stages, commits, and pushes those changes to
-the generated branch after the review run succeeds.
+`review+edit` is currently held to the same read-only tool surface as
+`review`: repo-scoped read/search plus MCP review comments, with no write,
+edit, or bash tools. Use `agent` only in trusted workflows that intentionally
+allow file edits and Git pushes.
 
 ## Review strategies
 
@@ -372,7 +373,7 @@ permissions:
   issues: write
 ```
 
-For `mode: review+edit` (pushing to `elek/*` branches), upgrade `contents: write`. The model still cannot approve or merge — those code paths don't exist in the MCP server.
+Keep `contents: read` for `review` and `review+edit`. Use `agent` only in trusted workflows that intentionally allow edits and Git pushes. The model still cannot approve or merge — those code paths don't exist in the MCP server.
 
 ## Comment identity
 

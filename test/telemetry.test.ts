@@ -114,4 +114,16 @@ describe("telemetry schema", () => {
     expect(() => assertTelemetryIsRedacted({ run: { "api key": "sk-secret" } })).toThrow("Blocked telemetry field");
     expect(() => assertTelemetryIsRedacted({ run: { access_token: "secret" } })).toThrow("Blocked telemetry field");
   });
+
+  it("rejects secret / PII values smuggled into allowed fields", () => {
+    const smuggled = [
+      "ghp_exampletoken0123456789abcdefABCDEF",
+      "sk-abcdef0123456789ABCDEF",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N",
+      "jane.doe@example.com",
+    ];
+    for (const value of smuggled) {
+      expect(() => assertTelemetryIsRedacted({ findings: [{ id: value }] })).toThrow("Blocked telemetry value");
+    }
+  });
 });

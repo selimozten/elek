@@ -22,7 +22,8 @@
  */
 import { spawn } from "child_process";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
 import { createInterface } from "readline";
 import type { ActionInputs, PiRunResult } from "./types";
 import { estimateRunCost, modelLabelFor, resolveRates, type ReviewCost } from "./review/cost";
@@ -470,8 +471,15 @@ export function buildPiArgs(
   if (!inputs.model?.includes("/")) {
     args.push("--provider", inputs.provider);
   }
-  if (!loadExtensions) {
-    args.push("--no-extensions");
+  // Do not rely on user/global extension discovery or a runtime `pi install`
+  // (which would hit the npm registry during a review). Load exactly the
+  // already-installed, lockfile-pinned local adapter package when MCP is needed.
+  args.push("--no-extensions");
+  if (usesReadonlyReviewTools(inputs)) {
+    args.push("--no-builtin-tools", "-e", localPiReadonlyToolsPath());
+  }
+  if (loadExtensions) {
+    args.push("-e", localPiMcpAdapterPath());
   }
 
   // Empty model string intentionally means "use this provider's default".
@@ -490,6 +498,33 @@ export function buildPiArgs(
   args.push(`@${promptFile}`);
 
   return args;
+}
+
+function localPiMcpAdapterPath(): string {
+  const packageRoot = process.env.GITHUB_ACTION_PATH || resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  return join(packageRoot, "node_modules", "pi-mcp-adapter");
+}
+
+function localPiReadonlyToolsPath(): string {
+  const packageRoot = process.env.GITHUB_ACTION_PATH || resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  return join(packageRoot, "src", "pi-readonly-tools.ts");
+}
+
+function toolSet(inputs: ActionInputs): Set<string> {
+  return new Set(
+    (inputs.tools || "")
+      .split(",")
+      .map((tool) => tool.trim())
+      .filter(Boolean),
+  );
+}
+
+function usesReadonlyReviewTools(inputs: ActionInputs): boolean {
+  if (inputs.mode === "agent") return false;
+  const tools = toolSet(inputs);
+  const hasReadonlyTool = ["read", "grep", "find", "ls"].some((tool) => tools.has(tool));
+  const hasMutationTool = ["write", "edit", "bash"].some((tool) => tools.has(tool));
+  return hasReadonlyTool && !hasMutationTool;
 }
 
 function piThinkingLevel(value: string): string {
@@ -512,7 +547,7 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
   // Baseline allowed in every mode: locale, temp dirs, and pi's own paths.
   const baseAllowedVars = [
     "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "RUNNER_TEMP",
-    "GITHUB_ACTION_PATH", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR",
+    "GITHUB_ACTION_PATH", "GITHUB_WORKSPACE", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR",
   ];
 
   // Agent mode runs shell and pushes commits, so it additionally needs the
@@ -535,6 +570,10 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   for (const v of allowedVars) {
     if (process.env[v] !== undefined) env[v] = process.env[v];
+  }
+
+  if (inputs.mode !== "agent" && toolSet(inputs).has("mcp") && process.env.GITHUB_TOKEN !== undefined) {
+    env.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   }
 
   Object.assign(env, {

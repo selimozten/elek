@@ -4,6 +4,7 @@
  */
 import { appendFindingMarker, stableInlineFindingId } from "../review/finding-markers.js";
 import { hasInternalDeliveryMarker } from "../review/delivery-patterns.js";
+import { redactPublicationSecrets } from "../redaction.js";
 
 export interface OctokitLike {
   pulls: {
@@ -128,10 +129,16 @@ export function buildReviewCommentParams(
  *   ghu_  user-to-server tokens
  *   github_pat_  fine-grained PATs (longer)
  */
+/**
+ * Redact secret shapes from any string the model emits into a public GitHub
+ * comment or runner log. These never legitimately appear in review prose.
+ * Covers GitHub tokens (ghp/ghs/gho/ghu/ghr/github_pat_), provider API keys
+ * (sk-...), AWS access key ids, and JWTs. Narrow by design: commit SHAs,
+ * code blocks, and email-like examples are intentionally left intact to avoid
+ * false positives in free-form review text.
+ */
 export function sanitize(body: string): string {
-  return body
-    .replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, "[REDACTED]")
-    .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED]");
+  return redactPublicationSecrets(body);
 }
 
 export async function createInlineComment(

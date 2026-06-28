@@ -156,8 +156,8 @@ The `mode` input controls the model's tool surface:
 
 | `mode` | Tools | MCP | Edits | Use case |
 |---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Code review only. Recommended. |
-| `review+edit` | `+ write,edit` | ✓ | ✓ | Review + push fixes to an `elek/*` branch. |
+| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Repo-scoped read-only code review. Recommended. |
+| `review+edit` | `read,grep,find,ls,mcp` | ✓ | ✗ | Review-only until sandboxed mutation tools are available. |
 | `agent` | `+ bash` | ✗ | ✓ | Legacy, full power. Trusted workflows only. |
 
 Use `mode` to choose the tool surface. The low-level `tools` input is kept
@@ -302,7 +302,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 |---|---|---|
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
-| `mode` | `review` | `review` / `review+edit` / `agent` |
+| `mode` | `review` | `review` / `review+edit` / `agent`; `review+edit` is currently read-only |
 | `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max` |
@@ -517,7 +517,7 @@ permissions:
   issues: write            # post tracking comment
 ```
 
-For `mode: review+edit` (model pushes fixes to an `elek/*` branch), upgrade `contents: write`. The model still can't approve/merge — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
+Keep `contents: read` for `review` and `review+edit`; both are read-only and use repo-scoped file tools. Use `agent` only in trusted workflows that intentionally allow edits and Git pushes. The model still can't approve/merge through Elek's MCP server — those scopes are separate, and the MCP server has no code path to `pulls.merge` regardless. `GITHUB_TOKEN` reviews don't satisfy required-approver counts on protected branches either.
 
 ## Supported events
 

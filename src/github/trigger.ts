@@ -74,5 +74,5 @@ export function isActorAllowed(context: GitHubEntityContext, inputs: ActionInput
     if (allowedBots.includes(actor)) return true;
   }
 
-  return !actor.endsWith("[bot]");
+  return false;
 }

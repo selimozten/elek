@@ -100,8 +100,8 @@ Returns a `PiRunResult` with conclusion, output, sessionId, turn count.
 ### `src/github/mode.ts` — tool/permission presets
 
 ```
-review (default)  → tools: read,grep,find,ls,mcp        | MCP on  | edit off
-review+edit       → tools: read,write,edit,grep,find,ls,mcp | MCP on  | edit on
+review (default)  → tools: read,grep,find,ls,mcp           | MCP on  | edit off
+review+edit       → tools: read,grep,find,ls,mcp           | MCP on  | edit off
 agent (legacy)    → tools: read,write,edit,bash,grep,find,ls | MCP off | edit on
 ```
 

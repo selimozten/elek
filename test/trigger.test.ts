@@ -125,7 +125,7 @@ describe("isActorAllowed", () => {
   it("respects an explicit actorFilter allowlist", () => {
     const inputs = { ...baseInputs, actorFilter: "alice,bob" };
     expect(isActorAllowed({ ...baseCtx, actor: "alice" }, inputs)).toBe(true);
-    expect(isActorAllowed({ ...baseCtx, actor: "carol" }, inputs)).toBe(true); // humans still allowed
+    expect(isActorAllowed({ ...baseCtx, actor: "carol" }, inputs)).toBe(false);
     expect(isActorAllowed({ ...baseCtx, actor: "untrusted[bot]" }, inputs)).toBe(false);
   });
 

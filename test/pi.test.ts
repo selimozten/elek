@@ -49,6 +49,8 @@ describe("buildPiArgs", () => {
     expect(args).toContain("deepseek");
     expect(args).not.toContain("--model");
     expect(args).toContain("--no-extensions");
+    expect(args).toContain("--no-builtin-tools");
+    expect(args.join(" ")).toContain("src/pi-readonly-tools.ts");
   });
 
   it("defensively omits --model when model is undefined", () => {
@@ -76,7 +78,11 @@ describe("buildPiArgs", () => {
     expect(args).not.toContain("--provider");
     expect(args).toContain("--model");
     expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
-    expect(args).not.toContain("--no-extensions");
+    expect(args).toContain("--no-extensions");
+    expect(args).toContain("-e");
+    expect(args).toContain("--no-builtin-tools");
+    expect(args.join(" ")).toContain("src/pi-readonly-tools.ts");
+    expect(args.join(" ")).toContain("node_modules/pi-mcp-adapter");
   });
 
   it("maps user-facing max thinking to pi's highest supported CLI level", () => {
@@ -123,9 +129,17 @@ describe("buildPiEnv", () => {
     const env = __buildPiEnv({ ...baseInputs, mode: "review" });
 
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
-    // GITHUB_TOKEN is only granted to agent mode (which runs git push).
+    // GITHUB_TOKEN is granted to review mode only when the MCP proxy is enabled.
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH);
+  });
+
+  it("review mode passes GITHUB_TOKEN only when MCP is enabled", () => {
+    process.env.GITHUB_TOKEN = "ghs_fake_token";
+
+    const env = __buildPiEnv({ ...baseInputs, mode: "review", tools: "read,grep,find,ls,mcp" });
+
+    expect(env.GITHUB_TOKEN).toBe("ghs_fake_token");
   });
 
   it("passes Together credentials to the review child env without leaking unrelated secrets", () => {

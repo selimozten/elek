@@ -1,14 +1,6 @@
 name: elek
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    # Don't review docs-only churn — wastes API budget on text reviews.
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - ".gitignore"
-      - "LICENSE"
   issue_comment:
     types: [created]
 
@@ -30,12 +22,12 @@ jobs:
   # ── DeepSeek v4 Pro ───────────────────────────────────────────────────
   deepseek:
     name: "deepseek-v4-pro"
-    if: ${{ github.event_name != 'issue_comment' || (github.event.issue.pull_request && !endsWith(github.actor, '[bot]')) }}
+    if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -64,12 +56,12 @@ jobs:
   # ── OpenRouter Kimi K2.7 Code ────────────────────────────────────────
   kimi:
     name: "openrouter-kimi-k2.7-code"
-    if: ${{ github.event_name != 'issue_comment' || (github.event.issue.pull_request && !endsWith(github.actor, '[bot]')) }}
+    if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 0
 
