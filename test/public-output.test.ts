@@ -254,6 +254,19 @@ describe("public review output filtering", () => {
     expect(result.body).toBe(["## Review Summary", "No high-confidence findings."].join("\n"));
   });
 
+  it("rejects review-looking output that claims a PR is safe to merge", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Review Summary",
+        "No high-confidence findings. LGTM, safe to merge.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(false);
+    expect(result.filtered).toBe(true);
+  });
+
   it("redacts configured internal model labels from public review text", () => {
     const result = preparePublicReviewOutput(
       [

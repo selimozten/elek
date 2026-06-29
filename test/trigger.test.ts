@@ -36,6 +36,7 @@ const baseCtx: GitHubEntityContext = {
   eventName: "pull_request",
   eventAction: "opened",
   actor: "alice",
+  actorAssociation: "MEMBER",
   repo: { owner: "o", repo: "r", fullName: "o/r", defaultBranch: "main" },
   entityNumber: 1,
   isPR: true,
@@ -84,6 +85,17 @@ describe("detectTrigger", () => {
     expect(result).toBeNull();
   });
 
+  it("does not match trigger phrases inside longer words", () => {
+    expect(detectTrigger(
+      { ...baseCtx, triggerText: "The @piano config changed" },
+      baseInputs,
+    )).toBeNull();
+    expect(detectTrigger(
+      { ...baseCtx, triggerText: "Please ping x@pi for details" },
+      baseInputs,
+    )).toBeNull();
+  });
+
   it("triggers via 'pi' label on issues", () => {
     const result = detectTrigger(
       {
@@ -114,12 +126,19 @@ describe("detectTrigger", () => {
 });
 
 describe("isActorAllowed", () => {
-  it("allows humans by default", () => {
-    expect(isActorAllowed({ ...baseCtx, actor: "alice" }, baseInputs)).toBe(true);
+  it("allows trusted repository actors by default", () => {
+    expect(isActorAllowed({ ...baseCtx, actor: "alice", actorAssociation: "OWNER" }, baseInputs)).toBe(true);
+    expect(isActorAllowed({ ...baseCtx, actor: "alice", actorAssociation: "MEMBER" }, baseInputs)).toBe(true);
+    expect(isActorAllowed({ ...baseCtx, actor: "alice", actorAssociation: "COLLABORATOR" }, baseInputs)).toBe(true);
   });
 
   it("blocks bots by default", () => {
     expect(isActorAllowed({ ...baseCtx, actor: "dependabot[bot]" }, baseInputs)).toBe(false);
+  });
+
+  it("blocks untrusted humans by default", () => {
+    expect(isActorAllowed({ ...baseCtx, actor: "mallory", actorAssociation: "CONTRIBUTOR" }, baseInputs)).toBe(false);
+    expect(isActorAllowed({ ...baseCtx, actor: "mallory", actorAssociation: undefined }, baseInputs)).toBe(false);
   });
 
   it("respects an explicit actorFilter allowlist", () => {

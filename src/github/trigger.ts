@@ -21,9 +21,9 @@ export function detectTrigger(
   const text = context.triggerText.toLowerCase();
 
   // Check for trigger phrase in comment/body
-  if (text.includes(trigger)) {
+  const idx = findTriggerIndex(text, trigger);
+  if (idx >= 0) {
     // Extract everything after the trigger phrase as the user's request
-    const idx = text.indexOf(trigger);
     const afterTrigger = context.triggerText.substring(idx + trigger.length).trim();
     return afterTrigger || context.triggerText;
   }
@@ -52,9 +52,10 @@ export function detectTrigger(
 export function isActorAllowed(context: GitHubEntityContext, inputs: ActionInputs): boolean {
   const actor = context.actor;
 
-  // Empty filter = allow all humans, deny bots
+  // Empty filter = trusted repository actors only, deny bots. Public
+  // repositories should opt in broader users explicitly with actor_filter.
   if (!inputs.actorFilter && !inputs.allowedBots) {
-    return !actor.endsWith("[bot]");
+    return !actor.endsWith("[bot]") && isTrustedAssociation(context.actorAssociation);
   }
 
   // Allow all
@@ -75,4 +76,26 @@ export function isActorAllowed(context: GitHubEntityContext, inputs: ActionInput
   }
 
   return false;
+}
+
+function findTriggerIndex(text: string, trigger: string): number {
+  if (!trigger) return -1;
+  let from = 0;
+  while (from < text.length) {
+    const index = text.indexOf(trigger, from);
+    if (index < 0) return -1;
+    const before = index > 0 ? text[index - 1] : "";
+    const after = text[index + trigger.length] ?? "";
+    if (isBoundary(before) && isBoundary(after)) return index;
+    from = index + 1;
+  }
+  return -1;
+}
+
+function isBoundary(char: string): boolean {
+  return char === "" || /[\s.,:;!?()[\]{}<>"'`]/.test(char);
+}
+
+function isTrustedAssociation(value: string | undefined): boolean {
+  return value === "OWNER" || value === "MEMBER" || value === "COLLABORATOR";
 }

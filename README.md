@@ -315,7 +315,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; use `0`, `off`, or `none` to disable an inherited cap |
 | `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `council`/`thermos`; `0` disables |
 | `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `crosscheck`; `0` disables |
-| `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames |
+| `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames; empty allows repository owners, members, and collaborators |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
 

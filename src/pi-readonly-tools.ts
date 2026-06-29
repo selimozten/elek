@@ -1,4 +1,4 @@
-import { constants } from "fs";
+import { constants, lstatSync, realpathSync } from "fs";
 import { access, readFile, readdir, stat } from "fs/promises";
 import { basename, relative, resolve, sep } from "path";
 import { Type } from "typebox";
@@ -9,7 +9,7 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 
-const workspaceRoot = resolve(process.env.GITHUB_WORKSPACE || process.cwd());
+const workspaceRoot = realpathSync(resolve(process.env.GITHUB_WORKSPACE || process.cwd()));
 const maxSearchBytes = 128 * 1024;
 const maxSearchResults = 100;
 
@@ -25,18 +25,45 @@ function workspaceRelative(absolutePath: string): string {
   return toPosix(relative(workspaceRoot, absolutePath));
 }
 
+function isOutsideWorkspace(absolutePath: string): boolean {
+  const rel = relative(workspaceRoot, absolutePath);
+  return rel === ".." || rel.startsWith(`..${sep}`) || resolve(rel) === rel;
+}
+
+function assertNotBlocked(absolutePath: string): void {
+  const rel = relative(workspaceRoot, absolutePath);
+  const parts = rel.split(sep).filter(Boolean);
+  if (parts.some((part) => blockedSegments.has(part)) || blockedBasename.test(basename(absolutePath))) {
+    throw new Error(`Access denied: ${workspaceRelative(absolutePath)} is not available to review tools`);
+  }
+}
+
+function assertNoSymlinkSegments(absolutePath: string): void {
+  const parts = relative(workspaceRoot, absolutePath).split(sep).filter(Boolean);
+  let current = workspaceRoot;
+  for (const part of parts) {
+    current = resolve(current, part);
+    if (lstatSync(current).isSymbolicLink()) {
+      throw new Error(`Access denied: ${workspaceRelative(current)} is not available to review tools`);
+    }
+  }
+}
+
 export function assertWorkspacePath(absolutePath: string): string {
   const resolved = resolve(absolutePath);
-  const rel = relative(workspaceRoot, resolved);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || resolve(rel) === rel) {
+  if (isOutsideWorkspace(resolved)) {
     throw new Error(`Access denied: ${workspaceRelative(resolved)} is outside the repository workspace`);
   }
 
-  const parts = rel.split(sep).filter(Boolean);
-  if (parts.some((part) => blockedSegments.has(part)) || blockedBasename.test(basename(resolved))) {
-    throw new Error(`Access denied: ${workspaceRelative(resolved)} is not available to review tools`);
+  assertNotBlocked(resolved);
+  assertNoSymlinkSegments(resolved);
+
+  const realResolved = realpathSync(resolved);
+  if (isOutsideWorkspace(realResolved)) {
+    throw new Error(`Access denied: ${workspaceRelative(resolved)} is outside the repository workspace`);
   }
-  return resolved;
+  assertNotBlocked(realResolved);
+  return realResolved;
 }
 
 function pathFromTool(inputPath: string | undefined): string {

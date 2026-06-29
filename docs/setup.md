@@ -387,7 +387,9 @@ final review comments.
 
 ## Actor filtering
 
-By default, only humans trigger (any actor matching `*[bot]` is excluded):
+By default, only repository owners, members, and collaborators trigger. Broaden
+access explicitly when you want outside contributors or bots to invoke paid
+reviews:
 
 ```yaml
 allowed_bots: "renovate[bot],dependabot[bot]"   # specific bots
