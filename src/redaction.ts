@@ -19,6 +19,7 @@ export type SecretLabel = string;
 // global-flag publication redaction patterns below.
 const githubTokenShape = "(?:gh[psour]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})";
 const apiKeyShape = "sk-[A-Za-z0-9_-]{16,}";
+const googleApiKeyShape = "AIza[0-9A-Za-z_-]{30,}";
 const awsKeyShape = "(?:AKIA|ASIA)[A-Z0-9]{16}";
 const jwtShape = "eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}";
 const longOpaqueShape = "[A-Fa-f0-9]{40,}|[A-Za-z0-9_-]{48,}";
@@ -30,6 +31,7 @@ const emailShape = "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}";
 const publicationSecretPatterns: ReadonlyArray<[SecretLabel, RegExp]> = [
   ["github token", new RegExp(`\\b${githubTokenShape}\\b`, "g")],
   ["api key (sk-)", new RegExp(`\\b${apiKeyShape}\\b`, "g")],
+  ["google api key", new RegExp(`\\b${googleApiKeyShape}\\b`, "g")],
   ["aws access key id", new RegExp(`\\b${awsKeyShape}\\b`, "g")],
   ["jwt", new RegExp(`\\b${jwtShape}\\b`, "g")],
 ];
@@ -40,6 +42,7 @@ const publicationSecretPatterns: ReadonlyArray<[SecretLabel, RegExp]> = [
 const telemetrySecretPatterns: ReadonlyArray<[SecretLabel, RegExp]> = [
   ["github token", new RegExp(`\\b${githubTokenShape}\\b`)],
   ["api key (sk-)", new RegExp(`\\b${apiKeyShape}\\b`)],
+  ["google api key", new RegExp(`\\b${googleApiKeyShape}\\b`)],
   ["aws access key id", new RegExp(`\\b${awsKeyShape}\\b`)],
   ["jwt", new RegExp(`\\b${jwtShape}\\b`)],
   ["long hex/base64 secret", new RegExp(`\\b${longOpaqueShape}\\b`)],

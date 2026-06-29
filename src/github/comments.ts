@@ -41,6 +41,12 @@ type TrackingComment = {
   kind: TrackingCommentKind;
 };
 
+const defaultTrustedCommentAuthors = new Set([
+  "github-actions[bot]",
+  "elek[bot]",
+  "eleksh[bot]",
+]);
+
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const repo = context.repo.fullName;
@@ -124,6 +130,7 @@ async function findTrackingComments(
 ): Promise<TrackingComment[]> {
   const matches: TrackingComment[] = [];
   try {
+    const trustedAuthors = trustedCommentAuthors();
     let page = 1;
     while (page <= 10) {
       const { data: comments } = await withGitHubRetry(
@@ -138,6 +145,7 @@ async function findTrackingComments(
         { label: "listComments" },
       );
       for (const c of comments) {
+        if (!isTrustedCommentAuthor(c, trustedAuthors)) continue;
         const kind = classifyTrackingComment(c.body, modelLabel);
         if (kind) {
           matches.push({ id: c.id, htmlUrl: c.html_url, body: c.body || "", kind });
@@ -151,6 +159,19 @@ async function findTrackingComments(
     console.warn("findTrackingComments failed:", (err as Error).message);
     return [];
   }
+}
+
+function trustedCommentAuthors(): Set<string> {
+  const configured = (process.env.ELEK_TRACKING_COMMENT_AUTHORS || "")
+    .split(",")
+    .map((login) => login.trim().toLowerCase())
+    .filter(Boolean);
+  return configured.length > 0 ? new Set(configured) : defaultTrustedCommentAuthors;
+}
+
+function isTrustedCommentAuthor(comment: { user?: { login?: string } }, trustedAuthors: Set<string>): boolean {
+  const login = comment.user?.login?.toLowerCase();
+  return Boolean(login && trustedAuthors.has(login));
 }
 
 /**

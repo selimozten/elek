@@ -70,11 +70,13 @@ describe("comment branding", () => {
               {
                 id: 1,
                 html_url: "https://example.test/comment/1",
+                user: { login: "github-actions[bot]" },
                 body: "old kimi review\n\n<!-- elek-bot:together/kimi -->",
               },
               {
                 id: 2,
                 html_url: "https://example.test/comment/2",
+                user: { login: "github-actions[bot]" },
                 body: "old deepseek review\n\n<!-- elek-bot:deepseek/deepseek-v4-pro -->",
               },
             ],
@@ -115,6 +117,7 @@ describe("comment branding", () => {
               {
                 id: 10,
                 html_url: "https://example.test/comment/10",
+                user: { login: "github-actions[bot]" },
                 body: "active kimi review\n\n<!-- elek-bot:lane:aaaaaaaaaaaa -->",
               },
             ],
@@ -143,6 +146,47 @@ describe("comment branding", () => {
     expect(updates).toHaveLength(0);
   });
 
+  it("does not reuse a forged tracking signature from a human comment author", async () => {
+    const modelLabel = "deepseek/deepseek-v4-pro";
+    const updates: Array<Record<string, unknown>> = [];
+    const creates: Array<Record<string, unknown>> = [];
+    const octokit = {
+      rest: {
+        issues: {
+          listComments: async () => ({
+            data: [
+              {
+                id: 10,
+                html_url: "https://example.test/comment/10",
+                user: { login: "mallory" },
+                body: `looks official\n\n<!-- elek-bot:lane:${trackingLane(modelLabel)} -->`,
+              },
+            ],
+          }),
+          updateComment: async (params: any) => {
+            updates.push(params);
+            return { data: {} };
+          },
+          createComment: async (params: any) => {
+            creates.push(params);
+            return { data: { id: 125, html_url: "https://example.test/comment/125" } };
+          },
+        },
+        pulls: {
+          createReview: async () => ({ data: {} }),
+          listReviews: async () => ({ data: [] }),
+          listReviewComments: async () => ({ data: [] }),
+        },
+      },
+    };
+
+    const result = await createTrackingComment(octokit, context, modelLabel);
+
+    expect(result.id).toBe(125);
+    expect(creates).toHaveLength(1);
+    expect(updates).toHaveLength(0);
+  });
+
   it("uses the latest lane signature when an old comment body contains a stale lane", async () => {
     const modelLabel = "deepseek/deepseek-v4-pro";
     const updates: Array<Record<string, unknown>> = [];
@@ -154,6 +198,7 @@ describe("comment branding", () => {
               {
                 id: 11,
                 html_url: "https://example.test/comment/11",
+                user: { login: "github-actions[bot]" },
                 body:
                   "old review\n\n<!-- elek-bot:lane:aaaaaaaaaaaa -->\n\n" +
                   `<!-- elek-bot:lane:${trackingLane(modelLabel)} -->`,
@@ -230,6 +275,7 @@ describe("comment branding", () => {
               {
                 id: 20,
                 html_url: "https://example.test/comment/20",
+                user: { login: "github-actions[bot]" },
                 body: "old global review\n\n<!-- elek-bot -->",
               },
             ],

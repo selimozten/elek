@@ -70,6 +70,7 @@ export interface GitHubEntityContext {
   eventName: "pull_request" | "issues" | "issue_comment" | "pull_request_review" | "pull_request_review_comment";
   eventAction: string;
   actor: string;
+  actorAssociation?: string;
   repo: { owner: string; repo: string; fullName: string; defaultBranch: string };
   entityNumber: number;
   isPR: boolean;

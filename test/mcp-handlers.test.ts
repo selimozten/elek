@@ -66,7 +66,7 @@ describe("updateTrackingComment", () => {
     // which comment is updated. The type system rejects this on the TS side,
     // but MCP receives JSON, so we cast to unknown here and assert at runtime.
     await updateTrackingComment(deps, {
-      body: "smuggled",
+      body: "## Review Summary\nNo high-confidence findings.",
       // @ts-expect-error — testing that extra fields are ignored
       comment_id: 999,
     } as unknown as { body: string });
@@ -97,7 +97,9 @@ describe("updateTrackingComment", () => {
       },
     });
 
-    const result = await updateTrackingComment(deps, { body: "## working on it\n- [x] read" });
+    const result = await updateTrackingComment(deps, {
+      body: "## Review Summary\nNo high-confidence findings.",
+    });
 
     expect(result.ok).toBe(true);
     const update = calls.find((c) => c.method === "issues.updateComment");
@@ -107,7 +109,7 @@ describe("updateTrackingComment", () => {
       owner: "octo",
       repo: "repo",
       comment_id: 555,
-      body: "## working on it\n- [x] read",
+      body: "## Review Summary\nNo high-confidence findings.",
     });
   });
 
@@ -141,6 +143,24 @@ describe("updateTrackingComment", () => {
 
     const result = await updateTrackingComment(deps, {
       body: "## Analysis\nI need to inspect files before I decide how to post the review.",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(calls.length).toBe(0);
+  });
+
+  it("rejects tracking updates that are not structured review feedback", async () => {
+    const { deps, calls } = makeDeps({
+      env: {
+        repoOwner: "octo",
+        repoName: "repo",
+        prNumber: "42",
+        trackingCommentId: "555",
+      },
+    });
+
+    const result = await updateTrackingComment(deps, {
+      body: "LGTM, safe to merge.",
     });
 
     expect(result.ok).toBe(false);
@@ -191,6 +211,13 @@ describe("sanitize", () => {
       expect(out).not.toContain("sk-abcdef0123456789ABCDEF");
       expect(out).not.toContain("AKIAIOSFODNN7EXAMPLE");
     }
+  });
+
+  it("redacts Google API keys in public model output", () => {
+    const key = `AIza${"A".repeat(35)}`;
+    const out = sanitize(`provider key: ${key}`);
+    expect(out).toContain("[REDACTED]");
+    expect(out).not.toContain(key);
   });
 
   it("leaves commit SHAs and code blocks intact (no false positives)", () => {

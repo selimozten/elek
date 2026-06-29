@@ -1,5 +1,6 @@
 import { sanitize } from "../mcp/handlers.js";
 import { hasInternalDeliveryMarker } from "./delivery-patterns.js";
+import { hasMergeApprovalLanguage, hasReviewSignal, hasReviewSignalLine } from "./public-guards.js";
 
 export interface PublicReviewOutput {
   body: string;
@@ -17,24 +18,6 @@ const GENERIC_FAILURE =
   "Elek could not complete this review run. See the workflow logs for details.";
 const GENERIC_INTERNAL_ONLY =
   "Elek completed the model run, but the model did not return a usable public review. No public findings were posted from that response.";
-const REVIEW_HEADING_KEYWORDS =
-  "review|finding|recommendation|security|correctness|performance|maintainability|bug|regression|race|leak|validation|cleanup|issue|concern|quality|design|architecture|coverage|testing|health|change";
-
-const REVIEW_SIGNAL_PATTERNS = [
-  new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "im"),
-  /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
-  /\bNo high-confidence\b/i,
-  /\bReview Summary\b/i,
-  /\bFindings\b/i,
-];
-
-const REVIEW_SIGNAL_LINE_PATTERNS = [
-  new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "i"),
-  /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
-  /\bNo high-confidence\b/i,
-  /\bReview Summary\b/i,
-  /\bFindings\b/i,
-];
 
 export function preparePublicReviewOutput(
   output: string,
@@ -92,7 +75,7 @@ export function preparePublicReviewOutput(
     options.internalModelLabels ?? [],
     options.publicModelLabel,
   );
-  if (!body || !hasReviewSignal(body)) {
+  if (!body || !hasReviewSignal(body) || hasMergeApprovalLanguage(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
       usable: false,
@@ -115,10 +98,6 @@ function splitParagraphs(text: string): string[] {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-}
-
-function hasReviewSignal(text: string): boolean {
-  return REVIEW_SIGNAL_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function stripNonReviewPrelude(paragraphs: string[]): {
@@ -151,10 +130,6 @@ function stripLeadingLinesBeforeReviewSignal(paragraph: string): string {
   const firstReviewLine = lines.findIndex(hasReviewSignalLine);
   if (firstReviewLine <= 0) return paragraph;
   return lines.slice(firstReviewLine).join("\n").trim();
-}
-
-function hasReviewSignalLine(line: string): boolean {
-  return REVIEW_SIGNAL_LINE_PATTERNS.some((pattern) => pattern.test(line));
 }
 
 function stripHostManagedFooter(paragraphs: string[]): {

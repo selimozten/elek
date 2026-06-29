@@ -97,7 +97,7 @@ inputs:
     required: false
     default: "elek/"
   actor_filter:
-    description: "Comma-separated usernames allowed to trigger. Empty = all humans."
+    description: "Comma-separated usernames allowed to trigger. Empty = repository owners, members, and collaborators."
     required: false
     default: ""
   allowed_bots:

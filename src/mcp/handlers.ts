@@ -4,6 +4,7 @@
  */
 import { appendFindingMarker, stableInlineFindingId } from "../review/finding-markers.js";
 import { hasInternalDeliveryMarker } from "../review/delivery-patterns.js";
+import { hasMergeApprovalLanguage, hasReviewSignal } from "../review/public-guards.js";
 import { redactPublicationSecrets } from "../redaction.js";
 
 export interface OctokitLike {
@@ -55,6 +56,12 @@ export async function updateTrackingComment(
     return {
       ok: false,
       error: "tracking comment update rejected because body contains internal delivery/debug text",
+    };
+  }
+  if (!hasReviewSignal(safeBody) || hasMergeApprovalLanguage(safeBody)) {
+    return {
+      ok: false,
+      error: "tracking comment update rejected because body is not structured review feedback",
     };
   }
   try {
