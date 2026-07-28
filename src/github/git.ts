@@ -125,8 +125,8 @@ export function getGitDiff(baseRef: string, headRef: string): string {
   // current PR checkout. Prefer those trusted local refs so read-only review
   // jobs do not need persisted git credentials merely to build the diff.
   for (const range of [
-    `origin/${baseRef}...origin/${headRemoteRef}`,
     `origin/${baseRef}...HEAD`,
+    `origin/${baseRef}...origin/${headRemoteRef}`,
   ]) {
     try {
       return execFileSync("git", ["diff", range], {

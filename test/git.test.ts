@@ -49,7 +49,7 @@ describe("isSafeGitRefName", () => {
       const modulePath = resolve(import.meta.dir, "../src/github/git.ts");
       const script = [
         `import { getGitDiff } from ${JSON.stringify(modulePath)};`,
-        `process.stdout.write(getGitDiff("main", "feature/review"));`,
+        `process.stdout.write(getGitDiff("main", "main"));`,
       ].join("\n");
       const diff = execFileSync(process.execPath, ["-e", script], {
         cwd: dir,
