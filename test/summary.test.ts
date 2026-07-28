@@ -31,6 +31,7 @@ function piResult(overrides: Partial<PiRunResult> = {}): PiRunResult {
     conclusion: "success",
     output: "ok",
     turnsUsed: 2,
+    providerRetries: 0,
     durationSeconds: 12.34,
     costUsd: 0.00123456,
     usage: {
@@ -56,6 +57,7 @@ describe("review summary", () => {
       },
       costUsd: 0.004,
       durationSeconds: 65.66,
+      providerRetries: 2,
     });
     const validator = piResult();
     const costTotal = aggregateCosts([
@@ -142,6 +144,7 @@ describe("review summary", () => {
       role: "reviewer",
       lensId: "correctness",
       durationSeconds: 65.7,
+      providerRetries: 2,
       pricingSource: "override",
     });
     expect(summary.modelRuns[1]).toMatchObject({

@@ -28,6 +28,14 @@ import { createInterface } from "readline";
 import type { ActionInputs, PiRunResult } from "./types";
 import { estimateRunCost, modelLabelFor, resolveRates, type ReviewCost } from "./review/cost";
 
+const REVIEW_SYSTEM_PROMPT = [
+  "You are Elek, a noninteractive read-only CI pull-request reviewer.",
+  "Find only concrete, consequential issues rooted in changed code.",
+  "Use repository inspection tools only to resolve a specific uncertainty required to validate a candidate finding; a self-contained change may require no tool calls.",
+  "Do not edit files, ask questions, narrate research, or continue exploring after every candidate is either verified or rejected.",
+  "Return the requested review format immediately when the review is complete, including when there are no findings.",
+].join(" ");
+
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
   detail?: string;
@@ -143,6 +151,7 @@ export async function runPi(
   let sessionId: string | undefined;
   let toolCount = 0;
   let turnCount = 0;
+  let providerRetries = 0;
   let finalAssistant: PiAssistantMessage | undefined;
   let lastErrorMessage: string | undefined;
   let terminationMessage: string | undefined;
@@ -230,6 +239,13 @@ export async function runPi(
           }
           break;
 
+        case "auto_retry_start":
+          providerRetries++;
+          console.warn(
+            `pi provider retry ${event.attempt || providerRetries}/${event.maxAttempts || "?"} after ${event.delayMs || 0}ms`,
+          );
+          break;
+
         case "tool_execution_start": {
           const toolName: string = event.toolName || "unknown";
           toolCount++;
@@ -291,7 +307,7 @@ export async function runPi(
       if (forceKillTimer) clearTimeout(forceKillTimer);
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(
-        `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount}`,
+        `pi exited code=${code} in ${elapsed.toFixed(1)}s · turns=${turnCount} · tools=${toolCount} · provider retries=${providerRetries}`,
       );
 
       // AWAIT the final progress update — otherwise it races with run.ts's
@@ -321,6 +337,7 @@ export async function runPi(
           output,
           sessionId,
           turnsUsed: turnCount,
+          providerRetries,
           durationSeconds: elapsed,
           costUsd: usage.costUsd,
           usage: {
@@ -344,6 +361,7 @@ export async function runPi(
           output: errMsg,
           sessionId,
           turnsUsed: turnCount,
+          providerRetries,
           durationSeconds: elapsed,
           costUsd: usage.costUsd,
           usage: {
@@ -373,6 +391,7 @@ export async function runPi(
         conclusion: "failure",
         output: err.message,
         turnsUsed: 0,
+        providerRetries,
         durationSeconds: elapsed,
         costUsd: 0,
         usage: {
@@ -496,6 +515,9 @@ export function buildPiArgs(
 
   if (inputs.systemPrompt) {
     args.push("--system-prompt", inputs.systemPrompt);
+  }
+  if (inputs.mode !== "agent") {
+    args.push("--append-system-prompt", REVIEW_SYSTEM_PROMPT);
   }
 
   if (inputs.tools) {

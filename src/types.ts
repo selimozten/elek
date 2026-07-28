@@ -95,6 +95,7 @@ export interface PiRunResult {
   output: string;
   sessionId?: string;
   turnsUsed: number;
+  providerRetries: number;
   durationSeconds: number;
   costUsd: number;
   usage: {
