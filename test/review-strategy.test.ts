@@ -180,6 +180,19 @@ describe("review strategy", () => {
     expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
   });
 
+  it("disables the parallel advisor when advisor_model is off", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "crosscheck",
+      advisorModel: "off",
+      validatorModel: "together/moonshotai/Kimi-K3",
+    });
+
+    expect(plan.validatorReview).toBeUndefined();
+    expect(plan.jobs).toHaveLength(2);
+    expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
+  });
+
   it("selects a bounded domain-specific lens council", () => {
     const plan = resolveReviewPlan({
       ...baseInputs,

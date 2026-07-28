@@ -207,7 +207,8 @@ falling back.
 Candidate reviewers are read-only and cannot post. They do not see existing PR
 discussion, so they produce fresh independent reports. An independent advisor
 runs in the same parallel wave; it defaults to the validator model, or can use
-`advisor_model` and `advisor_thinking` for model diversity. The final validator
+`advisor_model` and `advisor_thinking` for model diversity. Set
+`advisor_model: off` to omit that optional lane. The final validator
 then receives every candidate report plus the visible PR discussion, rejects
 speculative or duplicate findings, and posts only high-confidence feedback
 through elek's narrow review MCP tools.
@@ -316,7 +317,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max` |
 | `review_lenses` | _(strategy defaults)_ | Ordered built-in lens IDs, e.g. `security-correctness,contract-drift,mobile-runtime` |
 | `review_agent_count` | _(.elek.yml or unset)_ | Parallel reviewer count for `thermos`, 1-8 |
-| `advisor_model` | _(validator model)_ | Independent parallel advisor model; use a different provider to reduce correlated misses |
+| `advisor_model` | _(validator model)_ | Independent parallel advisor model; use a different provider to reduce correlated misses, or `off` to disable |
 | `advisor_thinking` | _(validator/reviewer setting)_ | Advisor thinking level; falls back to `validator_thinking`, then `thinking` |
 | `validator_model` | _(primary model)_ | Final orchestrator model spec; this model validates reviewer reports and posts findings |
 | `validator_thinking` | _(same as `thinking`)_ | Final orchestrator thinking level; use `medium` for frontier orchestrators when reviewers use high/max |

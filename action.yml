@@ -158,6 +158,7 @@ inputs:
     description: >
       Optional model spec for the independent advisor audit that runs in
       parallel with reviewer lenses. If omitted, the validator model is reused.
+      Set to off, none, false, or disabled to skip the advisor wave.
     required: false
     default: ""
   advisor_thinking:

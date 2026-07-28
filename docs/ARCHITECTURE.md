@@ -71,16 +71,17 @@ Defines the strategy names and prompt builders:
 
 ```
 solo       → existing one-model review
-crosscheck → Risk + Design + independent advisor, then final validation/synthesis
-council    → Risk + Design + Test Integrity + Operations + advisor, then final validation/synthesis
-thermos    → configurable built-in lens council + advisor, then final validation/synthesis
+crosscheck → Risk + Design + optional independent advisor, then final validation/synthesis
+council    → Risk + Design + Test Integrity + Operations + optional advisor, then final validation/synthesis
+thermos    → configurable built-in lens council + optional advisor, then final validation/synthesis
 ```
 
 Candidate reviewers run as independent `pi` processes with only
 `read,grep,find,ls`, no MCP proxy, and a filtered environment. Their output is
 internal evidence. `review_lenses` can select a bounded domain-specific council,
 and `advisor_model` can add provider diversity without another sequential
-phase. The final orchestrator receives the candidate reports, rejects
+phase. Set `advisor_model: off` to omit that lane while preserving the required
+review lenses and final validator. The final orchestrator receives the candidate reports, rejects
 speculative or duplicate findings, and is the only run allowed to call elek's
 review MCP tools.
 

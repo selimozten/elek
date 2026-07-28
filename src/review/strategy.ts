@@ -231,8 +231,14 @@ function reviewLensLimitForStrategy(strategy: ReviewStrategy): number {
 export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   const strategy = resolveReviewStrategy(inputs.reviewStrategy);
   const validator = parseModelSpec(inputs.validatorModel, inputs);
-  const hasDistinctAdvisor = Boolean(inputs.advisorModel?.trim());
-  const advisor = parseModelSpec(hasDistinctAdvisor ? inputs.advisorModel! : inputs.validatorModel, inputs);
+  const advisorSetting = inputs.advisorModel?.trim() || "";
+  const advisorDisabled = ["off", "none", "false", "disabled"].includes(
+    advisorSetting.toLowerCase(),
+  );
+  const hasDistinctAdvisor = !advisorDisabled && Boolean(advisorSetting);
+  const advisor = advisorDisabled
+    ? undefined
+    : parseModelSpec(hasDistinctAdvisor ? advisorSetting : inputs.validatorModel, inputs);
   if (strategy === "solo") return { strategy, jobs: [], validator, reusedModels: false };
 
   const parsedModels = parseModelList(inputs.reviewModels, inputs);
@@ -259,11 +265,13 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
     model: models[i % models.length],
     role: "reviewer" as const,
   }));
-  const validatorReview = {
-    lens: hasDistinctAdvisor ? ADVISOR_REVIEW_LENS : VALIDATOR_SELF_REVIEW_LENS,
-    model: advisor,
-    role: "validator-review" as const,
-  };
+  const validatorReview = advisorDisabled
+    ? undefined
+    : {
+        lens: hasDistinctAdvisor ? ADVISOR_REVIEW_LENS : VALIDATOR_SELF_REVIEW_LENS,
+        model: advisor!,
+        role: "validator-review" as const,
+      };
 
   return { strategy, jobs, validatorReview, validator, reusedModels };
 }
