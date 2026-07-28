@@ -171,5 +171,5 @@ transient model failures.
   without explicit discussion.
 - Don't downgrade `permissions:` thinking it'll force-fix a bug. The token
   scope is the backstop, not the primary safety layer.
-- Don't commit `package-lock.json` (gitignored). Composite Action installs
-  fresh in CI.
+- Keep `package-lock.json` in sync with `package.json`. The Composite Action
+  uses `npm ci`, so the tracked lockfile defines its reproducible runtime.
