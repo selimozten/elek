@@ -118,14 +118,44 @@ const THERMOS_LENSES: ReviewLens[] = [
   },
 ];
 
-const VALIDATOR_REVIEW_LENS: ReviewLens = {
+const CONTRACT_DRIFT_LENS: ReviewLens = {
+  id: "contract-drift",
+  title: "Contract Drift Audit",
+  focus:
+    "Consumer/provider contract drift across related code available in the workspace: HTTP methods and paths, authentication, request and response fields, envelopes, nullability, enum values, backward compatibility, and generated client/schema drift. Do not speculate when the producer contract is unavailable; report only mismatches verified in code.",
+};
+
+const MOBILE_RUNTIME_LENS: ReviewLens = {
+  id: "mobile-runtime",
+  title: "Mobile Runtime Audit",
+  focus:
+    "Mobile-specific regressions in navigation and deep links, app lifecycle transitions, persisted-state migrations, offline/retry behavior, background tasks, native configuration, OTA compatibility, permissions, and iOS/Android divergence. Require a concrete failure path rooted in the changed code.",
+};
+
+const VALIDATOR_SELF_REVIEW_LENS: ReviewLens = {
   id: "validator-self-review",
   title: "Orchestrator Independent Audit",
   focus:
     "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues before posting.",
 };
 
+const ADVISOR_REVIEW_LENS: ReviewLens = {
+  id: "advisor-independent-audit",
+  title: "Advisor Independent Audit",
+  focus:
+    "Run your own fresh security and correctness audit before synthesis. Do not rely on candidate reports; independently trace changed-code failure paths and report only medium-to-high risk issues before posting.",
+};
+
 const MAX_THERMOS_REVIEW_AGENTS = 8;
+const REVIEW_LENS_CATALOG = new Map(
+  [
+    ...CROSSCHECK_LENSES,
+    ...COUNCIL_EXTRA_LENSES,
+    ...THERMOS_LENSES,
+    CONTRACT_DRIFT_LENS,
+    MOBILE_RUNTIME_LENS,
+  ].map((lens) => [lens.id, lens]),
+);
 
 export function resolveReviewStrategy(raw: string | undefined): ReviewStrategy {
   return (normalizeReviewStrategy(raw) as ReviewStrategy | undefined) ?? "solo";
@@ -164,18 +194,53 @@ export function parseModelList(raw: string, defaults: Pick<ActionInputs, "provid
     .map((s) => parseModelSpec(s, defaults));
 }
 
+export function parseReviewLensList(raw: string | undefined): ReviewLens[] {
+  const ids = [...new Set(
+    (raw || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  )];
+  const unknown = ids.filter((id) => !REVIEW_LENS_CATALOG.has(id));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown review_lenses: ${unknown.join(", ")}. Supported values: ${[...REVIEW_LENS_CATALOG.keys()].join(", ")}`,
+    );
+  }
+  return ids.map((id) => REVIEW_LENS_CATALOG.get(id)!);
+}
+
+function reviewLensLimitForStrategy(strategy: ReviewStrategy): number {
+  if (strategy === "crosscheck") return CROSSCHECK_LENSES.length;
+  if (strategy === "council") return CROSSCHECK_LENSES.length + COUNCIL_EXTRA_LENSES.length;
+  if (strategy === "thermos") return MAX_THERMOS_REVIEW_AGENTS;
+  return 0;
+}
+
 export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   const strategy = resolveReviewStrategy(inputs.reviewStrategy);
   const validator = parseModelSpec(inputs.validatorModel, inputs);
+  const hasDistinctAdvisor = Boolean(inputs.advisorModel?.trim());
+  const advisor = parseModelSpec(hasDistinctAdvisor ? inputs.advisorModel! : inputs.validatorModel, inputs);
   if (strategy === "solo") return { strategy, jobs: [], validator, reusedModels: false };
 
   const parsedModels = parseModelList(inputs.reviewModels, inputs);
-  const lenses =
+  const configuredLenses = parseReviewLensList(inputs.reviewLenses);
+  const defaultLenses =
     strategy === "crosscheck"
       ? CROSSCHECK_LENSES
       : strategy === "council"
         ? [...CROSSCHECK_LENSES, ...COUNCIL_EXTRA_LENSES]
         : thermosLenses(inputs.reviewAgentCount, parsedModels.length);
+  const strategyLimit = reviewLensLimitForStrategy(strategy);
+  if (configuredLenses.length > strategyLimit) {
+    throw new Error(
+      `review_strategy=${strategy} supports at most ${strategyLimit} review_lenses, received ${configuredLenses.length}`,
+    );
+  }
+  const lenses = configuredLenses.length > 0
+    ? configuredLenses
+    : defaultLenses;
   const models = parsedModels.length > 0 ? parsedModels : [parseModelSpec("", inputs)];
   const reusedModels = lenses.length > models.length;
   const jobs = lenses.map((lens, i) => ({
@@ -184,8 +249,8 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
     role: "reviewer" as const,
   }));
   const validatorReview = {
-    lens: VALIDATOR_REVIEW_LENS,
-    model: validator,
+    lens: hasDistinctAdvisor ? ADVISOR_REVIEW_LENS : VALIDATOR_SELF_REVIEW_LENS,
+    model: advisor,
     role: "validator-review" as const,
   };
 
@@ -244,6 +309,7 @@ export function selectReviewPlanWithinBudget(args: {
   estimateCosts: (plan: ReviewPlan) => ReviewCost[];
 }): BudgetPlanResult {
   let plan = args.initialPlan;
+  let planInputs = args.inputs;
   let support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
   const events: BudgetPlanEvent[] = [];
   const maxCostUsd = args.inputs.maxCostUsd;
@@ -286,7 +352,23 @@ export function selectReviewPlanWithinBudget(args: {
         `[cost] ${plan.strategy} exceeds max_cost_usd=${costLabel(maxCostUsd)} ` +
         `before output tokens; downgrading to ${downgraded}.`,
     });
-    plan = resolveReviewPlan({ ...args.inputs, reviewStrategy: downgraded });
+    const currentLenses = parseReviewLensList(planInputs.reviewLenses);
+    const nextLensLimit = reviewLensLimitForStrategy(downgraded);
+    const nextLenses = currentLenses.slice(0, nextLensLimit);
+    if (nextLenses.length < currentLenses.length) {
+      events.push({
+        level: "warn",
+        message:
+          `[cost] reducing review_lenses from ${currentLenses.length} to ${nextLenses.length} ` +
+          `for automatic downgrade to ${downgraded}.`,
+      });
+    }
+    planInputs = {
+      ...planInputs,
+      reviewStrategy: downgraded,
+      reviewLenses: nextLenses.map((lens) => lens.id).join(","),
+    };
+    plan = resolveReviewPlan(planInputs);
     support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
     if (!support.enabled) break;
   }

@@ -140,11 +140,30 @@ inputs:
       If omitted, the primary provider/model is reused for every lens.
     required: false
     default: ""
+  review_lenses:
+    description: >
+      Optional comma-separated built-in lens IDs for multi-agent reviews.
+      This lets repositories select a smaller, domain-specific council, for
+      example: security-correctness,contract-drift,mobile-runtime.
+    required: false
+    default: ""
   review_agent_count:
     description: >
       Optional number of parallel reviewer agents for review_strategy=thermos.
       Valid range: 1-8. If omitted, thermos uses the larger of five default
       audit lenses or the number of review_models supplied.
+    required: false
+    default: ""
+  advisor_model:
+    description: >
+      Optional model spec for the independent advisor audit that runs in
+      parallel with reviewer lenses. If omitted, the validator model is reused.
+    required: false
+    default: ""
+  advisor_thinking:
+    description: >
+      Optional thinking level for the independent advisor audit. If omitted,
+      validator_thinking is reused, then the primary thinking level.
     required: false
     default: ""
   validator_model:
@@ -290,7 +309,10 @@ runs:
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
         INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
+        INPUT_REVIEW_LENSES: ${{ inputs.review_lenses }}
         INPUT_REVIEW_AGENT_COUNT: ${{ inputs.review_agent_count }}
+        INPUT_ADVISOR_MODEL: ${{ inputs.advisor_model }}
+        INPUT_ADVISOR_THINKING: ${{ inputs.advisor_thinking }}
         INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
         INPUT_VALIDATOR_THINKING: ${{ inputs.validator_thinking }}
         INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}

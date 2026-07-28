@@ -7,7 +7,10 @@ import type { ActionInputs } from "./types.js";
 export interface ElekConfig {
   reviewStrategy?: string;
   reviewModels?: string;
+  reviewLenses?: string;
   reviewAgentCount?: number;
+  advisorModel?: string;
+  advisorThinking?: string;
   validatorModel?: string;
   validatorThinking?: string;
   costRates?: string;
@@ -37,7 +40,10 @@ export interface ElekConfigLoadResult {
 type ElekConfigKey =
   | "reviewStrategy"
   | "reviewModels"
+  | "reviewLenses"
   | "reviewAgentCount"
+  | "advisorModel"
+  | "advisorThinking"
   | "validatorModel"
   | "validatorThinking"
   | "costRates"
@@ -59,7 +65,10 @@ export class ElekConfigParseError extends Error {
 const KEY_MAP: Record<string, ElekConfigKey> = {
   review_strategy: "reviewStrategy",
   review_models: "reviewModels",
+  review_lenses: "reviewLenses",
   review_agent_count: "reviewAgentCount",
+  advisor_model: "advisorModel",
+  advisor_thinking: "advisorThinking",
   validator_model: "validatorModel",
   validator_thinking: "validatorThinking",
   cost_rates: "costRates",
@@ -287,6 +296,9 @@ export function parseElekConfig(
       case "reviewModels":
         config.reviewModels = modelList(value, rawKey, warn);
         break;
+      case "reviewLenses":
+        config.reviewLenses = modelList(value, rawKey, warn);
+        break;
       case "reviewAgentCount":
         config.reviewAgentCount = boundedReviewAgentCount(value, rawKey, warn);
         break;
@@ -321,19 +333,21 @@ export function parseElekConfig(
         config.severityThreshold = severity as ElekConfig["severityThreshold"];
         break;
       }
+      case "advisorModel":
       case "validatorModel": {
         const scalar = stringValue(value);
         if (scalar) {
-          config.validatorModel = scalar;
+          config[key] = scalar;
         } else if (value != null) {
           warn(`Ignoring non-scalar ${rawKey} value`);
         }
         break;
       }
+      case "advisorThinking":
       case "validatorThinking": {
         const scalar = stringValue(value);
         if (scalar) {
-          config.validatorThinking = scalar;
+          config[key] = scalar;
         } else if (value != null) {
           warn(`Ignoring non-scalar ${rawKey} value`);
         }
@@ -686,7 +700,10 @@ export function mergeBasePolicyWithWorkspaceGuidance(
   return {
     reviewStrategy: basePolicy.reviewStrategy,
     reviewModels: basePolicy.reviewModels,
+    reviewLenses: basePolicy.reviewLenses,
     reviewAgentCount: basePolicy.reviewAgentCount,
+    advisorModel: basePolicy.advisorModel,
+    advisorThinking: basePolicy.advisorThinking,
     validatorModel: basePolicy.validatorModel,
     validatorThinking: basePolicy.validatorThinking,
     costRates: basePolicy.costRates,
@@ -708,10 +725,16 @@ export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): A
       !inputs.reviewStrategy && config.reviewStrategy ? config.reviewStrategy : inputs.reviewStrategy,
     reviewModels:
       !inputs.reviewModels && config.reviewModels ? config.reviewModels : inputs.reviewModels,
+    reviewLenses:
+      !inputs.reviewLenses && config.reviewLenses ? config.reviewLenses : inputs.reviewLenses,
     reviewAgentCount:
       inputs.reviewAgentCount === undefined && config.reviewAgentCount !== undefined
         ? config.reviewAgentCount
         : inputs.reviewAgentCount,
+    advisorModel:
+      !inputs.advisorModel && config.advisorModel ? config.advisorModel : inputs.advisorModel,
+    advisorThinking:
+      !inputs.advisorThinking && config.advisorThinking ? config.advisorThinking : inputs.advisorThinking,
     validatorModel:
       !inputs.validatorModel && config.validatorModel ? config.validatorModel : inputs.validatorModel,
     validatorThinking:
@@ -752,7 +775,10 @@ export function formatConfigAuditLog(
     `source=${disabled ? "(disabled)" : source}`,
     `review_strategy=${config.reviewStrategy ?? "(unset)"}`,
     `review_models=${config.reviewModels ?? "(unset)"}`,
+    `review_lenses=${config.reviewLenses ?? "(unset)"}`,
     `review_agent_count=${config.reviewAgentCount ?? "(unset)"}`,
+    `advisor_model=${config.advisorModel ?? "(unset)"}`,
+    `advisor_thinking=${config.advisorThinking ?? "(unset)"}`,
     `validator_model=${config.validatorModel ?? "(unset)"}`,
     `validator_thinking=${config.validatorThinking ?? "(unset)"}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
@@ -768,7 +794,10 @@ export function formatConfigAuditLog(
   if (effective) {
     fields.push(`effective_review_strategy=${effective.reviewStrategy || "solo"}`);
     fields.push(`effective_review_models=${effective.reviewModels || "(primary model)"}`);
+    fields.push(`effective_review_lenses=${effective.reviewLenses || "(strategy defaults)"}`);
     fields.push(`effective_review_agent_count=${effective.reviewAgentCount ?? "(unset)"}`);
+    fields.push(`effective_advisor_model=${effective.advisorModel || "(validator model)"}`);
+    fields.push(`effective_advisor_thinking=${effective.advisorThinking || "(validator/reviewer setting)"}`);
     fields.push(`effective_validator_model=${effective.validatorModel || "(primary model)"}`);
     fields.push(`effective_validator_thinking=${effective.validatorThinking || "(same as reviewers)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);

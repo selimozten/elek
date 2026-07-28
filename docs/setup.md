@@ -158,10 +158,13 @@ visible review is posted:
   with:
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
     openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     provider: deepseek
     model: deepseek-v4-pro
     review_strategy: crosscheck
     review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+    advisor_model: openai/gpt-5.6-sol
+    advisor_thinking: medium
     validator_model: deepseek/deepseek-v4-pro
     max_cost_usd: "0.05"
 ```
@@ -169,15 +172,15 @@ visible review is posted:
 | `review_strategy` | Behavior |
 |---|---|
 | `solo` | One model reviews and posts. |
-| `crosscheck` | Risk + design lenses run read-only, then a final orchestrator validates and posts. |
-| `council` | Risk + design + tests + operations lenses run read-only, then a final orchestrator validates and posts. |
+| `crosscheck` | Risk + design lenses and an advisor run read-only, then a final orchestrator validates and posts. |
+| `council` | Risk + design + tests + operations lenses and an advisor run read-only, then a final orchestrator validates and posts. |
+| `thermos` | A configurable built-in lens council and an advisor run read-only, then a final orchestrator validates and posts. |
 
 Candidate reviewers cannot post comments. They run without MCP access; only the
 final orchestrator can call elek's review tools.
 
-Non-solo strategies currently require `mode: review`. If `crosscheck` or
-`council` is configured with `review+edit` or `agent`, elek runs a solo review
-and logs a warning.
+Non-solo strategies currently require `mode: review`. If one is configured
+with `review+edit` or `agent`, elek runs a solo review and logs a warning.
 
 ## Repo config
 
@@ -186,8 +189,11 @@ review policy. This keeps workflow YAML small and lets teams tune review
 behavior alongside the code.
 
 ```yaml
-review_strategy: crosscheck
+review_strategy: thermos
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+review_lenses: security-correctness,contract-drift,mobile-runtime
+advisor_model: openai/gpt-5.6-sol
+advisor_thinking: medium
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
@@ -215,6 +221,9 @@ Supported keys:
 |---|---|
 | `review_strategy` | Default strategy when the workflow input is unset |
 | `review_models` | Default reviewer model list |
+| `review_lenses` | Ordered built-in lens IDs for a smaller domain-specific council |
+| `advisor_model` | Independent advisor model; defaults to the validator model |
+| `advisor_thinking` | Advisor reasoning level; defaults to the validator/reviewer setting |
 | `validator_model` | Default final orchestrator/validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | Soft cap; downgrade multi-lens reviews when known input-side estimates already exceed it |
@@ -231,13 +240,13 @@ ignore paths are review instructions, not a server-side comment filter. If an
 existing config file has malformed YAML, elek fails the run instead of silently
 dropping repo policy.
 
-Security note: on pull requests, elek loads policy fields (`review_strategy`,
-`review_models`, `validator_model`, `cost_rates`, `max_cost_usd`,
-changed-line guards, and `severity_threshold`) from the base branch when
-available. Guidance fields (`knowledge_paths`, `ignore_paths`, and `instructions`) come from the
-checked-out branch, so contributors can propose review guidance changes without
-controlling cost or severity policy. Each run logs the loaded config source
-plus effective strategy/model/severity choices.
+Security note: on pull requests, elek loads policy and guidance fields
+(`review_strategy`, `review_models`, `review_lenses`, `advisor_model`,
+`validator_model`, `cost_rates`, `max_cost_usd`, changed-line guards,
+`severity_threshold`, `knowledge_paths`, `ignore_paths`, and `instructions`)
+from the base branch when available. A pull request cannot weaken its own
+review policy. Each run logs the loaded config source plus effective
+strategy/model/severity choices.
 If `knowledge_paths` is unset, elek automatically tries `AGENTS.md`,
 `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, and `docs/adr`. Files are loaded
 only from inside the workspace and are capped before they enter the prompt.

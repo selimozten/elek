@@ -173,9 +173,9 @@ The `review_strategy` input controls orchestration quality:
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
 | `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
-| `crosscheck` | 2 read-only lenses + orchestrator self-review + final orchestrator | Best default for serious PR review. |
-| `council` | 4 read-only lenses + orchestrator self-review + final orchestrator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
-| `thermos` | N read-only audit agents + orchestrator self-review + final orchestrator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
+| `crosscheck` | 2 read-only lenses + independent advisor + final orchestrator | Best default for serious PR review. |
+| `council` | 4 read-only lenses + independent advisor + final orchestrator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
+| `thermos` | N read-only audit agents + independent advisor + final orchestrator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
 
 Multi-agent strategies currently run only with `mode: review`. If you use
 `review+edit` or `agent`, elek runs a solo review and logs a warning.
@@ -198,11 +198,19 @@ Multi-agent strategies currently run only with `mode: review`. If you use
 - **Feature Gate & Exposure Audit** — feature leaks, missing guards, internal-only behavior becoming public, and rollout gaps.
 - **Tests & Operations Audit** — missing high-signal tests, migrations, observability, timeouts, retries, idempotency, and support burden.
 
+Set `review_lenses` to an ordered comma-separated list when a repository needs
+a smaller domain-specific council. In addition to the strategy defaults, elek
+provides **Contract Drift Audit** (`contract-drift`) and **Mobile Runtime
+Audit** (`mobile-runtime`). Unknown lens IDs fail the review instead of silently
+falling back.
+
 Candidate reviewers are read-only and cannot post. They do not see existing PR
-discussion, so they produce fresh independent reports. The final model also
-runs its own read-only self-review, then receives every candidate report plus
-the visible PR discussion, rejects speculative or duplicate findings, and posts
-only high-confidence feedback through elek's narrow review MCP tools.
+discussion, so they produce fresh independent reports. An independent advisor
+runs in the same parallel wave; it defaults to the validator model, or can use
+`advisor_model` and `advisor_thinking` for model diversity. The final validator
+then receives every candidate report plus the visible PR discussion, rejects
+speculative or duplicate findings, and posts only high-confidence feedback
+through elek's narrow review MCP tools.
 
 Every finding is expected to follow elek's review contract: severity,
 confidence, evidence, impact, and a concrete fix. Low-confidence findings
@@ -306,7 +314,10 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |
 | `review_models` | _(primary model)_ | Comma-separated reviewer model specs, e.g. `together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max` |
+| `review_lenses` | _(strategy defaults)_ | Ordered built-in lens IDs, e.g. `security-correctness,contract-drift,mobile-runtime` |
 | `review_agent_count` | _(.elek.yml or unset)_ | Parallel reviewer count for `thermos`, 1-8 |
+| `advisor_model` | _(validator model)_ | Independent parallel advisor model; use a different provider to reduce correlated misses |
+| `advisor_thinking` | _(validator/reviewer setting)_ | Advisor thinking level; falls back to `validator_thinking`, then `thinking` |
 | `validator_model` | _(primary model)_ | Final orchestrator model spec; this model validates reviewer reports and posts findings |
 | `validator_thinking` | _(same as `thinking`)_ | Final orchestrator thinking level; use `medium` for frontier orchestrators when reviewers use high/max |
 | `severity_threshold` | _(.elek.yml or unset)_ | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
@@ -427,6 +438,9 @@ code. Workflow inputs still win when they are set explicitly.
 ```yaml
 review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+review_lenses: risk,contract-drift
+advisor_model: openai/gpt-5.6-sol
+advisor_thinking: medium
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
@@ -448,8 +462,9 @@ instructions:
   - Require tests for parser and config changes.
 ```
 
-Supported keys: `review_strategy`, `review_models`, `review_agent_count`,
-`validator_model`, `validator_thinking`, `cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
+Supported keys: `review_strategy`, `review_models`, `review_lenses`,
+`review_agent_count`, `advisor_model`, `advisor_thinking`, `validator_model`,
+`validator_thinking`, `cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
 `max_crosscheck_changed_lines`, `severity_threshold`, `knowledge_paths`,
 `ignore_paths`, and `instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
@@ -459,12 +474,12 @@ and ignore-path policy are prompt instructions for the reviewer, not a
 server-side filter. If an existing config file has malformed YAML, elek fails
 the run instead of silently dropping repo policy.
 
-On pull requests, policy fields (`review_strategy`, `review_models`,
-`validator_model`, `cost_rates`, `max_cost_usd`, changed-line warning thresholds, and
-`severity_threshold`) are loaded from the base branch when available. Guidance
-fields (`knowledge_paths`, `ignore_paths`, and `instructions`) come from the checked-out branch so
-contributors can propose review guidance changes without controlling cost or
-severity policy. `knowledge_paths` points elek at repo-local docs that should
+On pull requests, policy and guidance fields (`review_strategy`,
+`review_models`, `review_lenses`, `advisor_model`, `validator_model`,
+`cost_rates`, `max_cost_usd`, changed-line warning thresholds,
+`severity_threshold`, `knowledge_paths`, `ignore_paths`, and `instructions`)
+are loaded from the base branch when available. The checked-out pull request
+cannot weaken its own review policy. `knowledge_paths` points elek at repo-local docs that should
 shape review judgment, such as agent instructions, contribution guidelines,
 architecture notes, or ADR folders. When unset, elek automatically tries
 `AGENTS.md`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, and `docs/adr`. Loaded
