@@ -484,7 +484,7 @@ async function run(): Promise<void> {
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
         .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | orchestrator_self_review: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
+        .join(", ")} | advisor: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
     );
     if (reviewPlan.reusedModels) {
       console.warn(
@@ -525,7 +525,7 @@ async function run(): Promise<void> {
           provider: job.model.provider,
           model: job.model.model,
           thinking: job.role === "validator-review"
-            ? inputs.validatorThinking || inputs.thinking
+            ? inputs.advisorThinking || inputs.validatorThinking || inputs.thinking
             : inputs.thinking,
           tools: lensTools,
           mode: "review",

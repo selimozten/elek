@@ -71,15 +71,18 @@ Defines the strategy names and prompt builders:
 
 ```
 solo       → existing one-model review
-crosscheck → Risk Review + Design Review, then final orchestrator validation/synthesis
-council    → Risk + Design + Test Integrity + Operational Review, then final orchestrator validation/synthesis
+crosscheck → Risk + Design + independent advisor, then final validation/synthesis
+council    → Risk + Design + Test Integrity + Operations + advisor, then final validation/synthesis
+thermos    → configurable built-in lens council + advisor, then final validation/synthesis
 ```
 
 Candidate reviewers run as independent `pi` processes with only
 `read,grep,find,ls`, no MCP proxy, and a filtered environment. Their output is
-internal evidence. The final orchestrator receives the candidate reports,
-rejects speculative or duplicate findings, and is the only run allowed to call
-elek's review MCP tools.
+internal evidence. `review_lenses` can select a bounded domain-specific council,
+and `advisor_model` can add provider diversity without another sequential
+phase. The final orchestrator receives the candidate reports, rejects
+speculative or duplicate findings, and is the only run allowed to call elek's
+review MCP tools.
 
 ### `src/pi.ts` — pi CLI runner
 
@@ -112,8 +115,8 @@ tool is filtered and the model can't reach the MCP server.
 
 Exports:
 
-- `createInlineComment(deps, args)` — buffers to JSONL unless
-  `confirmed:true`, in which case posts to `pulls.createReviewComment`.
+- `createInlineComment(deps, args)` — appends every model-authored finding to
+  the action buffer. Model-authored comments cannot bypass host validation.
 - `updateTrackingComment(deps, args)` — updates the env-pinned `comment_id`
   via `issues.updateComment`. Arg-level `comment_id` is structurally
   inaccessible (TypeScript signature only takes `{body}`).
@@ -135,9 +138,9 @@ names with `elek_review_*`.
 ### `src/entrypoints/post-buffered.ts` — post-step drain
 
 `postBuffered(deps)` reads the JSONL buffer line-by-line, skips entries
-with `confirmed:false` (explicit opt-out), optionally validates file/line
-anchors against `pulls.listFiles` patch hunks, and posts each survivor via
-`pulls.createReviewComment`. Caches PR head SHA fetch failures so a bad token
+with `confirmed:false` (explicit opt-out), validates file/line
+anchors against `pulls.listFiles` patch hunks, and posts survivors as a grouped
+review when available, with `pulls.createReviewComment` fallback. Caches PR head SHA fetch failures so a bad token
 doesn't amplify into N rate-limit hits. Returns `{posted, skipped, failed}`.
 
 ## Data flow for the typical PR review
@@ -166,7 +169,7 @@ sequenceDiagram
         Pi-->>Run: tool_execution_start (flip checkbox)
         Run->>Octo: updateComment(progress body) [rate-limited 3s]
         Pi->>MCP: mcp({tool: "elek_review_create_inline_comment", …})
-        MCP->>Buf: append entry (or post immediately if confirmed:true)
+        MCP->>Buf: append entry for host validation
         Pi-->>Run: tool_execution_end
     end
 

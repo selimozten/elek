@@ -275,7 +275,7 @@ describe("createInlineComment", () => {
     expect(calls.length).toBe(0);
   });
 
-  it("posts a single-line review comment when confirmed=true", async () => {
+  it("buffers a single-line review comment when confirmed=true", async () => {
     const { deps, calls, buffer } = makeDeps();
 
     const result = await createInlineComment(deps, {
@@ -286,29 +286,18 @@ describe("createInlineComment", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(buffer.length).toBe(0);
-
-    const post = calls.find((c) => c.method === "pulls.createReviewComment");
-    expect(post).toBeDefined();
-    const params = post!.args as Record<string, unknown>;
-    expect(params).toMatchObject({
-      owner: "octo",
-      repo: "repo",
-      pull_number: 42,
+    expect(buffer.length).toBe(1);
+    expect(calls.length).toBe(0);
+    expect(JSON.parse(buffer[0])).toMatchObject({
       path: "src/x.ts",
       line: 10,
-      side: "RIGHT",
-      commit_id: "deadbeef", // pulled from PR head
+      body: "nit: rename foo to bar",
+      confirmed: true,
     });
-    expect(params.body).toContain("nit: rename foo to bar");
-    expect(params.body).toContain("<!-- elek-finding:v1 id=");
-    // single-line — start_line / start_side must NOT be present
-    expect(params.start_line).toBeUndefined();
-    expect(params.start_side).toBeUndefined();
   });
 
-  it("posts a multi-line review comment when startLine and line are both set", async () => {
-    const { deps, calls } = makeDeps();
+  it("buffers a multi-line review comment when startLine and line are both set", async () => {
+    const { deps, calls, buffer } = makeDeps();
 
     await createInlineComment(deps, {
       path: "src/x.ts",
@@ -319,20 +308,18 @@ describe("createInlineComment", () => {
       confirmed: true,
     });
 
-    const post = calls.find((c) => c.method === "pulls.createReviewComment");
-    expect(post).toBeDefined();
-    const params = post!.args as Record<string, unknown>;
-    expect(params).toMatchObject({
+    expect(calls.length).toBe(0);
+    expect(JSON.parse(buffer[0])).toMatchObject({
       path: "src/x.ts",
-      start_line: 15,
-      start_side: "LEFT",
+      startLine: 15,
       line: 22,
       side: "LEFT",
+      confirmed: true,
     });
   });
 
-  it("skips pulls.get() when commit_id is provided (saves an API call)", async () => {
-    const { deps, calls } = makeDeps();
+  it("preserves commit_id without making a live GitHub API call", async () => {
+    const { deps, calls, buffer } = makeDeps();
 
     await createInlineComment(deps, {
       path: "src/x.ts",
@@ -342,49 +329,8 @@ describe("createInlineComment", () => {
       confirmed: true,
     });
 
-    // Only the createReviewComment call should fire — pulls.get is unnecessary.
-    expect(calls.length).toBe(1);
-    expect(calls[0].method).toBe("pulls.createReviewComment");
-  });
-
-  it("uses an explicit commit_id over the PR head SHA", async () => {
-    const { deps, calls } = makeDeps();
-
-    await createInlineComment(deps, {
-      path: "src/x.ts",
-      body: "comment",
-      line: 5,
-      commit_id: "cafef00d",
-      confirmed: true,
-    });
-
-    const post = calls.find((c) => c.method === "pulls.createReviewComment");
-    const params = post!.args as Record<string, unknown>;
-    expect(params.commit_id).toBe("cafef00d");
-  });
-
-  it("returns {ok:false} with the error message when octokit rejects", async () => {
-    const { deps } = makeDeps({
-      octokit: {
-        pulls: {
-          get: async () => ({ data: { head: { sha: "x" } } }),
-          createReviewComment: async () => {
-            throw new Error("Validation Failed: line 999 not in diff");
-          },
-        },
-        issues: { updateComment: async () => ({ data: { id: 1, html_url: "u" } }) },
-      },
-    });
-
-    const result = await createInlineComment(deps, {
-      path: "src/x.ts",
-      body: "b",
-      line: 999,
-      confirmed: true,
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("Validation Failed");
+    expect(calls.length).toBe(0);
+    expect(JSON.parse(buffer[0]).commit_id).toBe("cafef00d");
   });
 
   it("strips GitHub token-shaped strings from the body before buffering", async () => {
@@ -416,8 +362,8 @@ describe("createInlineComment", () => {
     expect(calls.length).toBe(0);
   });
 
-  it("strips GitHub token-shaped strings from the body before posting", async () => {
-    const { deps, calls } = makeDeps();
+  it("strips GitHub token-shaped strings before buffering confirmed findings", async () => {
+    const { deps, calls, buffer } = makeDeps();
 
     await createInlineComment(deps, {
       path: "src/x.ts",
@@ -426,10 +372,10 @@ describe("createInlineComment", () => {
       confirmed: true,
     });
 
-    const post = calls.find((c) => c.method === "pulls.createReviewComment");
-    const params = post!.args as Record<string, unknown>;
-    expect(params.body).not.toContain("github_pat_");
-    expect(params.body).toContain("[REDACTED]");
+    expect(calls.length).toBe(0);
+    const entry = JSON.parse(buffer[0]);
+    expect(entry.body).not.toContain("github_pat_");
+    expect(entry.body).toContain("[REDACTED]");
   });
 
   it("preserves the full set of fields when buffering", async () => {

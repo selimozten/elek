@@ -73,7 +73,7 @@ const server = new McpServer({ name: "elek Review Server", version: "0.1.0" });
 
 server.tool(
   "create_inline_comment",
-  "Post a code-review comment on a specific line or line range in the PR diff. Use suggestion blocks (```suggestion) for actionable fixes. Without confirmed=true the call is buffered and posted by the action's post-step.",
+  "Queue a code-review comment on a specific line or line range in the PR diff. The action validates the diff anchor and suppresses duplicates before posting. Use suggestion blocks (```suggestion) for actionable fixes.",
   {
     path: z.string().describe("File path being reviewed"),
     body: z.string().describe("Markdown comment body. Code suggestions: ```suggestion ... ```"),
@@ -81,7 +81,7 @@ server.tool(
     startLine: z.number().int().nonnegative().optional().describe("Start line for multi-line"),
     side: z.enum(["LEFT", "RIGHT"]).optional().default("RIGHT"),
     commit_id: z.string().optional().describe("Specific commit SHA; defaults to PR head"),
-    confirmed: z.boolean().optional().describe("Set true ONLY for final, intentional review comments"),
+    confirmed: z.boolean().optional().describe("Deprecated compatibility field. false opts out; true is still host-validated."),
   },
   async (args) => asMcpResult(await createInlineComment(deps, args)),
 );

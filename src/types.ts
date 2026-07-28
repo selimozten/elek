@@ -33,8 +33,14 @@ export interface ActionInputs {
   reviewStrategy: string;
   /** Optional comma-separated model specs for reviewer lenses. */
   reviewModels: string;
+  /** Optional comma-separated built-in lens IDs for multi-agent reviews. */
+  reviewLenses?: string;
   /** Optional number of parallel reviewer agents for thermos strategy. */
   reviewAgentCount?: number;
+  /** Optional model spec for the independent advisor audit. */
+  advisorModel?: string;
+  /** Optional thinking level for the independent advisor audit. */
+  advisorThinking?: string;
   /** Optional model spec for the final orchestrator/validator. */
   validatorModel: string;
   /** Optional thinking level for the final orchestrator/validator. */

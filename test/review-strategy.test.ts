@@ -6,6 +6,7 @@ import {
   downgradeReviewStrategy,
   parseModelList,
   parseModelSpec,
+  parseReviewLensList,
   resolveReviewPlan,
   resolveReviewPlanSupport,
   resolveReviewStrategy,
@@ -34,7 +35,10 @@ const baseInputs: ActionInputs = {
   mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
+  reviewLenses: "",
   reviewAgentCount: undefined,
+  advisorModel: "",
+  advisorThinking: "",
   validatorModel: "",
   validatorThinking: "",
   severityThreshold: "",
@@ -133,6 +137,57 @@ describe("review strategy", () => {
     expect(plan.validatorReview?.model.label).toBe("deepseek/deepseek-v4-pro");
   });
 
+  it("uses a distinct advisor model without changing the final validator", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "crosscheck",
+      advisorModel: "openai/gpt-5.6-sol",
+      validatorModel: "together/moonshotai/Kimi-K3",
+    });
+
+    expect(plan.validatorReview).toMatchObject({
+      role: "validator-review",
+      lens: { id: "advisor-independent-audit" },
+      model: { label: "openai/gpt-5.6-sol" },
+    });
+    expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
+  });
+
+  it("selects a bounded domain-specific lens council", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "thermos",
+      reviewLenses: "security-correctness,contract-drift,mobile-runtime",
+      reviewAgentCount: 8,
+    });
+
+    expect(plan.jobs.map((job) => job.lens.id)).toEqual([
+      "security-correctness",
+      "contract-drift",
+      "mobile-runtime",
+    ]);
+  });
+
+  it("rejects unknown review lens identifiers and removes duplicates", () => {
+    expect(parseReviewLensList("contract-drift, contract-drift, mobile-runtime").map((lens) => lens.id)).toEqual([
+      "contract-drift",
+      "mobile-runtime",
+    ]);
+    expect(() => parseReviewLensList("contract-drift,not-a-lens")).toThrow(
+      "Unknown review_lenses: not-a-lens",
+    );
+  });
+
+  it("rejects an explicit lens council that exceeds the strategy limit", () => {
+    expect(() => resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "crosscheck",
+      reviewLenses: "security-correctness,contract-drift,mobile-runtime",
+    })).toThrow(
+      "review_strategy=crosscheck supports at most 2 review_lenses, received 3",
+    );
+  });
+
   it("builds a council plan with four lenses and cycles provided models", () => {
     const plan = resolveReviewPlan({
       ...baseInputs,
@@ -156,7 +211,7 @@ describe("review strategy", () => {
     expect(plan.validatorReview?.role).toBe("validator-review");
   });
 
-  it("builds a thermos plan with N parallel audit agents and validator self-review", () => {
+  it("builds a thermos plan with N parallel audit agents and advisor review", () => {
     const plan = resolveReviewPlan({
       ...baseInputs,
       reviewStrategy: "thermos",
@@ -327,6 +382,34 @@ describe("review strategy", () => {
     expect(result.support.enabled).toBe(false);
     expect(estimatedStrategies).toEqual(["council", "crosscheck"]);
     expect(result.events.filter((event) => event.message.includes("downgrading")).length).toBe(2);
+  });
+
+  it("reduces custom thermos lenses deliberately during automatic budget downgrades", () => {
+    const inputs = {
+      ...baseInputs,
+      reviewStrategy: "thermos",
+      reviewLenses: "security-correctness,side-effects,devex-config,contract-drift,mobile-runtime",
+      maxCostUsd: 0.05,
+    };
+    const estimatedStrategies: string[] = [];
+    const result = selectReviewPlanWithinBudget({
+      inputs,
+      initialPlan: resolveReviewPlan(inputs),
+      supportContext: { isPR: true, mode: "review" },
+      estimateCosts: (plan) => {
+        estimatedStrategies.push(plan.strategy);
+        return [reviewCost(0.10)];
+      },
+    });
+
+    expect(result.plan.strategy).toBe("solo");
+    expect(result.support.enabled).toBe(false);
+    expect(estimatedStrategies).toEqual(["thermos", "council", "crosscheck"]);
+    expect(result.events.filter((event) => event.message.includes("reducing review_lenses")).map((event) => event.message)).toEqual([
+      "[cost] reducing review_lenses from 5 to 4 for automatic downgrade to council.",
+      "[cost] reducing review_lenses from 4 to 2 for automatic downgrade to crosscheck.",
+      "[cost] reducing review_lenses from 2 to 0 for automatic downgrade to solo.",
+    ]);
   });
 
   it("downgrades when the known priced portion already exceeds the budget despite unknown rates", () => {
@@ -517,7 +600,8 @@ describe("review strategy", () => {
     expect(prompt).toContain("omitted or disabled review-cost budget");
     expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
     expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
-    expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
+    expect(prompt).toContain("Optional fields: `side`, `startLine`, and `commit_id`.");
+    expect(prompt).toContain("validates its current diff anchor");
     expect(prompt).toContain("`args` is a JSON STRING");
     expect(prompt).toContain("Elek can post host-side inline fallbacks if tool delivery fails.");
     expect(prompt).toContain("only this orchestrator run can publish final findings");

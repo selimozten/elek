@@ -38,7 +38,10 @@ const baseInputs: ActionInputs = {
   mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
+  reviewLenses: "",
   reviewAgentCount: undefined,
+  advisorModel: "",
+  advisorThinking: "",
   validatorModel: "",
   validatorThinking: "",
   severityThreshold: "",
@@ -56,7 +59,10 @@ describe("elek config", () => {
       `
 review_strategy: crosscheck
 review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
+review_lenses: security-correctness,contract-drift,mobile-runtime
 review_agent_count: 5
+advisor_model: openai/gpt-5.6-sol
+advisor_thinking: medium
 validator_model: deepseek/deepseek-v4-pro
 validator_thinking: medium
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4
@@ -81,7 +87,10 @@ instructions:
     expect(config).toEqual({
       reviewStrategy: "crosscheck",
       reviewModels: "deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code",
+      reviewLenses: "security-correctness,contract-drift,mobile-runtime",
       reviewAgentCount: 5,
+      advisorModel: "openai/gpt-5.6-sol",
+      advisorThinking: "medium",
       validatorModel: "deepseek/deepseek-v4-pro",
       validatorThinking: "medium",
       costRates: "openrouter/moonshotai/kimi-k2.7-code=0.95:4",
@@ -239,7 +248,10 @@ instructions:
     const config: ElekConfig = {
       reviewStrategy: "council",
       reviewModels: "openrouter/model-a",
+      reviewLenses: "security-correctness,contract-drift",
       reviewAgentCount: 6,
+      advisorModel: "openai/gpt-5.6-sol",
+      advisorThinking: "medium",
       validatorModel: "deepseek/model-b",
       validatorThinking: "medium",
       costRates: "deepseek/model-b=1:2",
@@ -253,7 +265,10 @@ instructions:
     expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "" }, config)).toMatchObject({
       reviewStrategy: "council",
       reviewModels: "openrouter/model-a",
+      reviewLenses: "security-correctness,contract-drift",
       reviewAgentCount: 6,
+      advisorModel: "openai/gpt-5.6-sol",
+      advisorThinking: "medium",
       validatorModel: "deepseek/model-b",
       validatorThinking: "medium",
       severityThreshold: "",
@@ -274,7 +289,10 @@ instructions:
       ...baseInputs,
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
+      reviewLenses: "risk,design",
       reviewAgentCount: 3,
+      advisorModel: "explicit/advisor",
+      advisorThinking: "low",
       validatorModel: "explicit/validator",
       validatorThinking: "low",
       severityThreshold: "critical",
@@ -285,7 +303,10 @@ instructions:
     }, config)).toMatchObject({
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
+      reviewLenses: "risk,design",
       reviewAgentCount: 3,
+      advisorModel: "explicit/advisor",
+      advisorThinking: "low",
       validatorModel: "explicit/validator",
       validatorThinking: "low",
       severityThreshold: "critical",
@@ -300,7 +321,10 @@ instructions:
     expect(mergeBasePolicyWithWorkspaceGuidance({
       reviewStrategy: "council",
       reviewModels: "openrouter/base-reviewer",
+      reviewLenses: "security-correctness,side-effects",
       reviewAgentCount: 5,
+      advisorModel: "openai/base-advisor",
+      advisorThinking: "medium",
       validatorModel: "deepseek/base-validator",
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
@@ -315,7 +339,10 @@ instructions:
     }, {
       reviewStrategy: "solo",
       reviewModels: "openrouter/pr-reviewer",
+      reviewLenses: "risk,design",
       reviewAgentCount: 2,
+      advisorModel: "openai/pr-advisor",
+      advisorThinking: "high",
       validatorModel: "deepseek/pr-validator",
       validatorThinking: "high",
       costRates: "openrouter/pr-reviewer=10:20",
@@ -330,7 +357,10 @@ instructions:
     })).toEqual({
       reviewStrategy: "council",
       reviewModels: "openrouter/base-reviewer",
+      reviewLenses: "security-correctness,side-effects",
       reviewAgentCount: 5,
+      advisorModel: "openai/base-advisor",
+      advisorThinking: "medium",
       validatorModel: "deepseek/base-validator",
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
@@ -820,7 +850,8 @@ instructions:
       })).toBe(
         "[config] audit | path=.elek.yml | source=checked-out-workspace | " +
           "review_strategy=crosscheck | review_models=openrouter/model-a,deepseek/model-b | " +
-          "review_agent_count=5 | validator_model=deepseek/model-b | validator_thinking=medium | " +
+          "review_lenses=(unset) | review_agent_count=5 | advisor_model=(unset) | " +
+          "advisor_thinking=(unset) | validator_model=deepseek/model-b | validator_thinking=medium | " +
           "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | max_cost_usd=0.3 | " +
           "max_council_changed_lines=200000 | max_crosscheck_changed_lines=0 | " +
           "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
@@ -861,7 +892,9 @@ instructions:
         maxCrosscheckChangedLines: 0,
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
-          "effective_review_agent_count=5 | effective_validator_model=deepseek/model-b | " +
+          "effective_review_lenses=(strategy defaults) | effective_review_agent_count=5 | " +
+          "effective_advisor_model=(validator model) | " +
+          "effective_advisor_thinking=(validator/reviewer setting) | effective_validator_model=deepseek/model-b | " +
           "effective_validator_thinking=medium | effective_severity_threshold=critical | " +
           "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3 | " +
           "effective_max_council_changed_lines=200000 | effective_max_crosscheck_changed_lines=0",

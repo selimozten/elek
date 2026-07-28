@@ -98,7 +98,8 @@ export interface ReviewCommentEntry {
 
 /**
  * Build the parameter shape for octokit.pulls.createReviewComment.
- * Used by both the live `confirmed:true` path and the post-step.
+ * Used by the host-controlled post-step after diff-anchor and deduplication
+ * validation.
  */
 export function buildReviewCommentParams(
   entry: ReviewCommentEntry,
@@ -172,47 +173,22 @@ export async function createInlineComment(
     };
   }
 
-  if (args.confirmed !== true) {
-    const ts = (deps.now ?? (() => new Date()))().toISOString();
-    deps.appendBuffer(
-      JSON.stringify({
-        ts,
-        path: args.path,
-        line: args.line,
-        startLine: args.startLine,
-        side: args.side,
-        commit_id: args.commit_id,
-        body: safeBody,
-        confirmed: args.confirmed,
-      }) + "\n",
-    );
-    return { ok: true, data: { buffered: true } };
-  }
-
-  // confirmed === true → post directly via the GitHub API
-  try {
-    // Skip the pulls.get() round trip when the model already supplied a
-    // commit_id — saves one API call (and one possible rate-limit hit) per
-    // confirmed inline comment.
-    let fallbackSha = "";
-    if (!args.commit_id) {
-      const pr = await deps.octokit.pulls.get({
-        owner: deps.env.repoOwner,
-        repo: deps.env.repoName,
-        pull_number: parseInt(deps.env.prNumber, 10),
-      });
-      fallbackSha = pr.data.head.sha;
-    }
-
-    const params = buildReviewCommentParams(
-      { ...args, body: safeBody },
-      deps.env,
-      fallbackSha,
-    );
-
-    const result = await deps.octokit.pulls.createReviewComment(params);
-    return { ok: true, data: result.data };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
+  // Always buffer model-authored comments. The host post-step validates the
+  // current diff anchor and suppresses duplicates before any public write.
+  // `confirmed:false` remains an explicit opt-out; `confirmed:true` is
+  // accepted for backwards compatibility but never bypasses host validation.
+  const ts = (deps.now ?? (() => new Date()))().toISOString();
+  deps.appendBuffer(
+    JSON.stringify({
+      ts,
+      path: args.path,
+      line: args.line,
+      startLine: args.startLine,
+      side: args.side,
+      commit_id: args.commit_id,
+      body: safeBody,
+      confirmed: args.confirmed,
+    }) + "\n",
+  );
+  return { ok: true, data: { buffered: true } };
 }
