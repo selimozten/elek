@@ -6,9 +6,7 @@ import { getGitDiff } from "./git.js";
 import { mcpToolGuidance } from "./mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
-import { formatChangedFilesForPrompt } from "../review/diff-context.js";
-
-const CHANGED_FILES_PROMPT_CHARS = 200_000;
+import { diffPromptBudgetChars, formatChangedFilesForPrompt } from "../review/diff-context.js";
 
 type MinimalOctokit = {
   rest: {
@@ -180,9 +178,16 @@ export function buildPrompt(
 
   // ── Diff (PR only) ──
   if (data.diff) {
+    const reservedChars =
+      data.body.length +
+      data.comments.join("\n").length +
+      data.reviewComments.join("\n").length +
+      (options.repoConfig ? formatConfigPromptBlock(options.repoConfig).join("\n").length : 0) +
+      userRequest.length +
+      30_000;
     parts.push("<changed_files>");
     parts.push("```diff");
-    parts.push(formatChangedFilesForPrompt(data.diff, CHANGED_FILES_PROMPT_CHARS));
+    parts.push(formatChangedFilesForPrompt(data.diff, diffPromptBudgetChars(modelLabel, reservedChars)));
     parts.push("```");
     parts.push("</changed_files>");
     parts.push("");

@@ -34,17 +34,6 @@ function parseMaxCostInput(value: string): number | null | undefined {
   return parsed;
 }
 
-function parseNonNegativeIntegerInput(name: string, value: string): number | undefined {
-  const normalized = value.trim();
-  if (!normalized) return undefined;
-  const parsed = Number(normalized);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    core.warning(`Ignoring invalid ${name} input: ${normalized}`);
-    return undefined;
-  }
-  return parsed;
-}
-
 function parseReviewAgentCountInput(value: string): number | undefined {
   const normalized = value.trim();
   if (!normalized) return undefined;
@@ -97,14 +86,6 @@ export function parseInputs(): ActionInputs {
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",
     maxCostUsd: parseMaxCostInput(core.getInput("max_cost_usd")),
-    maxCouncilChangedLines: parseNonNegativeIntegerInput(
-      "max_council_changed_lines",
-      core.getInput("max_council_changed_lines"),
-    ),
-    maxCrosscheckChangedLines: parseNonNegativeIntegerInput(
-      "max_crosscheck_changed_lines",
-      core.getInput("max_crosscheck_changed_lines"),
-    ),
   };
 }
 

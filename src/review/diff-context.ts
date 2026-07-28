@@ -7,17 +7,25 @@ export interface ChangedFilePatch {
   patch: string;
 }
 
-const MAX_OVERVIEW_FILES = 250;
 const MIN_FILE_SLICE_CHARS = 700;
-const MAX_FILE_SLICE_CHARS = 4_000;
-const DEFAULT_FULL_DIFF_THRESHOLD_CHARS = 80_000;
+const MAX_FILE_SLICE_CHARS = 64_000;
+const DEFAULT_MODEL_INPUT_BUDGET_CHARS = 320_000;
+const MIN_DIFF_PROMPT_CHARS = 8_000;
 
-export interface DiffPromptOptions {
-  /**
-   * Full diffs larger than this use representative slices. The hard maxChars
-   * remains the absolute ceiling; this threshold keeps model behavior tool-first.
-   */
-  fullDiffThresholdChars?: number;
+/**
+ * Approximate full-input budgets after reserving model output and provider
+ * framing. Code-heavy prompts average about three characters per token.
+ */
+export function modelInputBudgetChars(modelLabel: string): number {
+  const normalized = modelLabel.toLowerCase();
+  if (/kimi[-_.]?k3/.test(normalized)) return 2_700_000;
+  if (/gpt[-_.]?5[.-]?6/.test(normalized)) return 700_000;
+  if (/glm[-_.]?5[.-]?2/.test(normalized)) return 540_000;
+  return DEFAULT_MODEL_INPUT_BUDGET_CHARS;
+}
+
+export function diffPromptBudgetChars(modelLabel: string, reservedChars = 0): number {
+  return Math.max(MIN_DIFF_PROMPT_CHARS, modelInputBudgetChars(modelLabel) - Math.max(0, reservedChars));
 }
 
 export function parseUnifiedDiffFiles(diff: string): ChangedFilePatch[] {
@@ -53,8 +61,7 @@ export function parseUnifiedDiffFiles(diff: string): ChangedFilePatch[] {
 
 export function formatChangedFilesForPrompt(
   diff: string | undefined,
-  maxChars = 200_000,
-  options: DiffPromptOptions = {},
+  maxChars = DEFAULT_MODEL_INPUT_BUDGET_CHARS,
 ): string {
   if (!diff) return "(diff unavailable; inspect files from the workspace if needed)";
 
@@ -63,11 +70,7 @@ export function formatChangedFilesForPrompt(
 
   const overview = formatFileOverview(files);
   const fullDiffWithOverview = `${overview}\n\n# Full diff\n${diff}`;
-  const fullDiffThreshold = options.fullDiffThresholdChars ?? DEFAULT_FULL_DIFF_THRESHOLD_CHARS;
-  if (
-    fullDiffWithOverview.length <= maxChars &&
-    fullDiffWithOverview.length <= fullDiffThreshold
-  ) {
+  if (fullDiffWithOverview.length <= maxChars) {
     return fullDiffWithOverview;
   }
 
@@ -133,16 +136,12 @@ function countPatchChanges(patch: string): { additions: number; deletions: numbe
 }
 
 function formatFileOverview(files: ChangedFilePatch[]): string {
-  const shown = files.slice(0, MAX_OVERVIEW_FILES);
   const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
   const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
   const lines = [
     `# Changed file overview (${files.length} file${files.length === 1 ? "" : "s"}, +${totalAdditions}/-${totalDeletions})`,
-    ...shown.map((file) => `# - ${file.path} (${file.status}, +${file.additions}/-${file.deletions})`),
+    ...files.map((file) => `# - ${file.path} (${file.status}, +${file.additions}/-${file.deletions})`),
   ];
-  if (files.length > shown.length) {
-    lines.push(`# - ... ${files.length - shown.length} more file(s)`);
-  }
   return lines.join("\n");
 }
 

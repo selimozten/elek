@@ -41,9 +41,9 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - Estimated token/cost reporting through `show_cost`, `cost_rates`, and outputs.
 - Cost controls through `max_cost_usd`, including conservative downgrades from
   expensive multi-lens reviews when known prompt/input estimates exceed budget.
-- Strategy size guards through `max_council_changed_lines` and
-  `max_crosscheck_changed_lines`, including automatic fallback for large PRs
-  before model calls start.
+- Model-aware diff context budgets that preserve the requested review strategy
+  and use the available GLM, GPT, or Kimi context window before falling back to
+  per-file slices.
 - Zero-dependency `elek-init` setup helper that creates a starter workflow and
   repo review policy.
 - Machine-readable review summary JSON with run duration, model labels,

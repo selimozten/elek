@@ -227,8 +227,6 @@ with:
   review_models: together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro,together/Qwen/Qwen3.7-Max
   validator_model: openai/gpt-5.5
   validator_thinking: medium
-  max_council_changed_lines: 200000
-  max_crosscheck_changed_lines: 200000
 ```
 
 For expensive models, a good pattern is cheap/open parallel reviewers at high or
@@ -237,8 +235,10 @@ During initial testing, omit `max_cost_usd` so the full fan-out runs and tune a
 budget later from observed review summaries. If the selected multi-lens
 strategy already exceeds `max_cost_usd` before output tokens are counted, elek
 downgrades to the next cheaper strategy.
-Changed-line thresholds do not downgrade the strategy; large PRs keep their
-requested review coverage and elek slices prompt diff context by file.
+Changed-line counts never downgrade or skip review coverage. elek uses the
+selected model's available context window and includes the full diff whenever
+it fits, falling back to a complete file overview plus per-file slices only
+when the model context would otherwise overflow.
 
 ## Cross-Model Review
 
@@ -325,8 +325,6 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `show_cost` | `true` | Show estimated token usage and review cost in comments/logs; outputs are always set |
 | `cost_rates` | _(empty)_ | Optional price overrides as `model=inputPerMillion:outputPerMillion` |
 | `max_cost_usd` | _(.elek.yml or unset)_ | Soft cost cap; use `0`, `off`, or `none` to disable an inherited cap |
-| `max_council_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `council`/`thermos`; `0` disables |
-| `max_crosscheck_changed_lines` | _(.elek.yml or default)_ | Changed-line warning threshold for `crosscheck`; `0` disables |
 | `actor_filter` | _(empty)_ | Comma-separated allowlist of usernames; empty allows repository owners, members, and collaborators |
 | `allowed_bots` | _(empty)_ | Comma-separated bot logins, or `*` for all |
 | `sticky_comment` | `true` | Reuse the same tracking comment across pushes |
@@ -445,8 +443,6 @@ advisor_thinking: medium
 validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
 max_cost_usd: 0.05
-max_council_changed_lines: 200000
-max_crosscheck_changed_lines: 200000
 severity_threshold: important
 
 knowledge_paths:
@@ -465,9 +461,8 @@ instructions:
 
 Supported keys: `review_strategy`, `review_models`, `review_lenses`,
 `review_agent_count`, `advisor_model`, `advisor_thinking`, `validator_model`,
-`validator_thinking`, `cost_rates`, `max_cost_usd`, `max_council_changed_lines`,
-`max_crosscheck_changed_lines`, `severity_threshold`, `knowledge_paths`,
-`ignore_paths`, and `instructions`.
+`validator_thinking`, `cost_rates`, `max_cost_usd`, `severity_threshold`,
+`knowledge_paths`, `ignore_paths`, and `instructions`.
 `cost_rates` uses the same `model=inputPerMillion:outputPerMillion` format as
 the workflow input.
 `severity_threshold` accepts `critical`, `important`, or `minor`. Severity
@@ -574,8 +569,6 @@ with:
   show_cost: true
   cost_rates: openai/gpt-5.5=5:30,custom/provider-model=1.25:10
   max_cost_usd: "0.10"
-  max_council_changed_lines: 200000
-  max_crosscheck_changed_lines: 200000
 ```
 
 `max_cost_usd` is a soft guard for strategy selection. elek estimates the
@@ -586,13 +579,11 @@ minimum estimate already exceeds the cap, it downgrades `thermos` to
 Set `max_cost_usd: 0`, `off`, or `none` to explicitly disable a cap inherited
 from `.elek.yml` while testing a workflow.
 
-Changed-line thresholds run before cost estimates and log a warning only. By
-default, `thermos` and `council` warn above 200,000 changed diff lines and
-`crosscheck` warns above 200,000. Large PRs keep their requested strategy; elek
-includes a full file overview and slices diff context by file so early large
-docs/workflow changes do not hide later application files. Override with
-`max_council_changed_lines` and `max_crosscheck_changed_lines`, or set either
-value to `0` to disable that warning.
+Diff context is model-aware. elek budgets approximately 540K prompt characters
+for GLM-5.2, 700K for GPT-5.6, and 2.7M for Kimi K3 after reserving output and
+provider framing. The full diff is included whenever it fits. Context-window
+overflow keeps the complete file overview and uses large per-file slices; it
+never reduces the requested reviewer strategy or lens count.
 
 Running two cheap models in crosscheck mode often costs less than one premium
 validator while surfacing disagreements that a single pass misses.

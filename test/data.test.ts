@@ -111,7 +111,7 @@ describe("buildPrompt", () => {
   });
 
   it("truncates a giant unstructured diff with a prompt-budget marker", () => {
-    const big = Array.from({ length: 20_000 }, (_, i) => `+ line ${i}`).join("\n");
+    const big = Array.from({ length: 50_000 }, (_, i) => `+ line ${i}`).join("\n");
     const out = buildPrompt({ ...baseData, diff: big }, "", "m", "j");
     expect(out).toContain("... diff truncated for prompt budget");
   });

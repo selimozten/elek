@@ -29,8 +29,6 @@ const ENV_KEYS = [
   "INPUT_ADVISOR_THINKING",
   "INPUT_VALIDATOR_THINKING",
   "INPUT_MAX_COST_USD",
-  "INPUT_MAX_COUNCIL_CHANGED_LINES",
-  "INPUT_MAX_CROSSCHECK_CHANGED_LINES",
   "INPUT_RUN_TIMEOUT_SECONDS",
 ];
 const saved: Record<string, string | undefined> = {};
@@ -219,8 +217,6 @@ describe("parseInputs", () => {
     process.env.INPUT_ADVISOR_THINKING = "medium";
     process.env.INPUT_VALIDATOR_THINKING = "medium";
     process.env.INPUT_MAX_COST_USD = "0.25";
-    process.env.INPUT_MAX_COUNCIL_CHANGED_LINES = "1500";
-    process.env.INPUT_MAX_CROSSCHECK_CHANGED_LINES = "0";
 
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
@@ -231,8 +227,6 @@ describe("parseInputs", () => {
     expect(inputs.advisorThinking).toBe("medium");
     expect(inputs.validatorThinking).toBe("medium");
     expect(inputs.maxCostUsd).toBe(0.25);
-    expect(inputs.maxCouncilChangedLines).toBe(1500);
-    expect(inputs.maxCrosscheckChangedLines).toBe(0);
   });
 
   it("can explicitly disable inherited max_cost_usd action inputs", () => {
@@ -253,15 +247,6 @@ describe("parseInputs", () => {
     for (const value of ["0", "-1", "1.5", "9", "abc", ""]) {
       process.env.INPUT_REVIEW_AGENT_COUNT = value;
       expect(parseInputs().reviewAgentCount).toBeUndefined();
-    }
-  });
-
-  it("rejects invalid changed-line guard inputs", () => {
-    for (const value of ["-1", "1.5", "abc", "Infinity"]) {
-      process.env.INPUT_MAX_COUNCIL_CHANGED_LINES = value;
-      process.env.INPUT_MAX_CROSSCHECK_CHANGED_LINES = value;
-      expect(parseInputs().maxCouncilChangedLines).toBeUndefined();
-      expect(parseInputs().maxCrosscheckChangedLines).toBeUndefined();
     }
   });
 

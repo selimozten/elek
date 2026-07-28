@@ -204,21 +204,6 @@ inputs:
       disable an inherited repo cap.
     required: false
     default: ""
-  max_council_changed_lines:
-    description: >
-      Changed-line warning threshold for council/thermos. Large PRs keep
-      their requested strategy; elek slices diff context by file instead.
-      Empty uses elek's default warning threshold; 0 disables the warning.
-    required: false
-    default: ""
-  max_crosscheck_changed_lines:
-    description: >
-      Changed-line warning threshold for crosscheck. Large PRs keep their
-      requested strategy; elek slices diff context by file instead.
-      Empty uses elek's default warning threshold; 0 disables the warning.
-    required: false
-    default: ""
-
 outputs:
   conclusion:
     description: "Execution conclusion: success or failure"
@@ -320,8 +305,6 @@ runs:
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}
         INPUT_MAX_COST_USD: ${{ inputs.max_cost_usd }}
-        INPUT_MAX_COUNCIL_CHANGED_LINES: ${{ inputs.max_council_changed_lines }}
-        INPUT_MAX_CROSSCHECK_CHANGED_LINES: ${{ inputs.max_crosscheck_changed_lines }}
 
         # ── Runtime ──
         GITHUB_RUN_ID: ${{ github.run_id }}
