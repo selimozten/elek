@@ -4,6 +4,7 @@ import {
   buildSynthesisPrompt,
   countChangedDiffLines,
   downgradeReviewStrategy,
+  failedRequiredReviewLensIds,
   parseModelList,
   parseModelSpec,
   parseReviewLensList,
@@ -46,6 +47,32 @@ const baseInputs: ActionInputs = {
   costRates: "",
   maxCostUsd: undefined,
 };
+
+describe("required review coverage", () => {
+  const lens = (id: string) => ({ id, title: id, focus: id });
+
+  it("fails closed for failed reviewer lanes but not an optional advisor lane", () => {
+    expect(
+      failedRequiredReviewLensIds([
+        { job: { lens: lens("risk"), role: "reviewer" }, conclusion: "failure" },
+        { job: { lens: lens("tests"), role: "reviewer" }, conclusion: "success" },
+        {
+          job: { lens: lens("advisor-independent-audit"), role: "validator-review" },
+          conclusion: "failure",
+        },
+      ]),
+    ).toEqual(["risk"]);
+  });
+
+  it("allows synthesis when all required reviewer lanes succeeded", () => {
+    expect(
+      failedRequiredReviewLensIds([
+        { job: { lens: lens("risk"), role: "reviewer" }, conclusion: "success" },
+        { job: { lens: lens("tests"), role: "reviewer" }, conclusion: "success" },
+      ]),
+    ).toEqual([]);
+  });
+});
 
 const dataFixture: GitHubData = {
   type: "pr",

@@ -55,6 +55,7 @@ import {
   buildLensPrompt,
   buildSynthesisPrompt,
   countChangedDiffLines,
+  failedRequiredReviewLensIds,
   resolveReviewPlan,
   resolveReviewPlanSupport,
   selectReviewPlanWithinBudget,
@@ -551,6 +552,35 @@ async function run(): Promise<void> {
         lensId: job.lens.id,
         lensTitle: job.lens.title,
       }));
+    }
+
+    const failedRequiredLenses = failedRequiredReviewLensIds(
+      lensRuns.map(({ job, lensResult }) => ({
+        job,
+        conclusion: lensResult.conclusion,
+      })),
+    );
+    if (failedRequiredLenses.length > 0) {
+      const failureMessage = `Required review lanes failed: ${failedRequiredLenses.join(", ")}`;
+      if (commentId) {
+        try {
+          await updateTrackingComment(
+            octokit,
+            context,
+            commentId,
+            [
+              spinnerHeader(modelLabel, "review failed"),
+              "",
+              failureMessage,
+              `[View run](${jobRunLink})`,
+            ].join("\n"),
+            trackingModelLabel,
+          );
+        } catch (err) {
+          console.warn("Could not update failed strategy status:", err);
+        }
+      }
+      throw new Error(failureMessage);
     }
 
     const reports = lensRuns.map(({ job, lensResult, lensOutput }) => ({
