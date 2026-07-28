@@ -39,6 +39,17 @@ export interface ReviewPlanSupport {
   warning?: string;
 }
 
+export function failedRequiredReviewLensIds(
+  runs: Array<{
+    job: Pick<ReviewJob, "lens" | "role">;
+    conclusion: "success" | "failure";
+  }>,
+): string[] {
+  return runs
+    .filter(({ job, conclusion }) => job.role !== "validator-review" && conclusion === "failure")
+    .map(({ job }) => job.lens.id);
+}
+
 export interface BudgetPlanEvent {
   level: "log" | "warn";
   message: string;
