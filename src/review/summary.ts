@@ -10,6 +10,7 @@ export interface ReviewRunMetric {
   modelLabel: string;
   conclusion: "success" | "failure";
   turnsUsed: number;
+  providerRetries: number;
   durationSeconds: number;
   inputTokens: number;
   outputTokens: number;
@@ -49,6 +50,7 @@ export function metricFromPiRun(
     modelLabel: result.usage.modelLabel,
     conclusion: result.conclusion,
     turnsUsed: result.turnsUsed,
+    providerRetries: result.providerRetries,
     durationSeconds: roundSeconds(result.durationSeconds),
     inputTokens: result.usage.inputTokens,
     outputTokens: result.usage.outputTokens,

@@ -205,6 +205,7 @@ describe("review cost estimates", () => {
       conclusion: "success",
       output: "ok",
       turnsUsed: 1,
+      providerRetries: 0,
       durationSeconds: 1,
       costUsd: 0.01,
       usage: {

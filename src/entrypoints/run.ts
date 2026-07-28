@@ -592,6 +592,7 @@ async function run(): Promise<void> {
     conclusion: "failure",
     output: "MCP configuration failed",
     turnsUsed: 0,
+    providerRetries: 0,
     durationSeconds: 0,
     costUsd: 0,
     usage: {

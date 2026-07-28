@@ -91,6 +91,27 @@ describe("buildPiArgs", () => {
     expect(args).toContain("--thinking");
     expect(args[args.indexOf("--thinking") + 1]).toBe("xhigh");
   });
+
+  it("appends Elek's noninteractive reviewer contract in review mode", () => {
+    const args = buildPiArgs(baseInputs, "/tmp/prompt.md", false);
+    const promptIndex = args.indexOf("--append-system-prompt");
+
+    expect(promptIndex).toBeGreaterThan(-1);
+    expect(args[promptIndex + 1]).toContain("noninteractive read-only CI");
+    expect(args[promptIndex + 1]).toContain(
+      "Use repository inspection tools only to resolve a specific uncertainty",
+    );
+  });
+
+  it("does not impose the reviewer contract on legacy agent mode", () => {
+    const args = buildPiArgs(
+      { ...baseInputs, mode: "agent" },
+      "/tmp/prompt.md",
+      false,
+    );
+
+    expect(args).not.toContain("--append-system-prompt");
+  });
 });
 
 describe("buildPiEnv", () => {
@@ -162,6 +183,8 @@ describe("runPi", () => {
       "cat <<'JSON'",
       "{\"type\":\"session\",\"id\":\"session-1\"}",
       "{\"type\":\"turn_start\"}",
+      "{\"type\":\"auto_retry_start\",\"attempt\":1,\"maxAttempts\":3,\"delayMs\":1000,\"errorMessage\":\"rate limited\"}",
+      "{\"type\":\"auto_retry_end\",\"success\":true,\"attempt\":1}",
       "{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":1234,\"output\":56,\"cost\":{\"total\":0.00789}},\"stopReason\":\"stop\"}}",
       "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":1234,\"output\":56,\"cost\":{\"total\":0.00789}},\"stopReason\":\"stop\"}]}",
       "JSON",
@@ -188,6 +211,7 @@ describe("runPi", () => {
         modelLabel: "together/moonshotai/Kimi-K2.7-Code",
         source: "provider",
       });
+      expect(result.providerRetries).toBe(1);
       expect(result.costUsd).toBe(0.00789);
     } finally {
       rmSync(dir, { recursive: true, force: true });
