@@ -30,6 +30,45 @@ function assertSafeGitRefName(ref: string, label: string): void {
   }
 }
 
+function assertSafeGitObjectId(objectId: string, label: string): void {
+  if (!/^[0-9a-f]{40,64}$/i.test(objectId)) {
+    throw new Error(`Unsafe ${label}: ${objectId}`);
+  }
+}
+
+function refContainsCommit(ref: string, commit: string): boolean {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", commit, ref], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function refEqualsCommit(ref: string, commit: string): boolean {
+  try {
+    const resolved = execFileSync("git", ["rev-parse", `${ref}^{commit}`], {
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    return resolved.toLowerCase() === commit.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function diffRange(range: string): string | undefined {
+  try {
+    return execFileSync("git", ["diff", range], {
+      encoding: "utf-8",
+      stdio: "pipe",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Configure git authentication using the GitHub token.
  */
@@ -113,56 +152,31 @@ export function pushBranch(branchName: string): void {
 /**
  * Get the git diff between two refs.
  */
-export function getGitDiff(baseRef: string, headRef: string): string {
-  const headFetchRef = process.env.ELEK_HEAD_FETCH_REF || headRef;
+export function getGitDiff(baseRef: string, headRef: string, headSha?: string): string {
   const headRemoteRef = process.env.ELEK_HEAD_REMOTE_REF || headRef;
   assertSafeGitRefName(baseRef, "base ref");
   assertSafeGitRefName(headRef, "head ref");
-  assertSafeGitRefName(headFetchRef, "head fetch ref");
   assertSafeGitRefName(headRemoteRef, "head remote ref");
+  if (headSha) assertSafeGitObjectId(headSha, "head SHA");
 
   // actions/checkout with fetch-depth: 0 already provides the base ref and
   // current PR checkout. Prefer those trusted local refs so read-only review
-  // jobs do not need persisted git credentials merely to build the diff.
-  for (const range of [
-    `origin/${baseRef}...HEAD`,
-    `origin/${baseRef}...origin/${headRemoteRef}`,
-  ]) {
-    try {
-      return execFileSync("git", ["diff", range], {
-        encoding: "utf-8",
-        stdio: "pipe",
-        maxBuffer: 50 * 1024 * 1024,
-      });
-    } catch {
-      // The ref may not exist in shallow or fork checkouts; fetch below.
-    }
+  // jobs do not need persisted git credentials merely to build the diff. A
+  // verified head SHA prevents comment/review events checked out on the
+  // default branch from being mistaken for the PR checkout.
+  if (!headSha || refContainsCommit("HEAD", headSha)) {
+    const localHeadDiff = diffRange(`origin/${baseRef}...HEAD`);
+    if (localHeadDiff !== undefined) return localHeadDiff;
   }
 
-  if (process.env.ELEK_HEAD_FETCH_REF) {
-    git(["fetch", "origin", baseRef, "--depth=100"], { stdio: "pipe" });
-    git(["fetch", "origin", `${headFetchRef}:refs/remotes/origin/${headRemoteRef}`, "--depth=100"], { stdio: "pipe" });
-  } else {
-    // Fetch both refs first
-    git(["fetch", "origin", baseRef, headRef, "--depth=100"], { stdio: "pipe" });
+  if (!headSha || refEqualsCommit(`origin/${headRemoteRef}`, headSha)) {
+    const localRemoteDiff = diffRange(`origin/${baseRef}...origin/${headRemoteRef}`);
+    if (localRemoteDiff !== undefined) return localRemoteDiff;
   }
 
-  try {
-    return execFileSync("git", ["diff", `origin/${baseRef}...origin/${headRemoteRef}`], {
-      encoding: "utf-8",
-      stdio: "pipe",
-      maxBuffer: 50 * 1024 * 1024, // 50MB
-    });
-  } catch {
-    // Fallback to diff against base
-    try {
-      return execFileSync("git", ["diff", `origin/${baseRef}`], {
-        encoding: "utf-8",
-        stdio: "pipe",
-        maxBuffer: 50 * 1024 * 1024,
-      });
-    } catch {
-      return "";
-    }
+  if (headSha) {
+    throw new Error(`PR head ${headSha} is unavailable in the checked-out git refs`);
   }
+
+  throw new Error("PR head is unavailable in the checked-out git refs");
 }

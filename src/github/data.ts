@@ -15,6 +15,9 @@ type MinimalOctokit = {
     issues: {
       listComments: (params: any) => Promise<any>;
     };
+    pulls?: {
+      get: (params: any) => Promise<any>;
+    };
   };
 };
 
@@ -61,9 +64,29 @@ export async function fetchGitHubData(
       baseRef: context.pr.baseRef,
     };
     try {
-      base.diff = getGitDiff(context.pr.baseRef, context.pr.headRef);
+      base.diff = getGitDiff(context.pr.baseRef, context.pr.headRef, context.pr.headSha);
     } catch (err) {
       console.warn("Could not fetch PR diff:", err);
+    }
+
+    if (!base.diff && octokit?.rest.pulls?.get) {
+      try {
+        const response = await octokit.rest.pulls.get({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: context.entityNumber,
+          mediaType: { format: "diff" },
+        });
+        if (typeof response.data === "string") {
+          base.diff = response.data;
+        }
+      } catch (err) {
+        console.warn("Could not fetch PR diff from GitHub:", err);
+      }
+    }
+
+    if (!base.diff) {
+      throw new Error("Authoritative PR diff unavailable from both the checkout and GitHub");
     }
   }
 

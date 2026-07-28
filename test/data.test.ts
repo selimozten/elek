@@ -3,7 +3,7 @@
  * Pure formatting; no GitHub or git calls.
  */
 import { describe, it, expect } from "bun:test";
-import { buildPrompt, type GitHubData } from "../src/github/data";
+import { buildPrompt, fetchGitHubData, type GitHubData } from "../src/github/data";
 
 const baseData: GitHubData = {
   type: "pr",
@@ -18,6 +18,79 @@ const baseData: GitHubData = {
   pr: { headRef: "feat/auth", baseRef: "main" },
   diff: "@@ -1,2 +1,3 @@\n+console.log('hi')",
 };
+
+describe("fetchGitHubData", () => {
+  it("falls back to the GitHub diff response when checkout refs cannot identify the PR head", async () => {
+    const data = await fetchGitHubData(
+      {
+        eventName: "issue_comment",
+        eventAction: "created",
+        actor: "alice",
+        actorAssociation: "MEMBER",
+        repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
+        entityNumber: 17,
+        isPR: true,
+        triggerText: "@pi review",
+        pr: {
+          title: "Review from a comment",
+          body: "",
+          headRef: "",
+          baseRef: "",
+          headSha: "",
+          baseSha: "",
+        },
+      },
+      {
+        rest: {
+          issues: {
+            listComments: async () => ({ data: [] }),
+          },
+          pulls: {
+            get: async () => ({ data: "diff --git a/a.ts b/a.ts\n+fixed\n" }),
+          },
+        },
+      } as any,
+    );
+
+    expect(data.diff).toContain("+fixed");
+  });
+
+  it("fails closed when neither the checkout nor GitHub can provide a PR diff", async () => {
+    const context = {
+      eventName: "issue_comment",
+      eventAction: "created",
+      actor: "alice",
+      actorAssociation: "MEMBER",
+      repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
+      entityNumber: 17,
+      isPR: true,
+      triggerText: "@pi review",
+      pr: {
+        title: "Review from a comment",
+        body: "",
+        headRef: "",
+        baseRef: "",
+        headSha: "",
+        baseSha: "",
+      },
+    };
+
+    await expect(
+      fetchGitHubData(context, {
+        rest: {
+          issues: {
+            listComments: async () => ({ data: [] }),
+          },
+          pulls: {
+            get: async () => {
+              throw new Error("diff endpoint unavailable");
+            },
+          },
+        },
+      } as any),
+    ).rejects.toThrow("Authoritative PR diff unavailable");
+  });
+});
 
 describe("buildPrompt", () => {
   it("includes the structured context block with title, author, branch", () => {

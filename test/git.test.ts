@@ -26,7 +26,7 @@ describe("isSafeGitRefName", () => {
     expect(() => getGitDiff("main", "feature/$(touch${IFS}/tmp/elek-pwned)")).toThrow("Unsafe head ref");
   });
 
-  it("uses checked-out refs before attempting an authenticated fetch", () => {
+  it("uses checked-out refs without a network fetch", () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-git-local-diff-"));
     const git = (...args: string[]) =>
       execFileSync("git", args, { cwd: dir, stdio: "pipe" });
@@ -44,12 +44,13 @@ describe("isSafeGitRefName", () => {
       writeFileSync(join(dir, "reviewed.txt"), "base\nhead\n", "utf-8");
       git("add", "reviewed.txt");
       git("commit", "-m", "head");
+      const headSha = git("rev-parse", "HEAD").toString().trim();
       git("remote", "add", "origin", "https://invalid.invalid/repo.git");
 
       const modulePath = resolve(import.meta.dir, "../src/github/git.ts");
       const script = [
         `import { getGitDiff } from ${JSON.stringify(modulePath)};`,
-        `process.stdout.write(getGitDiff("main", "main"));`,
+        `process.stdout.write(getGitDiff("main", "main", ${JSON.stringify(headSha)}));`,
       ].join("\n");
       const diff = execFileSync(process.execPath, ["-e", script], {
         cwd: dir,
@@ -58,6 +59,49 @@ describe("isSafeGitRefName", () => {
       });
 
       expect(diff).toContain("+head");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat a default-branch checkout as the PR head", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-git-default-head-"));
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: dir, stdio: "pipe" });
+
+    try {
+      git("init", "-b", "main");
+      git("config", "user.name", "Elek Test");
+      git("config", "user.email", "elek@example.test");
+      writeFileSync(join(dir, "reviewed.txt"), "base\n", "utf-8");
+      git("add", "reviewed.txt");
+      git("commit", "-m", "base");
+      const baseSha = git("rev-parse", "HEAD").toString().trim();
+      git("update-ref", "refs/remotes/origin/main", baseSha);
+      git("checkout", "-b", "pr-head");
+      writeFileSync(join(dir, "reviewed.txt"), "base\npr\n", "utf-8");
+      git("add", "reviewed.txt");
+      git("commit", "-m", "pr");
+      const prSha = git("rev-parse", "HEAD").toString().trim();
+      git("checkout", "main");
+      git("remote", "add", "origin", "https://invalid.invalid/repo.git");
+
+      const modulePath = resolve(import.meta.dir, "../src/github/git.ts");
+      const script = [
+        `import { getGitDiff } from ${JSON.stringify(modulePath)};`,
+        "try {",
+        `  process.stdout.write(getGitDiff("main", "main", ${JSON.stringify(prSha)}));`,
+        "} catch {",
+        `  process.stdout.write("PR_HEAD_UNAVAILABLE");`,
+        "}",
+      ].join("\n");
+      const result = execFileSync(process.execPath, ["-e", script], {
+        cwd: dir,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+
+      expect(result).toBe("PR_HEAD_UNAVAILABLE");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
