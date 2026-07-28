@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import { execFileSync } from "child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join, resolve } from "path";
 import { getGitDiff, isSafeGitRefName } from "../src/github/git";
 
 describe("isSafeGitRefName", () => {
@@ -20,5 +24,42 @@ describe("isSafeGitRefName", () => {
 
   it("rejects malicious diff refs before invoking git", () => {
     expect(() => getGitDiff("main", "feature/$(touch${IFS}/tmp/elek-pwned)")).toThrow("Unsafe head ref");
+  });
+
+  it("uses checked-out refs before attempting an authenticated fetch", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-git-local-diff-"));
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: dir, stdio: "pipe" });
+
+    try {
+      git("init", "-b", "main");
+      git("config", "user.name", "Elek Test");
+      git("config", "user.email", "elek@example.test");
+      writeFileSync(join(dir, "reviewed.txt"), "base\n", "utf-8");
+      git("add", "reviewed.txt");
+      git("commit", "-m", "base");
+      const baseSha = git("rev-parse", "HEAD").toString().trim();
+      git("update-ref", "refs/remotes/origin/main", baseSha);
+      git("checkout", "-b", "feature/review");
+      writeFileSync(join(dir, "reviewed.txt"), "base\nhead\n", "utf-8");
+      git("add", "reviewed.txt");
+      git("commit", "-m", "head");
+      git("remote", "add", "origin", "https://invalid.invalid/repo.git");
+
+      const modulePath = resolve(import.meta.dir, "../src/github/git.ts");
+      const script = [
+        `import { getGitDiff } from ${JSON.stringify(modulePath)};`,
+        `process.stdout.write(getGitDiff("main", "feature/review"));`,
+      ].join("\n");
+      const diff = execFileSync(process.execPath, ["-e", script], {
+        cwd: dir,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+
+      expect(diff).toContain("+head");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
