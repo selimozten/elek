@@ -78,7 +78,7 @@ inputs:
     required: false
     default: "20"
   run_timeout_seconds:
-    description: "Wall-clock timeout for each model run. elek reports a failure review before the outer GitHub step timeout can leave a stale tracking comment."
+    description: "Wall-clock timeout for primary model runs. A timed-out reviewer gets one context-only retry capped at 180 seconds; elek fails closed if that retry also fails."
     required: false
     default: "600"
   tools:

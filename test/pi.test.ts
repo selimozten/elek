@@ -64,6 +64,18 @@ describe("buildPiArgs", () => {
     expect(args).not.toContain("--model");
   });
 
+  it("disables all built-in tools for a context-only review fallback", () => {
+    const args = buildPiArgs(
+      { ...baseInputs, tools: "" },
+      "/tmp/prompt.md",
+      false,
+    );
+
+    expect(args).toContain("--no-builtin-tools");
+    expect(args).not.toContain("--tools");
+    expect(args.join(" ")).not.toContain("src/pi-readonly-tools.ts");
+  });
+
   it("lets provider-qualified model specs route themselves", () => {
     const args = buildPiArgs(
       {

@@ -482,8 +482,14 @@ export function buildPiArgs(
   // (which would hit the npm registry during a review). Load exactly the
   // already-installed, lockfile-pinned local adapter package when MCP is needed.
   args.push("--no-extensions");
-  if (usesReadonlyReviewTools(inputs)) {
-    args.push("--no-builtin-tools", "-e", localPiReadonlyToolsPath());
+  if (inputs.mode !== "agent") {
+    // Review subprocesses must never inherit pi's built-in mutation tools.
+    // An empty tools list is used by the timeout fallback to force a
+    // single-turn, supplied-context-only review.
+    args.push("--no-builtin-tools");
+    if (usesReadonlyReviewTools(inputs)) {
+      args.push("-e", localPiReadonlyToolsPath());
+    }
   }
   if (loadExtensions) {
     args.push("-e", localPiMcpAdapterPath());

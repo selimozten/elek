@@ -499,6 +499,24 @@ describe("review strategy", () => {
     expect(prompt).toContain("<review_comments>");
   });
 
+  it("builds a context-only fallback prompt without inviting more tool calls", () => {
+    const prompt = buildLensPrompt({
+      data: dataFixture,
+      userRequest: "",
+      lens: {
+        id: "risk",
+        title: "Risk Review",
+        focus: "Trace regressions.",
+      },
+      modelLabel: "together/zai-org/GLM-5.2",
+      allowTools: false,
+    });
+
+    expect(prompt).toContain("No repository tools are available in this fallback");
+    expect(prompt).toContain("Read every supplied changed hunk");
+    expect(prompt).not.toContain("Available tools:");
+  });
+
   it("can hide discussion from independent lens prompts for fresh audits", () => {
     const prompt = buildLensPrompt({
       data: dataFixture,

@@ -94,6 +94,12 @@ jobs:
           run_timeout_seconds: 600
 ```
 
+In a multi-lens review, `run_timeout_seconds` bounds the normal tool-backed
+reviewer and validator calls. If a reviewer spends the whole window exploring
+without returning a report, elek retries that same model once from the supplied
+diff and repository guidance without tools, capped at 180 seconds. The lane
+still fails closed if the context-only retry cannot return a report.
+
 ## 3. Test it
 
 1. Open a PR or push a commit. The review should appear within ~3 minutes.

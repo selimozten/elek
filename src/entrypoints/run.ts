@@ -356,8 +356,8 @@ async function run(): Promise<void> {
   };
 
   const lensPromptCache = new Map<string, string>();
-  const lensPromptFor = (job: ReviewJob): string => {
-    const key = `${job.lens.id}\0${job.model.label}`;
+  const lensPromptFor = (job: ReviewJob, allowTools = true): string => {
+    const key = `${job.lens.id}\0${job.model.label}\0${allowTools ? "tools" : "context-only"}`;
     const cached = lensPromptCache.get(key);
     if (cached !== undefined) return cached;
     const lensPrompt = buildLensPrompt({
@@ -367,6 +367,7 @@ async function run(): Promise<void> {
       modelLabel: job.model.label,
       repoConfig: effectiveRepoConfig,
       includeDiscussion: false,
+      allowTools,
     });
     lensPromptCache.set(key, lensPrompt);
     return lensPrompt;
@@ -507,23 +508,47 @@ async function run(): Promise<void> {
           tools: lensTools,
           mode: "review",
         };
-        const lensResult = await runPi(
+        const primaryResult = await runPi(
           lensPrompt,
           lensInputs,
           undefined,
           false,
           { promptName: `lens-${job.lens.id}` },
         );
+        const attempts = [primaryResult];
+        let lensResult = primaryResult;
+        if (
+          primaryResult.conclusion === "failure" &&
+          /timed out|exceeded max turns/i.test(primaryResult.output)
+        ) {
+          console.warn(
+            `[${job.lens.id}] tool-backed review did not finish; retrying once from supplied context without tools`,
+          );
+          const fallbackInputs = {
+            ...lensInputs,
+            tools: "",
+            maxTurns: Math.min(lensInputs.maxTurns, 2),
+            runTimeoutSeconds: Math.min(lensInputs.runTimeoutSeconds, 180),
+          };
+          lensResult = await runPi(
+            lensPromptFor(job, false),
+            fallbackInputs,
+            undefined,
+            false,
+            { promptName: `lens-${job.lens.id}-context-only` },
+          );
+          attempts.push(lensResult);
+        }
         const lensOutput = sanitize(lensResult.output);
         console.log(
           `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
         );
-        return { job, lensResult, lensOutput };
+        return { job, lensResult, lensOutput, attempts };
       }),
     );
 
-    for (const { job, lensResult } of lensRuns) {
-      runCosts.push(costFromPiResult(lensResult));
+    for (const { job, lensResult, attempts } of lensRuns) {
+      runCosts.push(...attempts.map(costFromPiResult));
       runMetrics.push(metricFromPiRun(lensResult, job.role || "reviewer", {
         lensId: job.lens.id,
         lensTitle: job.lens.title,
