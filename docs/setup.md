@@ -222,7 +222,7 @@ Supported keys:
 | `review_strategy` | Default strategy when the workflow input is unset |
 | `review_models` | Default reviewer model list |
 | `review_lenses` | Ordered built-in lens IDs for a smaller domain-specific council |
-| `advisor_model` | Independent advisor model; defaults to the validator model |
+| `advisor_model` | Independent advisor model; defaults to the validator model; set `off` to disable |
 | `advisor_thinking` | Advisor reasoning level; defaults to the validator/reviewer setting |
 | `validator_model` | Default final orchestrator/validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
