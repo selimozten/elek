@@ -48,8 +48,6 @@ const baseInputs: ActionInputs = {
   showCost: true,
   costRates: "",
   maxCostUsd: undefined,
-  maxCouncilChangedLines: undefined,
-  maxCrosscheckChangedLines: undefined,
 };
 
 describe("elek config", () => {
@@ -67,8 +65,6 @@ validator_model: deepseek/deepseek-v4-pro
 validator_thinking: medium
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4
 max_cost_usd: 0.25
-max_council_changed_lines: 1800
-max_crosscheck_changed_lines: 0
 severity_threshold: important
 knowledge_paths:
   - AGENTS.md
@@ -95,8 +91,6 @@ instructions:
       validatorThinking: "medium",
       costRates: "openrouter/moonshotai/kimi-k2.7-code=0.95:4",
       maxCostUsd: 0.25,
-      maxCouncilChangedLines: 1800,
-      maxCrosscheckChangedLines: 0,
       severityThreshold: "important",
       knowledgePaths: ["AGENTS.md", "docs/review.md"],
       ignorePaths: ["docs/**", "*.md"],
@@ -184,23 +178,6 @@ knowledge_paths:
     }
   });
 
-  it("warns and skips invalid changed-line guard values", () => {
-    for (const value of ["-1", "1.5", "abc", "Infinity"]) {
-      const warnings: string[] = [];
-      const config = parseElekConfig([
-        `max_council_changed_lines: ${value}`,
-        `max_crosscheck_changed_lines: ${value}`,
-      ].join("\n"), (message) => warnings.push(message));
-
-      expect(config.maxCouncilChangedLines).toBeUndefined();
-      expect(config.maxCrosscheckChangedLines).toBeUndefined();
-      expect(warnings).toEqual([
-        `Ignoring invalid max_council_changed_lines: ${value}`,
-        `Ignoring invalid max_crosscheck_changed_lines: ${value}`,
-      ]);
-    }
-  });
-
   it("warns and skips non-mapping yaml documents", () => {
     const warnings: string[] = [];
 
@@ -256,8 +233,6 @@ instructions:
       validatorThinking: "medium",
       costRates: "deepseek/model-b=1:2",
       maxCostUsd: 0.2,
-      maxCouncilChangedLines: 1500,
-      maxCrosscheckChangedLines: 4000,
       ignorePaths: [],
       instructions: [],
     };
@@ -274,8 +249,6 @@ instructions:
       severityThreshold: "",
       costRates: "deepseek/model-b=1:2",
       maxCostUsd: 0.2,
-      maxCouncilChangedLines: 1500,
-      maxCrosscheckChangedLines: 4000,
     });
 
     expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "", severityThreshold: "" }, {
@@ -298,8 +271,6 @@ instructions:
       severityThreshold: "critical",
       costRates: "explicit/model=3:4",
       maxCostUsd: 1,
-      maxCouncilChangedLines: 900,
-      maxCrosscheckChangedLines: 0,
     }, config)).toMatchObject({
       reviewStrategy: "solo",
       reviewModels: "explicit/model",
@@ -312,8 +283,6 @@ instructions:
       severityThreshold: "critical",
       costRates: "explicit/model=3:4",
       maxCostUsd: 1,
-      maxCouncilChangedLines: 900,
-      maxCrosscheckChangedLines: 0,
     });
   });
 
@@ -329,8 +298,6 @@ instructions:
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
-      maxCouncilChangedLines: 200000,
-      maxCrosscheckChangedLines: 200000,
       severityThreshold: "important",
       knowledgePaths: ["base-only.md"],
       knowledge: [{ path: "base-only.md", text: "Base knowledge.", truncated: false }],
@@ -347,8 +314,6 @@ instructions:
       validatorThinking: "high",
       costRates: "openrouter/pr-reviewer=10:20",
       maxCostUsd: 10,
-      maxCouncilChangedLines: 99,
-      maxCrosscheckChangedLines: 199,
       severityThreshold: "critical",
       knowledgePaths: ["docs/review.md"],
       knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
@@ -365,8 +330,6 @@ instructions:
       validatorThinking: "medium",
       costRates: "openrouter/base-reviewer=1:2",
       maxCostUsd: 0.5,
-      maxCouncilChangedLines: 200000,
-      maxCrosscheckChangedLines: 200000,
       severityThreshold: "important",
       knowledgePaths: ["base-only.md"],
       knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
@@ -476,8 +439,8 @@ instructions:
       process.env.GITHUB_WORKSPACE = dir;
       mkdirSync(join(dir, "docs", "nested"), { recursive: true });
       writeFileSync(join(outside, "secret.md"), "outside secret");
-      writeFileSync(join(dir, "docs", "large.md"), "a".repeat(13_000));
-      for (let index = 0; index < 10; index++) {
+      writeFileSync(join(dir, "docs", "large.md"), "a".repeat(90_000));
+      for (let index = 0; index < 20; index++) {
         writeFileSync(join(dir, "docs", "nested", `file-${index}.md`), `file ${index}`);
       }
       symlinkSync(join(outside, "secret.md"), join(dir, "docs", "escape.md"));
@@ -489,14 +452,14 @@ instructions:
         instructions: [],
       }, (message) => warnings.push(message));
 
-      expect(config.knowledge).toHaveLength(8);
+      expect(config.knowledge).toHaveLength(16);
       expect(config.knowledge?.some((file) => file.text.includes("outside secret"))).toBe(false);
       expect(config.knowledge?.some((file) => file.path.includes("escape"))).toBe(false);
       expect(config.knowledge?.[0]).toMatchObject({
         path: "docs/large.md",
         truncated: true,
       });
-      expect(config.knowledge?.[0].text.length).toBe(12_000);
+      expect(config.knowledge?.[0].text.length).toBe(80_000);
       expect(warnings).toContain("Ignoring knowledge path outside workspace: docs/escape.md");
     } finally {
       if (previousWorkspace === undefined) {
@@ -516,7 +479,7 @@ instructions:
       process.env.GITHUB_WORKSPACE = dir;
       mkdirSync(join(dir, "docs"), { recursive: true });
       for (let index = 0; index < 5; index++) {
-        writeFileSync(join(dir, "docs", `large-${index}.md`), String(index).repeat(12_000));
+        writeFileSync(join(dir, "docs", `large-${index}.md`), String(index).repeat(80_000));
       }
 
       const config = loadRepoKnowledge({
@@ -525,8 +488,8 @@ instructions:
         instructions: [],
       });
 
-      expect(config.knowledge).toHaveLength(4);
-      expect(config.knowledge?.reduce((total, file) => total + Buffer.byteLength(file.text), 0)).toBe(48_000);
+      expect(config.knowledge).toHaveLength(3);
+      expect(config.knowledge?.reduce((total, file) => total + Buffer.byteLength(file.text), 0)).toBe(240_000);
     } finally {
       if (previousWorkspace === undefined) {
         delete process.env.GITHUB_WORKSPACE;
@@ -544,7 +507,7 @@ instructions:
       process.env.GITHUB_WORKSPACE = dir;
       mkdirSync(join(dir, "docs"), { recursive: true });
       writeFileSync(join(dir, "docs", "empty.md"), "");
-      writeFileSync(join(dir, "docs", "unicode.md"), `${"a".repeat(11_999)}é tail`);
+      writeFileSync(join(dir, "docs", "unicode.md"), `${"a".repeat(79_999)}é tail`);
 
       const config = loadRepoKnowledge({
         knowledgePaths: ["docs"],
@@ -553,7 +516,7 @@ instructions:
       });
 
       expect(config.knowledge?.map((file) => file.path)).toEqual(["docs/unicode.md"]);
-      expect(config.knowledge?.[0].text).toBe("a".repeat(11_999));
+      expect(config.knowledge?.[0].text).toBe("a".repeat(79_999));
       expect(config.knowledge?.[0].text).not.toContain("\uFFFD");
       expect(config.knowledge?.[0].truncated).toBe(true);
     } finally {
@@ -843,8 +806,6 @@ instructions:
         severityThreshold: "important",
         costRates: "deepseek/model-b=1:2",
         maxCostUsd: 0.3,
-        maxCouncilChangedLines: 200000,
-        maxCrosscheckChangedLines: 0,
         ignorePaths: ["docs/**"],
         instructions: ["Treat migrations as operational risk."],
       })).toBe(
@@ -853,7 +814,6 @@ instructions:
           "review_lenses=(unset) | review_agent_count=5 | advisor_model=(unset) | " +
           "advisor_thinking=(unset) | validator_model=deepseek/model-b | validator_thinking=medium | " +
           "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | max_cost_usd=0.3 | " +
-          "max_council_changed_lines=200000 | max_crosscheck_changed_lines=0 | " +
           "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
       );
 
@@ -888,16 +848,13 @@ instructions:
         severityThreshold: "critical",
         costRates: "deepseek/model-b=1:2",
         maxCostUsd: 0.3,
-        maxCouncilChangedLines: 200000,
-        maxCrosscheckChangedLines: 0,
       })).toContain(
         "effective_review_strategy=council | effective_review_models=openrouter/model-a | " +
           "effective_review_lenses=(strategy defaults) | effective_review_agent_count=5 | " +
           "effective_advisor_model=(validator model) | " +
           "effective_advisor_thinking=(validator/reviewer setting) | effective_validator_model=deepseek/model-b | " +
           "effective_validator_thinking=medium | effective_severity_threshold=critical | " +
-          "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3 | " +
-          "effective_max_council_changed_lines=200000 | effective_max_crosscheck_changed_lines=0",
+          "effective_cost_rates=deepseek/model-b=1:2 | effective_max_cost_usd=0.3",
       );
 
       expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {

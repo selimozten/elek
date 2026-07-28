@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { formatChangedFilesForPrompt, parseUnifiedDiffFiles } from "../src/review/diff-context";
+import {
+  diffPromptBudgetChars,
+  formatChangedFilesForPrompt,
+  modelInputBudgetChars,
+  parseUnifiedDiffFiles,
+} from "../src/review/diff-context";
 
 describe("diff prompt context", () => {
   it("parses changed files and line counts from unified diffs", () => {
@@ -62,7 +67,7 @@ describe("diff prompt context", () => {
     expect(out).toContain("diff truncated by file for prompt budget");
   });
 
-  it("switches large in-budget diffs to representative slices to preserve tool-first review", () => {
+  it("keeps the full diff whenever it fits the selected model budget", () => {
     const largeGeneratedFile = Array.from({ length: 9_000 }, (_, i) => `+generated line ${i}`).join("\n");
     const diff = [
       "diff --git a/docs/generated.md b/docs/generated.md",
@@ -84,10 +89,18 @@ describe("diff prompt context", () => {
 
     expect(diff.length).toBeLessThan(200_000);
     expect(out).toContain("# Changed file overview (2 files");
-    expect(out).toContain("# Representative diff slices");
-    expect(out).not.toContain("# Full diff");
+    expect(out).toContain("# Full diff");
+    expect(out).not.toContain("# Representative diff slices");
     expect(out).toContain("diff --git a/src/auth/server.go b/src/auth/server.go");
     expect(out).toContain("+  query := db.User.First()");
-    expect(out.length).toBeLessThan(diff.length);
+    expect(out).toContain("+generated line 8999");
+  });
+
+  it("uses model-aware input budgets with only an explicit reserve", () => {
+    expect(modelInputBudgetChars("together/zai-org/GLM-5.2")).toBe(540_000);
+    expect(modelInputBudgetChars("openai/gpt-5.6-sol")).toBe(700_000);
+    expect(modelInputBudgetChars("together/moonshotai/Kimi-K3")).toBe(2_700_000);
+    expect(diffPromptBudgetChars("together/zai-org/GLM-5.2", 40_000)).toBe(500_000);
+    expect(diffPromptBudgetChars("unknown/model", 20_000)).toBe(300_000);
   });
 });

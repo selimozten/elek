@@ -4,7 +4,7 @@ import { mcpToolGuidance } from "../github/mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
-import { formatChangedFilesForPrompt } from "./diff-context.js";
+import { diffPromptBudgetChars, formatChangedFilesForPrompt } from "./diff-context.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
 
@@ -60,11 +60,6 @@ export interface BudgetPlanResult {
   support: ReviewPlanSupport;
   events: BudgetPlanEvent[];
 }
-
-const DEFAULT_MAX_COUNCIL_CHANGED_LINES = 200_000;
-const DEFAULT_MAX_CROSSCHECK_CHANGED_LINES = 200_000;
-const DEFAULT_CHANGED_FILES_PROMPT_CHARS = 200_000;
-const SYNTHESIS_CHANGED_FILES_PROMPT_CHARS = 200_000;
 
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
@@ -395,66 +390,11 @@ export function selectReviewPlanWithinBudget(args: {
   return { plan, support, events };
 }
 
-export function countChangedDiffLines(diff: string | undefined): number | undefined {
-  if (!diff) return undefined;
-  let changed = 0;
-  for (const line of diff.split("\n")) {
-    if (!line) continue;
-    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
-    // Unified diffs represent a modified line as one deletion plus one addition.
-    if (line.startsWith("+") || line.startsWith("-")) changed++;
-  }
-  return changed;
-}
-
-function changedLineLimitForStrategy(strategy: ReviewStrategy, inputs: ActionInputs): number | undefined {
-  if (strategy === "council" || strategy === "thermos") {
-    const limit = inputs.maxCouncilChangedLines ?? DEFAULT_MAX_COUNCIL_CHANGED_LINES;
-    return limit === 0 ? undefined : limit;
-  }
-  if (strategy === "crosscheck") {
-    const limit = inputs.maxCrosscheckChangedLines ?? DEFAULT_MAX_CROSSCHECK_CHANGED_LINES;
-    return limit === 0 ? undefined : limit;
-  }
-  return undefined;
-}
-
-function changedLineLimitNameForStrategy(strategy: ReviewStrategy): string {
-  if (strategy === "thermos" || strategy === "council") return "max_council_changed_lines";
-  if (strategy === "crosscheck") return "max_crosscheck_changed_lines";
-  return "max_changed_lines";
-}
-
-export function selectReviewPlanWithinDiffSize(args: {
-  inputs: ActionInputs;
-  initialPlan: ReviewPlan;
-  supportContext: { isPR: boolean; mode: string };
-  changedLines: number | undefined;
-}): BudgetPlanResult {
-  const plan = args.initialPlan;
-  const support = resolveReviewPlanSupport(plan.strategy, args.supportContext);
-  const events: BudgetPlanEvent[] = [];
-
-  if (!support.enabled || args.changedLines === undefined) {
-    return { plan, support, events };
-  }
-
-  const limit = changedLineLimitForStrategy(plan.strategy, args.inputs);
-  if (limit !== undefined && args.changedLines > limit) {
-    events.push({
-      level: "warn",
-      message:
-        `[size] changed_lines=${args.changedLines} strategy=${plan.strategy} ` +
-        `${changedLineLimitNameForStrategy(plan.strategy)}=${limit}; preserving ${plan.strategy} coverage ` +
-        "and using per-file diff prompt slices.",
-    });
-  }
-
-  return { plan, support, events };
-}
-
-function changedFilesBlock(data: GitHubData, maxChars = DEFAULT_CHANGED_FILES_PROMPT_CHARS): string {
-  return formatChangedFilesForPrompt(data.diff, maxChars);
+function changedFilesBlock(data: GitHubData, modelLabel: string, reservedChars: number): string {
+  return formatChangedFilesForPrompt(
+    data.diff,
+    diffPromptBudgetChars(modelLabel, reservedChars),
+  );
 }
 
 export function buildLensPrompt(params: {
@@ -469,6 +409,13 @@ export function buildLensPrompt(params: {
   const isPR = data.type === "pr";
   const entityLabel = isPR ? "pull request" : "issue";
   const configBlock = repoConfig ? formatConfigPromptBlock(repoConfig) : [];
+  const reservedChars =
+    data.body.length +
+    data.comments.join("\n").length +
+    data.reviewComments.join("\n").length +
+    configBlock.join("\n").length +
+    userRequest.length +
+    30_000;
   return [
     `You are an independent read-only reviewer for elek.`,
     ``,
@@ -524,7 +471,7 @@ export function buildLensPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data),
+    changedFilesBlock(data, modelLabel, reservedChars),
     "```",
     `</changed_files>`,
     ``,
@@ -568,6 +515,14 @@ export function buildSynthesisPrompt(params: {
       ].join("\n"),
     )
     .join("\n\n");
+  const reservedChars =
+    data.body.length +
+    data.comments.join("\n").length +
+    data.reviewComments.join("\n").length +
+    configBlock.join("\n").length +
+    reportBlock.length +
+    userRequest.length +
+    40_000;
 
   return [
     `You are elek's final review orchestrator, validator, and posting reviewer.`,
@@ -619,7 +574,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data, SYNTHESIS_CHANGED_FILES_PROMPT_CHARS),
+    changedFilesBlock(data, modelLabel, reservedChars),
     "```",
     `</changed_files>`,
     ``,

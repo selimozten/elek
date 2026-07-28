@@ -58,18 +58,8 @@ export interface ActionInputs {
    * Optional soft cap for the estimated review cost. When a multi-lens
    * strategy would exceed this cap before execution, elek downgrades to a
    * cheaper strategy.
-   */
+  */
   maxCostUsd?: number | null;
-  /**
-   * Optional changed-line warning threshold for council/thermos. Undefined
-   * uses elek's default warning threshold; 0 disables the warning.
-   */
-  maxCouncilChangedLines?: number;
-  /**
-   * Optional changed-line warning threshold for crosscheck. Undefined uses
-   * elek's default warning threshold; 0 disables the warning.
-   */
-  maxCrosscheckChangedLines?: number;
 }
 
 export interface GitHubEntityContext {
