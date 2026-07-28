@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update pi coding agent to 0.82.1, pi-mcp-adapter to 2.15.0, and the MCP SDK
+  to 1.30.0.
+- Give review runs a noninteractive, read-only reviewer contract so agents
+  converge after verifying concrete findings instead of exploring
+  indefinitely.
+
+### Added
+
+- Report provider retry counts in per-run review metrics and action logs.
+
 ## [1.1.4] - 2026-06-21
 
 ### Changed

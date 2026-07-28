@@ -91,7 +91,7 @@ not explain what shipped.
 - [ ] `bunx tsc --noEmit` is clean
 - [ ] New behavior has a test
 - [ ] Comments explain WHY, not WHAT (names already say what)
-- [ ] No `package-lock.json` in the diff (gitignored)
+- [ ] `package-lock.json` matches `package.json` when dependencies change
 - [ ] No new MCP tools, no new model SDK imports, no new bash escape hatches
 
 ## Dependency updates
