@@ -226,13 +226,14 @@ describe("runPi", () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-turn-limit-"));
     const fakePi = join(dir, "pi");
     writeFileSync(fakePi, [
-      "#!/usr/bin/env bash",
-      "trap 'exit 143' TERM",
-      "printf '%s\\n' '{\"type\":\"session\",\"id\":\"session-turn-limit\"}'",
-      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
-      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
-      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
-      "sleep 10",
+      "#!/usr/bin/env node",
+      "process.on('SIGTERM', () => process.exit(0));",
+      "console.log(JSON.stringify({ type: 'session', id: 'session-turn-limit' }));",
+      "console.log(JSON.stringify({ type: 'turn_start' }));",
+      "console.log(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'premature output' }], stopReason: 'stop' } }));",
+      "console.log(JSON.stringify({ type: 'turn_start' }));",
+      "console.log(JSON.stringify({ type: 'turn_start' }));",
+      "setInterval(() => {}, 1000);",
       "",
     ].join("\n"), "utf-8");
     chmodSync(fakePi, 0o755);

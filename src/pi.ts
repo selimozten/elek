@@ -315,7 +315,7 @@ export async function runPi(
       const stopReason = finalAssistant?.stopReason;
       const isErrorStop = stopReason === "error" || stopReason === "aborted";
 
-      if (code === 0 && output && !isErrorStop) {
+      if (!terminationMessage && code === 0 && output && !isErrorStop) {
         resolve({
           conclusion: "success",
           output,
