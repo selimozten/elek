@@ -221,4 +221,38 @@ describe("runPi", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("terminates a run when pi starts more than maxTurns", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-turn-limit-"));
+    const fakePi = join(dir, "pi");
+    writeFileSync(fakePi, [
+      "#!/usr/bin/env bash",
+      "trap 'exit 143' TERM",
+      "printf '%s\\n' '{\"type\":\"session\",\"id\":\"session-turn-limit\"}'",
+      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
+      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
+      "printf '%s\\n' '{\"type\":\"turn_start\"}'",
+      "sleep 10",
+      "",
+    ].join("\n"), "utf-8");
+    chmodSync(fakePi, 0o755);
+    process.env.PI_EXECUTABLE = fakePi;
+
+    try {
+      const result = await runPi(
+        "review this change",
+        { ...baseInputs, maxTurns: 2, runTimeoutSeconds: 10 },
+        undefined,
+        false,
+        { promptName: "turn-limit-test" },
+      );
+
+      expect(result.conclusion).toBe("failure");
+      expect(result.output).toBe("pi exceeded max turns (2)");
+      expect(result.turnsUsed).toBe(3);
+      expect(result.durationSeconds).toBeLessThan(3);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

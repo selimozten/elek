@@ -121,6 +121,24 @@ export function getGitDiff(baseRef: string, headRef: string): string {
   assertSafeGitRefName(headFetchRef, "head fetch ref");
   assertSafeGitRefName(headRemoteRef, "head remote ref");
 
+  // actions/checkout with fetch-depth: 0 already provides the base ref and
+  // current PR checkout. Prefer those trusted local refs so read-only review
+  // jobs do not need persisted git credentials merely to build the diff.
+  for (const range of [
+    `origin/${baseRef}...origin/${headRemoteRef}`,
+    `origin/${baseRef}...HEAD`,
+  ]) {
+    try {
+      return execFileSync("git", ["diff", range], {
+        encoding: "utf-8",
+        stdio: "pipe",
+        maxBuffer: 50 * 1024 * 1024,
+      });
+    } catch {
+      // The ref may not exist in shallow or fork checkouts; fetch below.
+    }
+  }
+
   if (process.env.ELEK_HEAD_FETCH_REF) {
     git(["fetch", "origin", baseRef, "--depth=100"], { stdio: "pipe" });
     git(["fetch", "origin", `${headFetchRef}:refs/remotes/origin/${headRemoteRef}`, "--depth=100"], { stdio: "pipe" });
