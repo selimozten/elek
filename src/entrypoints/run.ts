@@ -29,7 +29,7 @@ import {
   loadRepoKnowledge,
   mergeBasePolicyWithWorkspaceGuidance,
 } from "../config.js";
-import { detectTrigger, isActorAllowed } from "../github/trigger.js";
+import { detectTrigger, isActorAuthorized } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
@@ -113,13 +113,6 @@ async function run(): Promise<void> {
     return;
   }
 
-  if (!isActorAllowed(context, parsedInputs)) {
-    console.log(`Actor @${context.actor} not allowed — exiting`);
-    core.setOutput("conclusion", "skipped");
-    core.setOutput("summary", `Actor @${context.actor} not authorized`);
-    return;
-  }
-
   const githubToken = process.env.GITHUB_TOKEN;
   if (!githubToken) {
     core.setFailed("GITHUB_TOKEN not available");
@@ -127,6 +120,28 @@ async function run(): Promise<void> {
   }
 
   const octokit = github.getOctokit(githubToken);
+  const actorAllowed = await isActorAuthorized(
+    context,
+    parsedInputs,
+    async ({ owner, repo, actor }) => {
+      const { data } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+        owner,
+        repo,
+        username: actor,
+      });
+      return data.permission;
+    },
+  );
+
+  if (!actorAllowed) {
+    console.log(
+      `Actor @${context.actor} not allowed ` +
+        `(webhook association: ${context.actorAssociation || "unknown"}) — exiting`,
+    );
+    core.setOutput("conclusion", "skipped");
+    core.setOutput("summary", `Actor @${context.actor} not authorized`);
+    return;
+  }
 
   let configBaseRef = context.pr?.baseRef || context.repo.defaultBranch;
   let canLoadBasePolicy = !context.isPR || Boolean(context.pr?.baseRef);

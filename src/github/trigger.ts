@@ -78,6 +78,47 @@ export function isActorAllowed(context: GitHubEntityContext, inputs: ActionInput
   return false;
 }
 
+export interface ActorPermissionRequest {
+  owner: string;
+  repo: string;
+  actor: string;
+}
+
+export type ActorPermissionLookup = (request: ActorPermissionRequest) => Promise<string | undefined>;
+
+/**
+ * Authorize an actor using webhook association first, then a live repository
+ * permission lookup when GitHub supplies stale or missing association data.
+ * Explicit actor/bot filters remain authoritative and never use the fallback.
+ */
+export async function isActorAuthorized(
+  context: GitHubEntityContext,
+  inputs: ActionInputs,
+  lookupPermission?: ActorPermissionLookup,
+): Promise<boolean> {
+  if (isActorAllowed(context, inputs)) return true;
+
+  if (
+    inputs.actorFilter ||
+    inputs.allowedBots ||
+    context.actor.endsWith("[bot]") ||
+    !lookupPermission
+  ) {
+    return false;
+  }
+
+  try {
+    const permission = await lookupPermission({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      actor: context.actor,
+    });
+    return isTrustedPermission(permission);
+  } catch {
+    return false;
+  }
+}
+
 function findTriggerIndex(text: string, trigger: string): number {
   if (!trigger) return -1;
   let from = 0;
@@ -98,4 +139,8 @@ function isBoundary(char: string): boolean {
 
 function isTrustedAssociation(value: string | undefined): boolean {
   return value === "OWNER" || value === "MEMBER" || value === "COLLABORATOR";
+}
+
+function isTrustedPermission(value: string | undefined): boolean {
+  return value === "admin" || value === "maintain" || value === "write" || value === "triage";
 }
