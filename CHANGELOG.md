@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Report provider retry counts in per-run review metrics and action logs.
 
+### Fixed
+
+- Fall back to live repository permissions when GitHub webhook payloads contain
+  stale or missing actor-association data, while keeping explicit allowlists and
+  bot filters authoritative.
+
 ## [1.1.4] - 2026-06-21
 
 ### Changed

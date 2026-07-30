@@ -3,7 +3,7 @@
  * Pure logic — no GitHub API calls, no env reads.
  */
 import { describe, it, expect } from "bun:test";
-import { detectTrigger, isActorAllowed } from "../src/github/trigger";
+import { detectTrigger, isActorAllowed, isActorAuthorized } from "../src/github/trigger";
 import type { ActionInputs, GitHubEntityContext } from "../src/types";
 
 const baseInputs: ActionInputs = {
@@ -157,5 +157,52 @@ describe("isActorAllowed", () => {
   it("'*' wildcard allows everything including bots", () => {
     const inputs = { ...baseInputs, allowedBots: "*" };
     expect(isActorAllowed({ ...baseCtx, actor: "dependabot[bot]" }, inputs)).toBe(true);
+  });
+});
+
+describe("isActorAuthorized", () => {
+  it("falls back to live repository permission when webhook association is stale", async () => {
+    const permissions: string[] = [];
+    const allowed = await isActorAuthorized(
+      { ...baseCtx, actor: "alice", actorAssociation: "NONE" },
+      baseInputs,
+      async ({ owner, repo, actor }) => {
+        expect({ owner, repo, actor }).toEqual({ owner: "o", repo: "r", actor: "alice" });
+        permissions.push("checked");
+        return "write";
+      },
+    );
+
+    expect(allowed).toBe(true);
+    expect(permissions).toEqual(["checked"]);
+  });
+
+  it("fails closed for public read access and permission lookup failures", async () => {
+    const staleContext = { ...baseCtx, actor: "mallory", actorAssociation: "NONE" };
+
+    expect(await isActorAuthorized(staleContext, baseInputs, async () => "read")).toBe(false);
+    expect(await isActorAuthorized(staleContext, baseInputs, async () => {
+      throw new Error("permission API unavailable");
+    })).toBe(false);
+  });
+
+  it("does not use permission fallback to bypass explicit actor or bot filters", async () => {
+    let lookupCalls = 0;
+    const lookup = async () => {
+      lookupCalls += 1;
+      return "admin";
+    };
+
+    expect(await isActorAuthorized(
+      { ...baseCtx, actor: "alice", actorAssociation: "NONE" },
+      { ...baseInputs, actorFilter: "bob" },
+      lookup,
+    )).toBe(false);
+    expect(await isActorAuthorized(
+      { ...baseCtx, actor: "dependabot[bot]", actorAssociation: "NONE" },
+      baseInputs,
+      lookup,
+    )).toBe(false);
+    expect(lookupCalls).toBe(0);
   });
 });
