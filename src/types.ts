@@ -12,8 +12,8 @@ export interface ActionInputs {
   systemPrompt: string;
   /** Optional conversation-turn cap. Undefined leaves pi unbounded by turns. */
   maxTurns?: number;
-  /** Wall-clock timeout for one pi invocation, in seconds. */
-  runTimeoutSeconds: number;
+  /** Optional wall-clock timeout for one pi invocation, in seconds. */
+  runTimeoutSeconds?: number;
   tools: string;
   /** Repo-local config file path, e.g. .elek.yml. */
   configPath: string;

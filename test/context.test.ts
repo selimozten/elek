@@ -265,13 +265,18 @@ describe("parseInputs", () => {
     delete process.env.INPUT_RUN_TIMEOUT_SECONDS;
     expect(parseInputs().runTimeoutSeconds).toBe(600);
 
-    for (const value of ["0", "-10", "1.5", "abc"]) {
+    for (const value of ["-10", "1.5", "abc"]) {
       process.env.INPUT_RUN_TIMEOUT_SECONDS = value;
       expect(parseInputs().runTimeoutSeconds).toBe(600);
     }
 
     process.env.INPUT_RUN_TIMEOUT_SECONDS = "120";
     expect(parseInputs().runTimeoutSeconds).toBe(120);
+
+    for (const value of ["0", "off", "none", "false", "disabled"]) {
+      process.env.INPUT_RUN_TIMEOUT_SECONDS = value;
+      expect(parseInputs().runTimeoutSeconds).toBeUndefined();
+    }
   });
 
   it("parses severity_threshold when explicitly set", () => {
