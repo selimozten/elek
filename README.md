@@ -173,7 +173,7 @@ The `review_strategy` input controls orchestration quality:
 | `review_strategy` | Runs | Use case |
 |---|---:|---|
 | `solo` (resolved when unset) | 1 final reviewer | Fast, cheap default review. |
-| `crosscheck` | 2 read-only lenses + independent advisor + final orchestrator | Best default for serious PR review. |
+| `crosscheck` | 2 read-only Thermos lenses + independent advisor + final Ponytail orchestrator | Best default for serious PR review. |
 | `council` | 4 read-only lenses + independent advisor + final orchestrator | Larger or high-risk PRs touching auth, billing, migrations, infra, or public APIs. |
 | `thermos` | N read-only audit agents + independent advisor + final orchestrator | Highest-signal mode for risky PRs; modeled after Thermos-style independent audit then adjudication. |
 
@@ -182,8 +182,8 @@ Multi-agent strategies currently run only with `mode: review`. If you use
 
 `crosscheck` runs two independent candidate reviewers:
 
-- **Risk Review** — correctness, security, breaking changes, devex regressions, feature-gate leaks.
-- **Design Review** — maintainability, structural simplification, abstraction quality, file-size growth, spaghetti branching, type boundaries.
+- **Thermos Security & Correctness Review** — correctness, security, breaking changes, devex regressions, feature-gate leaks.
+- **Thermos Code Quality Review** — maintainability, structural simplification, abstraction quality, file-size growth, spaghetti branching, type boundaries.
 
 `council` adds:
 
@@ -208,10 +208,10 @@ Candidate reviewers are read-only and cannot post. They do not see existing PR
 discussion, so they produce fresh independent reports. An independent advisor
 runs in the same parallel wave; it defaults to the validator model, or can use
 `advisor_model` and `advisor_thinking` for model diversity. Set
-`advisor_model: off` to omit that optional lane. The final validator
-then receives every candidate report plus the visible PR discussion, rejects
-speculative or duplicate findings, and posts only high-confidence feedback
-through elek's narrow review MCP tools.
+`advisor_model: off` to omit that optional lane. The final validator receives
+every candidate report plus the visible PR discussion. It runs an independent
+Ponytail audit, rejects speculative or duplicate findings, and posts only
+high-confidence feedback through elek's narrow review MCP tools.
 
 Every finding is expected to follow elek's review contract: severity,
 confidence, evidence, impact, and a concrete fix. Low-confidence findings
@@ -337,7 +337,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/Kimi-K2.7-Code`, `Qwen/Qwen3.7-Max`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
 | `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
-| `max_turns` | `20` | Cap conversation turns |
+| `max_turns` | `20` | Cap conversation turns; use `0`, `off`, `none`, `false`, or `disabled` for no turn cap |
 | `run_timeout_seconds` | `600` | Wall-clock timeout for each model run; keep the job timeout higher so elek can update the tracking comment |
 | `tools` | _(mode-resolved)_ | Legacy low-level allowlist; review modes use `mode` presets |
 | `base_branch` | _(repo default)_ | Override the comparison base |

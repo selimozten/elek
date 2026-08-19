@@ -153,6 +153,10 @@ describe("review strategy", () => {
     expect(plan.strategy).toBe("crosscheck");
     expect(plan.reusedModels).toBe(false);
     expect(plan.jobs.map((j) => j.lens.id)).toEqual(["risk", "design"]);
+    expect(plan.jobs.map((j) => j.lens.title)).toEqual([
+      "Thermos Security & Correctness Review",
+      "Thermos Code Quality Review",
+    ]);
     expect(plan.jobs.map((j) => j.model.label)).toEqual([
       "deepseek/deepseek-v4-pro",
       "openrouter/moonshotai/kimi-k2.7-code",
@@ -188,6 +192,23 @@ describe("review strategy", () => {
 
     expect(plan.validatorReview).toBeUndefined();
     expect(plan.jobs).toHaveLength(2);
+    expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
+  });
+
+  it("builds the three-agent Thermos and Ponytail profile", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "thermos",
+      reviewLenses: "risk,design",
+      advisorModel: "off",
+      validatorModel: "together/moonshotai/Kimi-K3",
+    });
+
+    expect(plan.jobs.map((job) => job.lens.title)).toEqual([
+      "Thermos Security & Correctness Review",
+      "Thermos Code Quality Review",
+    ]);
+    expect(plan.validatorReview).toBeUndefined();
     expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
   });
 
@@ -579,6 +600,10 @@ describe("review strategy", () => {
     expect(prompt).toContain("`args` is a JSON STRING");
     expect(prompt).toContain("Elek can post host-side inline fallbacks if tool delivery fails.");
     expect(prompt).toContain("only this orchestrator run can publish final findings");
+    expect(prompt).toContain("Ponytail lens:");
+    expect(prompt).toContain("run your own Ponytail audit of the changed code before synthesis");
+    expect(prompt).toContain("Apply YAGNI");
+    expect(prompt).toContain("Do not simplify away security, validation, error handling, or tests");
     expect(prompt).toContain("do not mention that failure in the public review");
     expect(prompt).toContain("Never include thinking traces");
     expect(prompt).toContain('<reviewer_report lens="risk" title="Risk Review"');

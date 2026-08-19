@@ -10,7 +10,8 @@ export interface ActionInputs {
   // Behavior
   prompt: string;
   systemPrompt: string;
-  maxTurns: number;
+  /** Optional conversation-turn cap. Undefined leaves pi unbounded by turns. */
+  maxTurns?: number;
   /** Wall-clock timeout for one pi invocation, in seconds. */
   runTimeoutSeconds: number;
   tools: string;
