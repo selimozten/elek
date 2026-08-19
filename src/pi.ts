@@ -234,7 +234,7 @@ export async function runPi(
         case "turn_start":
           turnCount++;
           streamingText = "";
-          if (turnCount > inputs.maxTurns) {
+          if (inputs.maxTurns !== undefined && turnCount > inputs.maxTurns) {
             terminatePi(`pi exceeded max turns (${inputs.maxTurns})`);
           }
           break;

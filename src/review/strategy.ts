@@ -64,15 +64,15 @@ export interface BudgetPlanResult {
 const CROSSCHECK_LENSES: ReviewLens[] = [
   {
     id: "risk",
-    title: "Risk Review",
+    title: "Thermos Security & Correctness Review",
     focus:
-      "Correctness, security, breaking changes, developer-experience regressions, feature-gate leaks, data loss, authz/authn gaps, injection risks, and user-visible regressions.",
+      "Audit changed code for concrete bugs, security vulnerabilities, breaking behavior, developer-workflow regressions, feature-gate leaks, and subtle cross-module side effects. Trace each risk end-to-end and report only verified medium-to-high impact.",
   },
   {
     id: "design",
-    title: "Design Review",
+    title: "Thermos Code Quality Review",
     focus:
-      "Maintainability, structural simplification, abstraction quality, file-size growth, ad-hoc branching, type boundaries, canonical layer ownership, and codebase health.",
+      "Audit changed code for structural regressions, missed code-judo simplifications, spaghetti branching, weak abstractions, file-size growth, unclear type boundaries, and logic outside its canonical layer. Prefer fewer concepts and direct, boring code.",
   },
 ];
 
@@ -547,6 +547,14 @@ export function buildSynthesisPrompt(params: {
     `- If two reviewers found the same issue independently, treat that as stronger signal, but still verify it yourself.`,
     `- Prefer a small number of precise, actionable comments over noisy coverage.`,
     `- Never approve, merge, close, label, or edit anything. The only GitHub-facing tools available to the orchestrator are elek review-comment tools.`,
+    ``,
+    `Ponytail lens:`,
+    `- Independently run your own Ponytail audit of the changed code before synthesis; do not only re-rank candidate reports.`,
+    `- Apply YAGNI. Reject speculative abstractions, unused flexibility, duplicate helpers, and complexity without a current requirement.`,
+    `- Prefer existing code, the standard library, native platform features, and the smallest root-cause fix.`,
+    `- Prefer fewer files, branches, concepts, and dependencies when behavior and safety remain equal.`,
+    `- Do not simplify away security, validation, error handling, or tests that prevent real regressions.`,
+    `- Surface Ponytail findings only when added complexity creates a concrete maintainability, correctness, or operational risk in changed code.`,
     ``,
     `Use the MCP proxy for visible inline findings:`,
     ``,

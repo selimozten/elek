@@ -29,6 +29,7 @@ const ENV_KEYS = [
   "INPUT_ADVISOR_THINKING",
   "INPUT_VALIDATOR_THINKING",
   "INPUT_MAX_COST_USD",
+  "INPUT_MAX_TURNS",
   "INPUT_RUN_TIMEOUT_SECONDS",
 ];
 const saved: Record<string, string | undefined> = {};
@@ -206,6 +207,16 @@ describe("parseInputs", () => {
   it("enables cost reporting by default", () => {
     delete process.env.INPUT_SHOW_COST;
     expect(parseInputs().showCost).toBe(true);
+  });
+
+  it("keeps a default turn cap and accepts an explicit unlimited value", () => {
+    delete process.env.INPUT_MAX_TURNS;
+    expect(parseInputs().maxTurns).toBe(20);
+
+    for (const value of ["0", "off", "none", "false", "disabled"]) {
+      process.env.INPUT_MAX_TURNS = value;
+      expect(parseInputs().maxTurns).toBeUndefined();
+    }
   });
 
   it("can disable cost reporting and parse rate overrides", () => {

@@ -45,6 +45,18 @@ function parseReviewAgentCountInput(value: string): number | undefined {
   return parsed;
 }
 
+function parseMaxTurnsInput(value: string): number | undefined {
+  const normalized = value.trim();
+  if (!normalized) return 20;
+  if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return undefined;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    core.warning(`Ignoring invalid max_turns input: ${normalized}`);
+    return 20;
+  }
+  return parsed;
+}
+
 function parsePositiveIntegerInput(name: string, value: string, defaultValue: number): number {
   const normalized = value.trim();
   if (!normalized) return defaultValue;
@@ -64,7 +76,7 @@ export function parseInputs(): ActionInputs {
     thinking: core.getInput("thinking") || "medium",
     prompt: core.getInput("prompt") || "",
     systemPrompt: core.getInput("system_prompt") || "",
-    maxTurns: parseInt(core.getInput("max_turns") || "20", 10),
+    maxTurns: parseMaxTurnsInput(core.getInput("max_turns")),
     runTimeoutSeconds: parsePositiveIntegerInput("run_timeout_seconds", core.getInput("run_timeout_seconds"), 600),
     tools: core.getInput("tools") || "",
     configPath: core.getInput("config_path") || ".elek.yml",

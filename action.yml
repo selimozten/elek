@@ -74,7 +74,7 @@ inputs:
     required: false
     default: ""
   max_turns:
-    description: "Maximum conversation turns (limits cost). Default: 20."
+    description: "Maximum conversation turns. Set to off, none, false, disabled, or 0 for no turn cap. Default: 20."
     required: false
     default: "20"
   run_timeout_seconds:
