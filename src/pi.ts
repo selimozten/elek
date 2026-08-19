@@ -194,11 +194,12 @@ export async function runPi(
         }
       }, 1000);
     };
-    const timeoutMs = inputs.runTimeoutSeconds * 1000;
-    const timeoutTimer = setTimeout(
-      () => terminatePi(`pi timed out after ${inputs.runTimeoutSeconds}s`),
-      timeoutMs,
-    );
+    const timeoutTimer = inputs.runTimeoutSeconds === undefined
+      ? undefined
+      : setTimeout(
+          () => terminatePi(`pi timed out after ${inputs.runTimeoutSeconds}s`),
+          inputs.runTimeoutSeconds * 1000,
+        );
 
     let stderr = "";
     let stdoutRaw = "";
@@ -303,7 +304,7 @@ export async function runPi(
     child.on("close", async (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeoutTimer);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
       if (forceKillTimer) clearTimeout(forceKillTimer);
       const elapsed = (Date.now() - startTime) / 1000;
       console.log(

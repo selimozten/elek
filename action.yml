@@ -78,7 +78,7 @@ inputs:
     required: false
     default: "20"
   run_timeout_seconds:
-    description: "Wall-clock timeout for each model run. elek reports a failure review before the outer GitHub step timeout can leave a stale tracking comment."
+    description: "Wall-clock timeout for each model run. Set to off, none, false, disabled, or 0 for no run timeout."
     required: false
     default: "600"
   tools:

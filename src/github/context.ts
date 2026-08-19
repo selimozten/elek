@@ -68,6 +68,12 @@ function parsePositiveIntegerInput(name: string, value: string, defaultValue: nu
   return parsed;
 }
 
+function parseRunTimeoutInput(value: string): number | undefined {
+  const normalized = value.trim();
+  if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return undefined;
+  return parsePositiveIntegerInput("run_timeout_seconds", normalized, 600);
+}
+
 export function parseInputs(): ActionInputs {
   return {
     triggerPhrase: core.getInput("trigger_phrase") || "@pi",
@@ -77,7 +83,7 @@ export function parseInputs(): ActionInputs {
     prompt: core.getInput("prompt") || "",
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseMaxTurnsInput(core.getInput("max_turns")),
-    runTimeoutSeconds: parsePositiveIntegerInput("run_timeout_seconds", core.getInput("run_timeout_seconds"), 600),
+    runTimeoutSeconds: parseRunTimeoutInput(core.getInput("run_timeout_seconds")),
     tools: core.getInput("tools") || "",
     configPath: core.getInput("config_path") || ".elek.yml",
     baseBranch: core.getInput("base_branch") || undefined,
