@@ -665,7 +665,13 @@ async function run(): Promise<void> {
   const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
   try {
     writeMcpConfig();
-    result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });
+    result = await runPi(
+      prompt,
+      finalInputs,
+      onProgress,
+      singleSessionReview ? false : mcpEnabled,
+      { promptName: "prompt" },
+    );
     runCosts[finalCostIndex] = costFromPiResult(result);
   } catch (err) {
     result = {
