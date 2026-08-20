@@ -403,9 +403,9 @@ async function run(): Promise<void> {
           jobRunLink,
           commentId,
           {
-            useMcp: mcpEnabled,
+            useMcp: false,
             allowEdit: resolvedMode.allowEdit,
-            tools: piTools,
+            tools: "",
             repoConfig: effectiveRepoConfig,
             publicModelLabel,
           },
@@ -461,6 +461,7 @@ async function run(): Promise<void> {
 
   const useReviewPlan = reviewPlanSupport.enabled;
   const singleSessionReview = useReviewPlan && usesSingleSessionReview(reviewPlan);
+  const finalTools = singleSessionReview ? "" : piTools;
   trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
   activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
@@ -487,11 +488,11 @@ async function run(): Promise<void> {
     jobRunLink,
     commentId,
     {
-    useMcp: mcpEnabled,
-    allowEdit: resolvedMode.allowEdit,
-    tools: piTools,
-    repoConfig: effectiveRepoConfig,
-    publicModelLabel,
+      useMcp: singleSessionReview ? false : mcpEnabled,
+      allowEdit: resolvedMode.allowEdit,
+      tools: finalTools,
+      repoConfig: effectiveRepoConfig,
+      publicModelLabel,
     },
   );
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
@@ -547,7 +548,7 @@ async function run(): Promise<void> {
       provider: reviewPlan.validator.provider,
       model: reviewPlan.validator.model,
       thinking: inputs.validatorThinking || inputs.thinking,
-      tools: piTools,
+      tools: finalTools,
       mode: "review",
     };
     activeModelLabel = reviewPlan.validator.label;
