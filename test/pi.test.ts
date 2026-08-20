@@ -101,6 +101,7 @@ describe("buildPiArgs", () => {
     expect(args[promptIndex + 1]).toContain(
       "Use repository inspection tools only to resolve a specific uncertainty",
     );
+    expect(args[promptIndex + 1]).toContain("reserve enough output for the final review");
   });
 
   it("disables all built-in tools for a review lane with no requested tools", () => {
@@ -115,6 +116,7 @@ describe("buildPiArgs", () => {
     expect(args).not.toContain("-e");
     const systemPrompt = args[args.indexOf("--append-system-prompt") + 1];
     expect(systemPrompt).toContain("You have no repository tools");
+    expect(systemPrompt).toContain("reserve enough output for the final review");
     expect(systemPrompt).toContain("Return the final review in this response");
     expect(systemPrompt).not.toContain("Use repository inspection tools");
   });
