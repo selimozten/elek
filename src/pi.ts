@@ -139,11 +139,8 @@ export async function runPi(
   const env = buildPiEnv(inputs);
 
   console.log(`pi binary: ${piBin}`);
-  const cliThinking = piThinkingLevel(inputs.thinking);
   console.log(
-    `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${
-      cliThinking === inputs.thinking ? inputs.thinking : `${inputs.thinking} (pi ${cliThinking})`
-    }`,
+    `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`,
   );
   const runModelLabel = modelLabelFor(inputs);
 
@@ -488,7 +485,7 @@ export function buildPiArgs(
 ): string[] {
   const args: string[] = [
     "--no-session",
-    "--thinking", piThinkingLevel(inputs.thinking),
+    "--thinking", inputs.thinking,
     "--no-skills",
     "--no-context-files",
   ];
@@ -555,10 +552,6 @@ function usesReadonlyReviewTools(inputs: ActionInputs): boolean {
   const hasReadonlyTool = ["read", "grep", "find", "ls"].some((tool) => tools.has(tool));
   const hasMutationTool = ["write", "edit", "bash"].some((tool) => tools.has(tool));
   return hasReadonlyTool && !hasMutationTool;
-}
-
-function piThinkingLevel(value: string): string {
-  return value.trim().toLowerCase() === "max" ? "xhigh" : value;
 }
 
 /**
