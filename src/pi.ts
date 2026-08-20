@@ -36,6 +36,15 @@ const REVIEW_SYSTEM_PROMPT = [
   "Return the requested review format immediately when the review is complete, including when there are no findings.",
 ].join(" ");
 
+const NO_TOOL_REVIEW_SYSTEM_PROMPT = [
+  "You are Elek, a noninteractive read-only CI pull-request reviewer.",
+  "Find only concrete, consequential issues rooted in changed code.",
+  "You have no repository tools; the prompt contains the complete relevant diff and policy.",
+  "Review the supplied context now and do not defer work or say that you will inspect files.",
+  "Do not edit files, ask questions, or narrate research.",
+  "Return the final review in this response, including the required no-findings format when applicable.",
+].join(" ");
+
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
   detail?: string;
@@ -696,7 +705,10 @@ export function buildPiArgs(
     args.push("--system-prompt", inputs.systemPrompt);
   }
   if (inputs.mode !== "agent") {
-    args.push("--append-system-prompt", REVIEW_SYSTEM_PROMPT);
+    args.push(
+      "--append-system-prompt",
+      inputs.tools ? REVIEW_SYSTEM_PROMPT : NO_TOOL_REVIEW_SYSTEM_PROMPT,
+    );
   }
 
   if (inputs.tools) {
