@@ -12,6 +12,23 @@ const MAX_FILE_SLICE_CHARS = 64_000;
 const DEFAULT_MODEL_INPUT_BUDGET_CHARS = 320_000;
 const MIN_DIFF_PROMPT_CHARS = 8_000;
 
+export const DEFAULT_REVIEW_PATCH_OMIT_PATTERNS = [
+  "**/*.snap",
+  "**/__snapshots__/**",
+  "**/*.generated.*",
+  "**/*.gen.*",
+  "**/generated/**",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+];
+
+interface DiffPromptOptions {
+  omitPatchPatterns?: string[];
+}
+
 /**
  * Approximate full-input budgets after reserving model output and provider
  * framing. Code-heavy prompts average about three characters per token.
@@ -62,6 +79,7 @@ export function parseUnifiedDiffFiles(diff: string): ChangedFilePatch[] {
 export function formatChangedFilesForPrompt(
   diff: string | undefined,
   maxChars = DEFAULT_MODEL_INPUT_BUDGET_CHARS,
+  options: DiffPromptOptions = {},
 ): string {
   if (!diff) return "(diff unavailable; inspect files from the workspace if needed)";
 
@@ -69,20 +87,29 @@ export function formatChangedFilesForPrompt(
   if (files.length === 0) return fallbackTruncatedDiff(diff, maxChars);
 
   const overview = formatFileOverview(files);
-  const fullDiffWithOverview = `${overview}\n\n# Full diff\n${diff}`;
+  const omittedPatchFiles = files.filter((file) =>
+    options.omitPatchPatterns?.some((pattern) => matchesPathPattern(file.path, pattern)),
+  );
+  const reviewFiles = files.filter((file) => !omittedPatchFiles.includes(file));
+  const omittedPatchNote = omittedPatchFiles.length > 0
+    ? `\n\n# ${omittedPatchFiles.length} patch bodies omitted as configured or generated noise; paths remain in the overview.`
+    : "";
+  const reviewDiff = reviewFiles.map((file) => file.patch).join("\n");
+  const fullDiffWithOverview = `${overview}${omittedPatchNote}\n\n# Full diff\n${reviewDiff}`;
   if (fullDiffWithOverview.length <= maxChars) {
     return fullDiffWithOverview;
   }
 
-  const sorted = [...files].sort(comparePromptPriority);
-  const remainingBudget = Math.max(0, maxChars - overview.length - 1_200);
+  const sorted = [...reviewFiles].sort(comparePromptPriority);
+  const remainingBudget = Math.max(0, maxChars - overview.length - omittedPatchNote.length - 1_200);
   const perFileBudget = Math.max(
     MIN_FILE_SLICE_CHARS,
-    Math.min(MAX_FILE_SLICE_CHARS, Math.floor(remainingBudget / Math.max(1, Math.min(files.length, 40)))),
+    Math.min(MAX_FILE_SLICE_CHARS, Math.floor(remainingBudget / Math.max(1, Math.min(reviewFiles.length, 40)))),
   );
 
   const blocks: string[] = [
     overview,
+    ...(omittedPatchNote ? [omittedPatchNote.trim()] : []),
     "",
     "# Representative diff slices",
     "# Slices are prioritized toward non-deleted production files so later application changes are not starved by early docs/workflow churn.",
@@ -103,7 +130,7 @@ export function formatChangedFilesForPrompt(
     included.add(file.path);
   }
 
-  omitted = files.length - included.size;
+  omitted = reviewFiles.length - included.size;
   if (omitted > 0) {
     blocks.push("");
     blocks.push(`# ... ${omitted} changed file(s) omitted from diff slices; see the full file overview above and inspect files with read/grep/find/ls as needed.`);
@@ -112,6 +139,36 @@ export function formatChangedFilesForPrompt(
   blocks.push(`# ... diff truncated by file for prompt budget; original diff was ${diff.length.toLocaleString("en-US")} characters.`);
 
   return blocks.join("\n").slice(0, maxChars);
+}
+
+function matchesPathPattern(path: string, pattern: string): boolean {
+  const normalizedPath = path.replaceAll("\\", "/").replace(/^\.\//, "");
+  const normalizedPattern = pattern.replaceAll("\\", "/").replace(/^\.\//, "");
+  const target = normalizedPattern.includes("/")
+    ? normalizedPath
+    : normalizedPath.split("/").at(-1) || normalizedPath;
+  let source = "";
+  for (let index = 0; index < normalizedPattern.length; index += 1) {
+    const char = normalizedPattern[index]!;
+    const next = normalizedPattern[index + 1];
+    const afterNext = normalizedPattern[index + 2];
+    if (char === "*" && next === "*" && afterNext === "/") {
+      source += "(?:.*/)?";
+      index += 2;
+    } else if (char === "*" && next === "*") {
+      source += ".*";
+      index += 1;
+    } else if (char === "*") {
+      source += "[^/]*";
+    } else if (char === "?") {
+      source += "[^/]";
+    } else if ("\\^$+?.()|{}[]".includes(char)) {
+      source += `\\${char}`;
+    } else {
+      source += char;
+    }
+  }
+  return new RegExp(`^${source}$`).test(target);
 }
 
 function parseDiffHeader(line: string): { oldPath: string; newPath: string } {

@@ -4,11 +4,13 @@ import { mcpToolGuidance } from "../github/mcp-guidance.js";
 import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "./contract.js";
 import { formatConfigPromptBlock, normalizeReviewStrategy, type ElekConfig } from "../config.js";
 import { aggregateCosts, formatUsd, type ReviewCost } from "./cost.js";
-import { diffPromptBudgetChars, formatChangedFilesForPrompt } from "./diff-context.js";
+import {
+  DEFAULT_REVIEW_PATCH_OMIT_PATTERNS,
+  diffPromptBudgetChars,
+  formatChangedFilesForPrompt,
+} from "./diff-context.js";
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
-
-const STRATEGY_DIFF_PROMPT_CAP_CHARS = 96_000;
 
 export interface ModelSpec {
   provider: string;
@@ -392,13 +394,16 @@ export function selectReviewPlanWithinBudget(args: {
   return { plan, support, events };
 }
 
-function changedFilesBlock(data: GitHubData, modelLabel: string, reservedChars: number): string {
+function changedFilesBlock(
+  data: GitHubData,
+  modelLabel: string,
+  reservedChars: number,
+  ignorePaths: string[] = [],
+): string {
   return formatChangedFilesForPrompt(
     data.diff,
-    Math.min(
-      STRATEGY_DIFF_PROMPT_CAP_CHARS,
-      diffPromptBudgetChars(modelLabel, reservedChars),
-    ),
+    diffPromptBudgetChars(modelLabel, reservedChars),
+    { omitPatchPatterns: [...DEFAULT_REVIEW_PATCH_OMIT_PATTERNS, ...ignorePaths] },
   );
 }
 
@@ -475,7 +480,7 @@ export function buildLensPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data, modelLabel, reservedChars),
+    changedFilesBlock(data, modelLabel, reservedChars, repoConfig?.ignorePaths),
     "```",
     `</changed_files>`,
     ``,
@@ -587,7 +592,7 @@ export function buildSynthesisPrompt(params: {
     ``,
     `<changed_files>`,
     "```diff",
-    changedFilesBlock(data, modelLabel, reservedChars),
+    changedFilesBlock(data, modelLabel, reservedChars, repoConfig?.ignorePaths),
     "```",
     `</changed_files>`,
     ``,
