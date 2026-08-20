@@ -33,6 +33,7 @@ const REVIEW_SYSTEM_PROMPT = [
   "Find only concrete, consequential issues rooted in changed code.",
   "Use repository inspection tools only to resolve a specific uncertainty required to validate a candidate finding; a self-contained change may require no tool calls.",
   "Do not edit files, ask questions, narrate research, or continue exploring after every candidate is either verified or rejected.",
+  "The output limit includes reasoning, so reserve enough output for the final review.",
   "Return the requested review format immediately when the review is complete, including when there are no findings.",
 ].join(" ");
 
@@ -42,6 +43,7 @@ const NO_TOOL_REVIEW_SYSTEM_PROMPT = [
   "You have no repository tools; the prompt contains the complete relevant diff and policy.",
   "Review the supplied context now and do not defer work or say that you will inspect files.",
   "Do not edit files, ask questions, or narrate research.",
+  "The output limit includes reasoning, so reserve enough output for the final review.",
   "Return the final review in this response, including the required no-findings format when applicable.",
 ].join(" ");
 
