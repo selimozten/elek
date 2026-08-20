@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("bundled pi model registry", () => {
@@ -28,6 +28,22 @@ describe("bundled pi model registry", () => {
       id: "zai-org/GLM-5.2",
       provider: "together",
       reasoning: true,
+    });
+  });
+
+  it("enables Together max reasoning for DeepSeek V4 Flash", async () => {
+    const runtime = await ModelRuntime.create({
+      authPath: join(tmpdir(), `elek-model-registry-${randomUUID()}.json`),
+      modelsPath: resolve("pi-config/models.json"),
+    });
+
+    expect(runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Flash-0731")).toMatchObject({
+      thinkingLevelMap: {
+        max: "max",
+      },
+      compat: {
+        supportsReasoningEffort: true,
+      },
     });
   });
 });

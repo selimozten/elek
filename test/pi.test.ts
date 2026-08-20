@@ -85,11 +85,11 @@ describe("buildPiArgs", () => {
     expect(args.join(" ")).toContain("node_modules/pi-mcp-adapter");
   });
 
-  it("maps user-facing max thinking to pi's highest supported CLI level", () => {
+  it("passes max thinking to pi without reducing it", () => {
     const args = buildPiArgs({ ...baseInputs, thinking: "max" }, "/tmp/prompt.md", false);
 
     expect(args).toContain("--thinking");
-    expect(args[args.indexOf("--thinking") + 1]).toBe("xhigh");
+    expect(args[args.indexOf("--thinking") + 1]).toBe("max");
   });
 
   it("appends Elek's noninteractive reviewer contract in review mode", () => {

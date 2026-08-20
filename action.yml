@@ -307,6 +307,7 @@ runs:
         INPUT_MAX_COST_USD: ${{ inputs.max_cost_usd }}
 
         # ── Runtime ──
+        PI_CODING_AGENT_DIR: ${{ github.action_path }}/pi-config
         GITHUB_RUN_ID: ${{ github.run_id }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
