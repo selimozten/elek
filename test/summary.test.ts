@@ -48,9 +48,27 @@ function piResult(overrides: Partial<PiRunResult> = {}): PiRunResult {
 describe("review summary", () => {
   it("builds machine-readable review metrics", () => {
     const reviewer = piResult({
+      promptChars: 12_345,
+      thinking: "high",
+      toolCalls: 4,
+      turnMetrics: [{
+        turn: 1,
+        durationSeconds: 12.5,
+        firstResponseSeconds: 1.5,
+        inputTokens: 400,
+        outputTokens: 80,
+        cacheReadTokens: 300,
+        cacheWriteTokens: 10,
+        reasoningTokens: 30,
+        totalTokens: 790,
+        stopReason: "toolUse",
+      }],
       usage: {
         inputTokens: 500,
         outputTokens: 100,
+        cacheReadTokens: 300,
+        cacheWriteTokens: 10,
+        reasoningTokens: 30,
         estimated: true,
         modelLabel: "openrouter/moonshotai/kimi-k2.7-code",
         source: "override",
@@ -146,6 +164,13 @@ describe("review summary", () => {
       durationSeconds: 65.7,
       providerRetries: 2,
       pricingSource: "override",
+      promptChars: 12_345,
+      thinking: "high",
+      toolCalls: 4,
+      cacheReadTokens: 300,
+      cacheWriteTokens: 10,
+      reasoningTokens: 30,
+      turnMetrics: [expect.objectContaining({ turn: 1, firstResponseSeconds: 1.5 })],
     });
     expect(summary.modelRuns[1]).toMatchObject({
       role: "validator-review",

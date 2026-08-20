@@ -91,17 +91,37 @@ export interface GitHubEntityContext {
   };
 }
 
+export interface PiTurnMetric {
+  turn: number;
+  durationSeconds: number;
+  firstResponseSeconds?: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens?: number;
+  totalTokens: number;
+  stopReason?: string;
+}
+
 export interface PiRunResult {
   conclusion: "success" | "failure";
   output: string;
   sessionId?: string;
   turnsUsed: number;
+  promptChars?: number;
+  thinking?: string;
+  toolCalls?: number;
+  turnMetrics?: PiTurnMetric[];
   providerRetries: number;
   durationSeconds: number;
   costUsd: number;
   usage: {
     inputTokens: number;
     outputTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    reasoningTokens?: number;
     estimated: boolean;
     modelLabel: string;
     source: "builtin" | "override" | "provider" | "unknown";

@@ -218,6 +218,58 @@ describe("runPi", () => {
     }
   });
 
+  it("records prompt settings and exact usage for every model turn", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-turn-metrics-"));
+    const fakePi = join(dir, "pi");
+    writeFileSync(fakePi, [
+      "#!/usr/bin/env bash",
+      "cat <<'JSON'",
+      "{\"type\":\"session\",\"id\":\"session-turn-metrics\"}",
+      "{\"type\":\"turn_start\"}",
+      "{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"toolName\":\"read\"}],\"usage\":{\"input\":100,\"output\":10,\"cacheRead\":80,\"cacheWrite\":2,\"reasoning\":5,\"totalTokens\":192,\"cost\":{\"total\":0.001}},\"stopReason\":\"toolUse\"}}",
+      "{\"type\":\"turn_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"toolName\":\"read\"}],\"usage\":{\"input\":100,\"output\":10,\"cacheRead\":80,\"cacheWrite\":2,\"reasoning\":5,\"totalTokens\":192,\"cost\":{\"total\":0.001}},\"stopReason\":\"toolUse\"},\"toolResults\":[]}",
+      "{\"type\":\"turn_start\"}",
+      "{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":20,\"output\":7,\"cacheRead\":160,\"cacheWrite\":0,\"reasoning\":3,\"totalTokens\":187,\"cost\":{\"total\":0.002}},\"stopReason\":\"stop\"}}",
+      "{\"type\":\"turn_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":20,\"output\":7,\"cacheRead\":160,\"cacheWrite\":0,\"reasoning\":3,\"totalTokens\":187,\"cost\":{\"total\":0.002}},\"stopReason\":\"stop\"},\"toolResults\":[]}",
+      "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"usage\":{\"input\":20,\"output\":7,\"cacheRead\":160,\"cacheWrite\":0,\"reasoning\":3,\"totalTokens\":187,\"cost\":{\"total\":0.002}},\"stopReason\":\"stop\"}]}",
+      "JSON",
+      "",
+    ].join("\n"), "utf-8");
+    chmodSync(fakePi, 0o755);
+    process.env.PI_EXECUTABLE = fakePi;
+
+    try {
+      const prompt = "review this change";
+      const result = await runPi(prompt, baseInputs, undefined, false, { promptName: "turn-metrics-test" });
+
+      expect(result.conclusion).toBe("success");
+      expect(result.promptChars).toBe(prompt.length);
+      expect(result.thinking).toBe("medium");
+      expect(result.turnsUsed).toBe(2);
+      expect(result.turnMetrics).toHaveLength(2);
+      expect(result.turnMetrics[0]).toMatchObject({
+        turn: 1,
+        inputTokens: 100,
+        outputTokens: 10,
+        cacheReadTokens: 80,
+        cacheWriteTokens: 2,
+        reasoningTokens: 5,
+        totalTokens: 192,
+        stopReason: "toolUse",
+      });
+      expect(result.usage).toMatchObject({
+        inputTokens: 120,
+        outputTokens: 17,
+        cacheReadTokens: 240,
+        cacheWriteTokens: 2,
+        reasoningTokens: 8,
+      });
+      expect(result.costUsd).toBe(0.003);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns a failure result when pi exceeds the configured timeout", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-timeout-"));
     const fakePi = join(dir, "pi");
