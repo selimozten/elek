@@ -548,11 +548,11 @@ describe("review strategy", () => {
     expect(prompt).toContain("Do your audit with fresh eyes.");
   });
 
-  it("keeps large reviewer prompts below the provider stall range", () => {
+  it("keeps a full relevant diff when it fits the model input budget", () => {
     const prompt = buildLensPrompt({
       data: {
         ...dataFixture,
-        diff: largeMultiFileDiff,
+        diff: `diff --git a/src/large.ts b/src/large.ts\n${"+const relevant = true;\n".repeat(7_000)}`,
         comments: [],
         reviewComments: [],
       },
@@ -565,8 +565,45 @@ describe("review strategy", () => {
       modelLabel: "together/deepseek-ai/DeepSeek-V4-Flash-0731",
     });
 
-    expect(prompt).toContain("... diff truncated by file for prompt budget");
-    expect(prompt.length).toBeLessThan(120_000);
+    expect(prompt).toContain("# Full diff");
+    expect(prompt).not.toContain("... diff truncated by file for prompt budget");
+    expect(prompt.length).toBeGreaterThan(120_000);
+  });
+
+  it("omits configured and generated patch noise but keeps every changed path", () => {
+    const prompt = buildLensPrompt({
+      data: {
+        ...dataFixture,
+        diff: [
+          "diff --git a/src/relevant.ts b/src/relevant.ts\n+PRODUCTION_PATCH_BODY",
+          "diff --git a/docs/guide.md b/docs/guide.md\n+DOCS_PATCH_BODY",
+          "diff --git a/src/client.generated.ts b/src/client.generated.ts\n+GENERATED_PATCH_BODY",
+          "diff --git a/package-lock.json b/package-lock.json\n+LOCKFILE_PATCH_BODY",
+        ].join("\n"),
+        comments: [],
+        reviewComments: [],
+      },
+      userRequest: "",
+      lens: {
+        id: "risk",
+        title: "Risk Review",
+        focus: "Correctness and security.",
+      },
+      modelLabel: "together/deepseek-ai/DeepSeek-V4-Flash-0731",
+      repoConfig: {
+        ignorePaths: ["docs/**"],
+        instructions: [],
+      },
+    });
+
+    expect(prompt).toContain("PRODUCTION_PATCH_BODY");
+    expect(prompt).not.toContain("DOCS_PATCH_BODY");
+    expect(prompt).not.toContain("GENERATED_PATCH_BODY");
+    expect(prompt).not.toContain("LOCKFILE_PATCH_BODY");
+    expect(prompt).toContain("docs/guide.md");
+    expect(prompt).toContain("src/client.generated.ts");
+    expect(prompt).toContain("package-lock.json");
+    expect(prompt).toContain("3 patch bodies omitted as configured or generated noise");
   });
 
   it("uses the correct fallback user request for issue lens prompts", () => {
@@ -664,7 +701,7 @@ describe("review strategy", () => {
     expect(prompt).not.toContain("End with: deepseek/deepseek-v4-pro");
   });
 
-  it("keeps large synthesis prompts below the provider stall range", () => {
+  it("uses the validator model's context budget for final synthesis prompts", () => {
     const longData = {
       ...dataFixture,
       diff: largeMultiFileDiff,
@@ -681,7 +718,7 @@ describe("review strategy", () => {
     });
 
     expect(prompt).toContain("... diff truncated by file for prompt budget");
-    expect(prompt.length).toBeLessThan(120_000);
+    expect(prompt.length).toBeLessThan(340_000);
   });
 });
 
