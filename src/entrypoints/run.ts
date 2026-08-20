@@ -468,10 +468,9 @@ async function run(): Promise<void> {
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
-    const lensTools = resolveMode("review").piTools
-      .split(",")
-      .filter((tool) => tool !== "mcp")
-      .join(",");
+    // Reviewer lanes receive the complete relevant diff. The final validator
+    // owns targeted repository reads, so reviewers finish in one model turn.
+    const lensTools = "";
 
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs

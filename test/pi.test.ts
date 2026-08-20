@@ -103,6 +103,18 @@ describe("buildPiArgs", () => {
     );
   });
 
+  it("disables all built-in tools for a review lane with no requested tools", () => {
+    const args = buildPiArgs(
+      { ...baseInputs, tools: "" },
+      "/tmp/prompt.md",
+      false,
+    );
+
+    expect(args).toContain("--no-builtin-tools");
+    expect(args).not.toContain("--tools");
+    expect(args).not.toContain("-e");
+  });
+
   it("does not impose the reviewer contract on legacy agent mode", () => {
     const args = buildPiArgs(
       { ...baseInputs, mode: "agent" },

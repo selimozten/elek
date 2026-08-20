@@ -677,8 +677,11 @@ export function buildPiArgs(
   // (which would hit the npm registry during a review). Load exactly the
   // already-installed, lockfile-pinned local adapter package when MCP is needed.
   args.push("--no-extensions");
+  if (inputs.mode !== "agent") {
+    args.push("--no-builtin-tools");
+  }
   if (usesReadonlyReviewTools(inputs)) {
-    args.push("--no-builtin-tools", "-e", localPiReadonlyToolsPath());
+    args.push("-e", localPiReadonlyToolsPath());
   }
   if (loadExtensions) {
     args.push("-e", localPiMcpAdapterPath());
