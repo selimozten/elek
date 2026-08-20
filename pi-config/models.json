@@ -12,6 +12,9 @@
             "xhigh": null,
             "max": "max"
           },
+          "samplingParams": {
+            "max_tokens": 32768
+          },
           "compat": {
             "supportsReasoningEffort": true
           }

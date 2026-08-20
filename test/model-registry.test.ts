@@ -32,7 +32,7 @@ describe("bundled pi model registry", () => {
     });
   });
 
-  it("enables Together max reasoning for DeepSeek V4 Flash", async () => {
+  it("enables Together max reasoning and caps DeepSeek V4 Flash output", async () => {
     const runtime = await ModelRuntime.create({
       authPath: join(tmpdir(), `elek-model-registry-${randomUUID()}.json`),
       modelsPath: resolve("pi-config/models.json"),
@@ -41,6 +41,9 @@ describe("bundled pi model registry", () => {
     expect(runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Flash-0731")).toMatchObject({
       thinkingLevelMap: {
         max: "max",
+      },
+      samplingParams: {
+        max_tokens: 32_768,
       },
       compat: {
         supportsReasoningEffort: true,
