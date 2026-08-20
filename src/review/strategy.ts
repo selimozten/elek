@@ -8,6 +8,8 @@ import { diffPromptBudgetChars, formatChangedFilesForPrompt } from "./diff-conte
 
 export type ReviewStrategy = "solo" | "crosscheck" | "council" | "thermos";
 
+const STRATEGY_DIFF_PROMPT_CAP_CHARS = 96_000;
+
 export interface ModelSpec {
   provider: string;
   model: string;
@@ -393,7 +395,10 @@ export function selectReviewPlanWithinBudget(args: {
 function changedFilesBlock(data: GitHubData, modelLabel: string, reservedChars: number): string {
   return formatChangedFilesForPrompt(
     data.diff,
-    diffPromptBudgetChars(modelLabel, reservedChars),
+    Math.min(
+      STRATEGY_DIFF_PROMPT_CAP_CHARS,
+      diffPromptBudgetChars(modelLabel, reservedChars),
+    ),
   );
 }
 

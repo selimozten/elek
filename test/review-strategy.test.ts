@@ -86,6 +86,15 @@ const dataFixture: GitHubData = {
   pr: { headRef: "feature/review", baseRef: "main" },
 };
 
+const largeMultiFileDiff = Array.from(
+  { length: 25 },
+  (_, index) =>
+    `diff --git a/src/file-${index}.ts b/src/file-${index}.ts\n` +
+    `--- a/src/file-${index}.ts\n` +
+    `+++ b/src/file-${index}.ts\n` +
+    "+x\n".repeat(10_000),
+).join("\n");
+
 describe("review strategy", () => {
   it("keeps solo as the safe default", () => {
     expect(resolveReviewStrategy(undefined)).toBe("solo");
@@ -539,6 +548,27 @@ describe("review strategy", () => {
     expect(prompt).toContain("Do your audit with fresh eyes.");
   });
 
+  it("keeps large reviewer prompts below the provider stall range", () => {
+    const prompt = buildLensPrompt({
+      data: {
+        ...dataFixture,
+        diff: largeMultiFileDiff,
+        comments: [],
+        reviewComments: [],
+      },
+      userRequest: "",
+      lens: {
+        id: "risk",
+        title: "Risk Review",
+        focus: "Correctness and security.",
+      },
+      modelLabel: "together/deepseek-ai/DeepSeek-V4-Flash-0731",
+    });
+
+    expect(prompt).toContain("... diff truncated by file for prompt budget");
+    expect(prompt.length).toBeLessThan(120_000);
+  });
+
   it("uses the correct fallback user request for issue lens prompts", () => {
     const prompt = buildLensPrompt({
       data: { ...dataFixture, type: "issue", diff: undefined, pr: undefined },
@@ -634,10 +664,10 @@ describe("review strategy", () => {
     expect(prompt).not.toContain("End with: deepseek/deepseek-v4-pro");
   });
 
-  it("uses the validator model's context budget for final synthesis prompts", () => {
+  it("keeps large synthesis prompts below the provider stall range", () => {
     const longData = {
       ...dataFixture,
-      diff: `diff --git a/src/a.ts b/src/a.ts\n${"+x\n".repeat(200_000)}`,
+      diff: largeMultiFileDiff,
       comments: [],
       reviewComments: [],
     };
@@ -651,7 +681,7 @@ describe("review strategy", () => {
     });
 
     expect(prompt).toContain("... diff truncated by file for prompt budget");
-    expect(prompt.length).toBeLessThan(340_000);
+    expect(prompt.length).toBeLessThan(120_000);
   });
 });
 
