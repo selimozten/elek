@@ -243,6 +243,9 @@ describe("review strategy", () => {
     expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
       "Then apply the Ponytail lens",
     );
+    expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
+      "without repository tools",
+    );
   });
 
   it("keeps separate sessions when a reviewer model differs", () => {
