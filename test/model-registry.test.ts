@@ -43,7 +43,7 @@ describe("bundled pi model registry", () => {
         max: "max",
       },
       samplingParams: {
-        max_tokens: 32_768,
+        max_tokens: 8_192,
       },
       compat: {
         supportsReasoningEffort: true,

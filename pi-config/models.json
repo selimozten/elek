@@ -13,7 +13,7 @@
             "max": "max"
           },
           "samplingParams": {
-            "max_tokens": 32768
+            "max_tokens": 8192
           },
           "compat": {
             "supportsReasoningEffort": true
