@@ -506,7 +506,8 @@ describe("review strategy", () => {
     expect(prompt).toContain("Available tools: `read`, `grep`, `find`, `ls`");
     expect(prompt).toContain("Do not paste raw diff blocks into your candidate report");
     expect(prompt).toContain("Do not claim external packages, GitHub Actions");
-    expect(prompt).toContain("Thermos-style audit calibration:");
+    expect(prompt).toContain("Stay inside the assigned lens");
+    expect(prompt).not.toContain("Catch breaking functionality, breaking developer workflow");
     expect(prompt).toContain("Never overstate severity; false positives are review failures.");
     expect(prompt).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
     expect(prompt).toContain("Finding acceptance gates:");
@@ -601,7 +602,9 @@ describe("review strategy", () => {
     expect(prompt).toContain("Elek can post host-side inline fallbacks if tool delivery fails.");
     expect(prompt).toContain("only this orchestrator run can publish final findings");
     expect(prompt).toContain("Ponytail lens:");
-    expect(prompt).toContain("run your own Ponytail audit of the changed code before synthesis");
+    expect(prompt).toContain("Apply Ponytail while validating candidate findings");
+    expect(prompt).toContain("Do not start a third full audit");
+    expect(prompt).not.toContain("run your own Ponytail audit of the changed code before synthesis");
     expect(prompt).toContain("Apply YAGNI");
     expect(prompt).toContain("Do not simplify away security, validation, error handling, or tests");
     expect(prompt).toContain("do not mention that failure in the public review");

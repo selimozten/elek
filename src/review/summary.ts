@@ -1,4 +1,4 @@
-import type { GitHubEntityContext, PiRunResult } from "../types.js";
+import type { GitHubEntityContext, PiRunResult, PiTurnMetric } from "../types.js";
 import type { ReviewCost, ReviewCostTotal } from "./cost.js";
 import type { PostSummary } from "../entrypoints/post-buffered.js";
 import { uniqueFindingId, type ParsedReviewFinding } from "./findings.js";
@@ -10,10 +10,17 @@ export interface ReviewRunMetric {
   modelLabel: string;
   conclusion: "success" | "failure";
   turnsUsed: number;
+  promptChars: number;
+  thinking: string;
+  toolCalls: number;
+  turnMetrics: PiTurnMetric[];
   providerRetries: number;
   durationSeconds: number;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens?: number;
   costUsd: number;
   costEstimated: boolean;
   pricingSource: ReviewCost["source"];
@@ -50,10 +57,23 @@ export function metricFromPiRun(
     modelLabel: result.usage.modelLabel,
     conclusion: result.conclusion,
     turnsUsed: result.turnsUsed,
+    promptChars: result.promptChars ?? 0,
+    thinking: result.thinking ?? "",
+    toolCalls: result.toolCalls ?? 0,
+    turnMetrics: (result.turnMetrics ?? []).map((turn) => ({
+      ...turn,
+      durationSeconds: roundSeconds(turn.durationSeconds),
+      firstResponseSeconds: turn.firstResponseSeconds === undefined
+        ? undefined
+        : roundSeconds(turn.firstResponseSeconds),
+    })),
     providerRetries: result.providerRetries,
     durationSeconds: roundSeconds(result.durationSeconds),
     inputTokens: result.usage.inputTokens,
     outputTokens: result.usage.outputTokens,
+    cacheReadTokens: result.usage.cacheReadTokens ?? 0,
+    cacheWriteTokens: result.usage.cacheWriteTokens ?? 0,
+    reasoningTokens: result.usage.reasoningTokens,
     costUsd: roundUsd(result.costUsd),
     costEstimated: result.usage.estimated,
     pricingSource: result.usage.source,
