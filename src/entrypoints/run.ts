@@ -53,11 +53,13 @@ import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
 import {
   buildLensPrompt,
+  buildSingleSessionReviewRequest,
   buildSynthesisPrompt,
   failedRequiredReviewLensIds,
   resolveReviewPlan,
   resolveReviewPlanSupport,
   selectReviewPlanWithinBudget,
+  usesSingleSessionReview,
   type ReviewJob,
   type ReviewPlan,
 } from "../review/strategy.js";
@@ -391,6 +393,27 @@ async function run(): Promise<void> {
     // Defensive only: the budget selector stops before estimating solo plans.
     if (plan.strategy === "solo") return [];
 
+    if (usesSingleSessionReview(plan)) {
+      return [estimatePromptOnlyCost({
+        modelLabel: plan.validator.label,
+        prompt: buildPrompt(
+          data,
+          buildSingleSessionReviewRequest(userRequest, plan),
+          plan.validator.label,
+          jobRunLink,
+          commentId,
+          {
+            useMcp: mcpEnabled,
+            allowEdit: resolvedMode.allowEdit,
+            tools: piTools,
+            repoConfig: effectiveRepoConfig,
+            publicModelLabel,
+          },
+        ),
+        costRates: inputs.costRates,
+      })];
+    }
+
     const reviewerJobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
     const lensCosts = reviewerJobs.map((job) => estimatePromptOnlyCost({
       modelLabel: job.model.label,
@@ -437,6 +460,7 @@ async function run(): Promise<void> {
   }
 
   const useReviewPlan = reviewPlanSupport.enabled;
+  const singleSessionReview = useReviewPlan && usesSingleSessionReview(reviewPlan);
   trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
   activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
@@ -454,13 +478,22 @@ async function run(): Promise<void> {
     }
   }
 
-  prompt = buildPrompt(data, userRequest, modelLabel, jobRunLink, commentId, {
+  prompt = buildPrompt(
+    data,
+    singleSessionReview
+      ? buildSingleSessionReviewRequest(userRequest, reviewPlan)
+      : userRequest,
+    singleSessionReview ? reviewPlan.validator.label : modelLabel,
+    jobRunLink,
+    commentId,
+    {
     useMcp: mcpEnabled,
     allowEdit: resolvedMode.allowEdit,
     tools: piTools,
     repoConfig: effectiveRepoConfig,
     publicModelLabel,
-  });
+    },
+  );
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
   const runCosts: ReviewCost[] = [];
@@ -477,9 +510,9 @@ async function run(): Promise<void> {
         .map((j) => `${j.lens.id}:${j.model.label}`)
         .join(", ")} | advisor: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
     );
-    if (reviewPlan.reusedModels) {
+    if (singleSessionReview) {
       console.warn(
-        `Review strategy has ${reviewPlan.jobs.length} lenses but fewer reviewer models; reused models will run sequentially.`,
+        `All review roles use ${reviewPlan.validator.label}; lenses and Ponytail validation will run in one pi session.`,
       );
     }
 
@@ -497,7 +530,9 @@ async function run(): Promise<void> {
               ? `- ${reviewPlan.validatorReview.lens.title}`
               : "",
             "",
-            `Orchestrator validation and posting`,
+            singleSessionReview
+              ? `Single-session Ponytail validation and posting`
+              : `Orchestrator validation and posting`,
             `[View run](${jobRunLink})`,
           ].join("\n"),
           trackingModelLabel,
@@ -506,6 +541,16 @@ async function run(): Promise<void> {
         console.warn("Could not update strategy status:", err);
       }
     }
+
+    finalInputs = {
+      ...piInputs,
+      provider: reviewPlan.validator.provider,
+      model: reviewPlan.validator.model,
+      thinking: inputs.validatorThinking || inputs.thinking,
+      tools: piTools,
+      mode: "review",
+    };
+    activeModelLabel = reviewPlan.validator.label;
 
     const reviewerJobs = reviewPlan.validatorReview ? [...reviewPlan.jobs, reviewPlan.validatorReview] : reviewPlan.jobs;
     const runReviewerJob = async (job: (typeof reviewerJobs)[number]) => {
@@ -534,11 +579,11 @@ async function run(): Promise<void> {
       return { job, lensResult, lensOutput };
     };
     const lensRuns: Awaited<ReturnType<typeof runReviewerJob>>[] = [];
-    if (reviewPlan.reusedModels) {
+    if (!singleSessionReview && reviewPlan.reusedModels) {
       for (const job of reviewerJobs) {
         lensRuns.push(await runReviewerJob(job));
       }
-    } else {
+    } else if (!singleSessionReview) {
       lensRuns.push(...await Promise.all(reviewerJobs.map(runReviewerJob)));
     }
 
@@ -586,26 +631,19 @@ async function run(): Promise<void> {
       conclusion: lensResult.conclusion,
     }));
 
-    finalInputs = {
-      ...piInputs,
-      provider: reviewPlan.validator.provider,
-      model: reviewPlan.validator.model,
-      thinking: inputs.validatorThinking || inputs.thinking,
-      tools: piTools,
-      mode: "review",
-    };
-    activeModelLabel = reviewPlan.validator.label;
-    prompt = buildSynthesisPrompt({
-      data,
-      userRequest,
-      modelLabel: reviewPlan.validator.label,
-      jobRunLink,
-      commentId,
-      reports,
-      repoConfig: effectiveRepoConfig,
-      publicModelLabel,
-    });
-    writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+    if (!singleSessionReview) {
+      prompt = buildSynthesisPrompt({
+        data,
+        userRequest,
+        modelLabel: reviewPlan.validator.label,
+        jobRunLink,
+        commentId,
+        reports,
+        repoConfig: effectiveRepoConfig,
+        publicModelLabel,
+      });
+      writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
+    }
   }
 
   let result: PiRunResult = {

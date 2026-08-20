@@ -43,6 +43,36 @@ export interface ReviewPlanSupport {
   warning?: string;
 }
 
+export function usesSingleSessionReview(plan: ReviewPlan): boolean {
+  if (plan.strategy === "solo") return false;
+  const jobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
+  return jobs.every((job) => job.model.label === plan.validator.label);
+}
+
+export function buildSingleSessionReviewRequest(
+  userRequest: string,
+  plan: ReviewPlan,
+): string {
+  const jobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
+  return [
+    userRequest || "Review this pull request.",
+    "",
+    "Use one model session. Do not delegate or launch subagents.",
+    "Apply these review lenses as separate passes before the final response:",
+    ...jobs.map((job, index) => `${index + 1}. ${job.lens.title}: ${job.lens.focus}`),
+    "",
+    "Then apply the Ponytail lens to all candidate findings:",
+    "- Treat each candidate as a hypothesis and verify it against the changed code.",
+    "- Reject speculative, cosmetic, duplicate, stale, and pre-existing issues.",
+    "- Reject complexity concerns without a concrete correctness, maintenance, or operational risk.",
+    "- Prefer the smallest root-cause fix, existing code, the standard library, and native platform features.",
+    "- Do not simplify away security, validation, error handling, or tests that prevent real regressions.",
+    "- Use repository tools only to resolve a specific uncertainty required to validate a candidate.",
+    "",
+    "Return one final review only. Do not return pass notes, candidate reports, research narration, or unfinished work.",
+  ].join("\n");
+}
+
 export function failedRequiredReviewLensIds(
   runs: Array<{
     job: Pick<ReviewJob, "lens" | "role">;

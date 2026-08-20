@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   buildLensPrompt,
+  buildSingleSessionReviewRequest,
   buildSynthesisPrompt,
   downgradeReviewStrategy,
   failedRequiredReviewLensIds,
@@ -11,6 +12,7 @@ import {
   resolveReviewPlanSupport,
   resolveReviewStrategy,
   selectReviewPlanWithinBudget,
+  usesSingleSessionReview,
 } from "../src/review/strategy";
 import type { GitHubData } from "../src/github/data";
 import type { ActionInputs } from "../src/types";
@@ -219,6 +221,40 @@ describe("review strategy", () => {
     ]);
     expect(plan.validatorReview).toBeUndefined();
     expect(plan.validator.label).toBe("together/moonshotai/Kimi-K3");
+  });
+
+  it("uses one session when every review role has the validator model", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "thermos",
+      reviewModels: "together/deepseek-ai/DeepSeek-V4-Flash-0731",
+      reviewLenses: "risk,design",
+      advisorModel: "off",
+      validatorModel: "together/deepseek-ai/DeepSeek-V4-Flash-0731",
+    });
+
+    expect(usesSingleSessionReview(plan)).toBe(true);
+    expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
+      "Use one model session. Do not delegate or launch subagents.",
+    );
+    expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
+      "Thermos Security & Correctness Review",
+    );
+    expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
+      "Then apply the Ponytail lens",
+    );
+  });
+
+  it("keeps separate sessions when a reviewer model differs", () => {
+    const plan = resolveReviewPlan({
+      ...baseInputs,
+      reviewStrategy: "crosscheck",
+      reviewModels: "deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code",
+      advisorModel: "off",
+      validatorModel: "deepseek/deepseek-v4-pro",
+    });
+
+    expect(usesSingleSessionReview(plan)).toBe(false);
   });
 
   it("selects a bounded domain-specific lens council", () => {
