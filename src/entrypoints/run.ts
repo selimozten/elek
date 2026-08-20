@@ -479,7 +479,7 @@ async function run(): Promise<void> {
     );
     if (reviewPlan.reusedModels) {
       console.warn(
-        `Review strategy has ${reviewPlan.jobs.length} lenses but fewer reviewer models; models will be reused across lenses.`,
+        `Review strategy has ${reviewPlan.jobs.length} lenses but fewer reviewer models; reused models will run sequentially.`,
       );
     }
 
@@ -508,33 +508,39 @@ async function run(): Promise<void> {
     }
 
     const reviewerJobs = reviewPlan.validatorReview ? [...reviewPlan.jobs, reviewPlan.validatorReview] : reviewPlan.jobs;
-    const lensRuns = await Promise.all(
-      reviewerJobs.map(async (job) => {
-        const lensPrompt = lensPromptFor(job);
-        const lensInputs = {
-          ...piInputs,
-          provider: job.model.provider,
-          model: job.model.model,
-          thinking: job.role === "validator-review"
-            ? inputs.advisorThinking || inputs.validatorThinking || inputs.thinking
-            : inputs.thinking,
-          tools: lensTools,
-          mode: "review",
-        };
-        const lensResult = await runPi(
-          lensPrompt,
-          lensInputs,
-          undefined,
-          false,
-          { promptName: `lens-${job.lens.id}` },
-        );
-        const lensOutput = sanitize(lensResult.output);
-        console.log(
-          `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
-        );
-        return { job, lensResult, lensOutput };
-      }),
-    );
+    const runReviewerJob = async (job: (typeof reviewerJobs)[number]) => {
+      const lensPrompt = lensPromptFor(job);
+      const lensInputs = {
+        ...piInputs,
+        provider: job.model.provider,
+        model: job.model.model,
+        thinking: job.role === "validator-review"
+          ? inputs.advisorThinking || inputs.validatorThinking || inputs.thinking
+          : inputs.thinking,
+        tools: lensTools,
+        mode: "review",
+      };
+      const lensResult = await runPi(
+        lensPrompt,
+        lensInputs,
+        undefined,
+        false,
+        { promptName: `lens-${job.lens.id}` },
+      );
+      const lensOutput = sanitize(lensResult.output);
+      console.log(
+        `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
+      );
+      return { job, lensResult, lensOutput };
+    };
+    const lensRuns: Awaited<ReturnType<typeof runReviewerJob>>[] = [];
+    if (reviewPlan.reusedModels) {
+      for (const job of reviewerJobs) {
+        lensRuns.push(await runReviewerJob(job));
+      }
+    } else {
+      lensRuns.push(...await Promise.all(reviewerJobs.map(runReviewerJob)));
+    }
 
     for (const { job, lensResult } of lensRuns) {
       runCosts.push(costFromPiResult(lensResult));
