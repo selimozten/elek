@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -43,6 +44,21 @@ describe("bundled pi model registry", () => {
       },
       compat: {
         supportsReasoningEffort: true,
+      },
+    });
+  });
+
+  it("retries stalled provider requests after ten minutes", () => {
+    const settings = JSON.parse(readFileSync(resolve("pi-config/settings.json"), "utf8"));
+
+    expect(settings).toMatchObject({
+      retry: {
+        enabled: true,
+        maxRetries: 3,
+        provider: {
+          timeoutMs: 600_000,
+          maxRetries: 0,
+        },
       },
     });
   });
