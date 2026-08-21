@@ -67,7 +67,7 @@ export function buildSingleSessionReviewRequest(
     "- Reject complexity concerns without a concrete correctness, maintenance, or operational risk.",
     "- Prefer the smallest root-cause fix, existing code, the standard library, and native platform features.",
     "- Do not simplify away security, validation, error handling, or tests that prevent real regressions.",
-    "- Review the supplied relevant diff first. Use read or search tools only to verify a specific candidate finding.",
+    "- The prompt contains the complete relevant diff and policy. Review them directly without repository tools.",
     "",
     "Return one final review only. Follow the strict Verdict format later in this prompt.",
     "Do not return pass notes, candidate reports, research narration, or unfinished work.",

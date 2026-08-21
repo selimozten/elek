@@ -63,6 +63,7 @@ import {
   type ReviewJob,
   type ReviewPlan,
 } from "../review/strategy.js";
+import { runPiWithTransientRecovery } from "../review/run-recovery.js";
 import {
   aggregateCosts,
   costFromPiResult,
@@ -461,7 +462,7 @@ async function run(): Promise<void> {
 
   const useReviewPlan = reviewPlanSupport.enabled;
   const singleSessionReview = useReviewPlan && usesSingleSessionReview(reviewPlan);
-  const finalTools = singleSessionReview ? "read,grep,find,ls" : piTools;
+  const finalTools = singleSessionReview ? "" : piTools;
   trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
   activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
@@ -502,8 +503,7 @@ async function run(): Promise<void> {
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
-    // Reviewer lanes receive the complete relevant diff. The final validator
-    // owns targeted repository reads, so reviewers finish in one model turn.
+    // Reviewer lanes receive the complete relevant diff and finish in one model turn.
     const lensTools = "";
 
     console.log(
@@ -566,12 +566,14 @@ async function run(): Promise<void> {
         tools: lensTools,
         mode: "review",
       };
-      const lensResult = await runPi(
-        lensPrompt,
-        lensInputs,
-        undefined,
-        false,
-        { promptName: `lens-${job.lens.id}` },
+      const lensResult = await runPiWithTransientRecovery(
+        () => runPi(
+          lensPrompt,
+          lensInputs,
+          undefined,
+          false,
+          { promptName: `lens-${job.lens.id}` },
+        ),
       );
       const lensOutput = sanitize(lensResult.output);
       console.log(
@@ -665,12 +667,14 @@ async function run(): Promise<void> {
   const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
   try {
     writeMcpConfig();
-    result = await runPi(
-      prompt,
-      finalInputs,
-      onProgress,
-      singleSessionReview ? false : mcpEnabled,
-      { promptName: "prompt" },
+    result = await runPiWithTransientRecovery(
+      () => runPi(
+        prompt,
+        finalInputs,
+        onProgress,
+        singleSessionReview ? false : mcpEnabled,
+        { promptName: "prompt" },
+      ),
     );
     runCosts[finalCostIndex] = costFromPiResult(result);
   } catch (err) {
