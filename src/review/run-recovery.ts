@@ -1,16 +1,16 @@
 import type { PiRunResult, PiTurnMetric } from "../types.js";
 
-const TRANSIENT_STREAM_ERROR =
-  /(?:h2 protocol error|error reading a body from connection|ECONNRESET|ETIMEDOUT|UND_ERR_|fetch failed|socket hang up|connection reset)/i;
+const RECOVERABLE_PROVIDER_FAILURE =
+  /(?:h2 protocol error|error reading a body from connection|ECONNRESET|ETIMEDOUT|UND_ERR_|fetch failed|socket hang up|connection reset|^pi exited with code 0$)/i;
 
 export async function runPiWithTransientRecovery(
   run: () => Promise<PiRunResult>,
   warn: (message: string) => void = console.warn,
 ): Promise<PiRunResult> {
   const first = await run();
-  if (first.conclusion === "success" || !TRANSIENT_STREAM_ERROR.test(first.output)) return first;
+  if (first.conclusion === "success" || !RECOVERABLE_PROVIDER_FAILURE.test(first.output)) return first;
 
-  warn(`[review-retry] transient provider stream failure; retrying once`);
+  warn(`[review-retry] recoverable provider failure; retrying once`);
   return mergeAttempts(first, await run());
 }
 

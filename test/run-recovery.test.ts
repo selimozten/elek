@@ -60,6 +60,22 @@ describe("transient review recovery", () => {
     });
   });
 
+  it("retries one empty provider completion", async () => {
+    const attempts = [
+      result({ output: "pi exited with code 0" }),
+      result({
+        conclusion: "success",
+        output: "Verdict: approve — no Blocker or Important findings",
+      }),
+    ];
+    let calls = 0;
+
+    const recovered = await runPiWithTransientRecovery(async () => attempts[calls++]!);
+
+    expect(calls).toBe(2);
+    expect(recovered.conclusion).toBe("success");
+  });
+
   it("does not retry model, policy, timeout, or turn-limit failures", async () => {
     for (const output of [
       "pi timed out after 600s",
