@@ -63,7 +63,7 @@ import {
   type ReviewJob,
   type ReviewPlan,
 } from "../review/strategy.js";
-import { runPiWithTransientRecovery } from "../review/run-recovery.js";
+import { reviewPromptForAttempt, runPiWithTransientRecovery } from "../review/run-recovery.js";
 import {
   aggregateCosts,
   costFromPiResult,
@@ -567,8 +567,8 @@ async function run(): Promise<void> {
         mode: "review",
       };
       const lensResult = await runPiWithTransientRecovery(
-        () => runPi(
-          lensPrompt,
+        (attempt) => runPi(
+          reviewPromptForAttempt(lensPrompt, attempt),
           lensInputs,
           undefined,
           false,
@@ -668,8 +668,8 @@ async function run(): Promise<void> {
   try {
     writeMcpConfig();
     result = await runPiWithTransientRecovery(
-      () => runPi(
-        prompt,
+      (attempt) => runPi(
+        reviewPromptForAttempt(prompt, attempt),
         finalInputs,
         onProgress,
         singleSessionReview ? false : mcpEnabled,
