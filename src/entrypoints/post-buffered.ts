@@ -12,6 +12,12 @@ import {
   stableInlineFindingId,
 } from "../review/finding-markers";
 import { withGitHubRetry } from "../github/retry";
+import {
+  commentableLinesForPatch,
+  type CommentableLines,
+} from "../review/diff-context";
+
+export { commentableLinesForPatch } from "../review/diff-context";
 
 /**
  * Narrow Octokit slice the post-step uses. `any` for params + responses to
@@ -53,44 +59,6 @@ interface BufferedEntry {
   commit_id?: string;
   /** confirmed===false means user explicitly opted out → never post. */
   confirmed?: boolean;
-}
-
-interface CommentableLines {
-  RIGHT: Set<number>;
-  LEFT: Set<number>;
-}
-
-export function commentableLinesForPatch(patch: string | undefined): CommentableLines {
-  const RIGHT = new Set<number>();
-  const LEFT = new Set<number>();
-  if (!patch) return { RIGHT, LEFT };
-
-  let oldLine = 0;
-  let newLine = 0;
-  for (const row of patch.split("\n")) {
-    const hunk = row.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-    if (hunk) {
-      oldLine = parseInt(hunk[1], 10);
-      newLine = parseInt(hunk[2], 10);
-      continue;
-    }
-
-    const marker = row[0];
-    if (marker === "+") {
-      RIGHT.add(newLine);
-      newLine++;
-    } else if (marker === "-") {
-      LEFT.add(oldLine);
-      oldLine++;
-    } else if (marker === " ") {
-      RIGHT.add(newLine);
-      LEFT.add(oldLine);
-      newLine++;
-      oldLine++;
-    }
-  }
-
-  return { RIGHT, LEFT };
 }
 
 function isEntryCommentable(entry: BufferedEntry, map: Map<string, CommentableLines>): string | null {

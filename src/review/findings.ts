@@ -16,6 +16,9 @@ const FINDING_HEADING = /^###\s+(.+)$/gm;
 const SECTION_OR_FINDING_HEADING = /^#{2,3}\s+/m;
 
 export function parseReviewFindings(text: string): ParsedReviewFinding[] {
+  const conciseFindings = parseConciseReviewFindings(text);
+  if (conciseFindings.length > 0) return conciseFindings;
+
   const headings = [...text.matchAll(FINDING_HEADING)];
   const findings: ParsedReviewFinding[] = [];
   const usedIds = new Set<string>();
@@ -48,6 +51,48 @@ export function parseReviewFindings(text: string): ParsedReviewFinding[] {
   }
 
   return findings;
+}
+
+function parseConciseReviewFindings(text: string): ParsedReviewFinding[] {
+  const findings: ParsedReviewFinding[] = [];
+  const usedIds = new Set<string>();
+  let severity: ParsedReviewFinding["severity"] = "unknown";
+
+  for (const line of text.split(/\r?\n/)) {
+    const heading = line.match(/^(?:###\s+|\*\*)([🔴🟡🟢])\s+(Blocker|Important|Nit)(?:\*\*)?$/u);
+    if (heading) {
+      severity = heading[2] === "Blocker"
+        ? "critical"
+        : heading[2] === "Important"
+          ? "important"
+          : "minor";
+      continue;
+    }
+
+    const bullet = line.match(/^-\s+`(.+):(\d+)`\s+—\s+(.+)$/);
+    if (!bullet || severity === "unknown") continue;
+    const evidence = bullet[3].trim();
+    const title = conciseFindingTitle(evidence);
+    findings.push({
+      id: uniqueFindingId(title, findings.length, usedIds),
+      title,
+      severity,
+      confidence: "high",
+      path: bullet[1].trim(),
+      line: bullet[2],
+      evidence,
+      impact: evidence,
+      fix: "",
+      body: line,
+    });
+  }
+
+  return findings;
+}
+
+function conciseFindingTitle(evidence: string): string {
+  const firstClause = evidence.split(/(?<=[.!?])\s+/, 1)[0]?.replace(/[.!?]+$/, "").trim();
+  return (firstClause || "Review finding").slice(0, 120);
 }
 
 export function findingId(title: string, index: number): string {

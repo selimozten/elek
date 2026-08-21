@@ -1,6 +1,44 @@
 {
   "providers": {
     "together": {
+      "models": [
+        {
+          "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
+          "name": "DeepSeek V4 Pro 0813",
+          "api": "openai-completions",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "high",
+            "medium": "high",
+            "high": "high",
+            "xhigh": "max",
+            "max": "max"
+          },
+          "input": ["text"],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "cost": {
+            "input": 1.32,
+            "output": 3.96,
+            "cacheRead": 0.13,
+            "cacheWrite": 0
+          },
+          "samplingParams": {
+            "max_tokens": 131072
+          },
+          "compat": {
+            "supportsStore": false,
+            "supportsDeveloperRole": false,
+            "supportsReasoningEffort": true,
+            "maxTokensField": "max_tokens",
+            "thinkingFormat": "together",
+            "supportsStrictMode": false,
+            "supportsLongCacheRetention": false
+          }
+        }
+      ],
       "modelOverrides": {
         "deepseek-ai/DeepSeek-V4-Flash-0731": {
           "thinkingLevelMap": {

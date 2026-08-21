@@ -112,4 +112,23 @@ Mentioning unrelated benchmark words here should not enter the finding body.
     expect(findings[0].body).not.toContain("Recommendations");
     expect(findings[0].body).not.toContain("benchmark words");
   });
+
+  it("parses the concise verdict format used by the Claude reviewer", () => {
+    const findings = parseReviewFindings([
+      "Verdict: approve-with-amendments — one issue needs attention",
+      "",
+      "### 🟡 Important",
+      "- `src/auth.ts:42` — the lookup omits tenant_id. Users can read another tenant's data.",
+    ].join("\n"));
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "important",
+        confidence: "high",
+        path: "src/auth.ts",
+        line: "42",
+        evidence: "the lookup omits tenant_id. Users can read another tenant's data.",
+      }),
+    ]);
+  });
 });

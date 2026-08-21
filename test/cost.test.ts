@@ -69,6 +69,11 @@ describe("review cost estimates", () => {
       outputPerMillion: 4.4,
       source: "builtin",
     });
+    expect(resolveRates("together/deepseek-ai/DeepSeek-V4-Pro-0813", "")).toEqual({
+      inputPerMillion: 1.32,
+      outputPerMillion: 3.96,
+      source: "builtin",
+    });
     expect(resolveRates("together/Qwen/Qwen3.7-Max", "")).toEqual({
       inputPerMillion: 1.25,
       outputPerMillion: 3.75,

@@ -100,6 +100,7 @@ describe("diff prompt context", () => {
     expect(modelInputBudgetChars("together/zai-org/GLM-5.2")).toBe(540_000);
     expect(modelInputBudgetChars("openai/gpt-5.6-sol")).toBe(700_000);
     expect(modelInputBudgetChars("together/moonshotai/Kimi-K3")).toBe(2_700_000);
+    expect(modelInputBudgetChars("together/deepseek-ai/DeepSeek-V4-Pro-0813")).toBe(2_700_000);
     expect(diffPromptBudgetChars("together/zai-org/GLM-5.2", 40_000)).toBe(500_000);
     expect(diffPromptBudgetChars("unknown/model", 20_000)).toBe(300_000);
   });
