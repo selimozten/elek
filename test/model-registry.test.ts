@@ -49,6 +49,27 @@ describe("bundled pi model registry", () => {
         supportsReasoningEffort: true,
       },
     });
+
+    expect(runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Pro-0813")).toMatchObject({
+      reasoning: true,
+      contextWindow: 1_048_576,
+      maxTokens: 131_072,
+      thinkingLevelMap: {
+        high: "high",
+        max: "max",
+      },
+      cost: {
+        input: 1.32,
+        output: 3.96,
+        cacheRead: 0.13,
+      },
+      samplingParams: {
+        max_tokens: 131_072,
+      },
+      compat: {
+        supportsReasoningEffort: true,
+      },
+    });
   });
 
   it("retries stalled provider requests after ten minutes", () => {

@@ -35,10 +35,45 @@ interface DiffPromptOptions {
  */
 export function modelInputBudgetChars(modelLabel: string): number {
   const normalized = modelLabel.toLowerCase();
+  if (/deepseek[-_.]?v4[-_.]?pro[-_.]?0813/.test(normalized)) return 2_700_000;
   if (/kimi[-_.]?k3/.test(normalized)) return 2_700_000;
   if (/gpt[-_.]?5[.-]?6/.test(normalized)) return 700_000;
   if (/glm[-_.]?5[.-]?2/.test(normalized)) return 540_000;
   return DEFAULT_MODEL_INPUT_BUDGET_CHARS;
+}
+
+export interface CommentableLines {
+  RIGHT: Set<number>;
+  LEFT: Set<number>;
+}
+
+export function commentableLinesForPatch(patch: string | undefined): CommentableLines {
+  const RIGHT = new Set<number>();
+  const LEFT = new Set<number>();
+  if (!patch) return { RIGHT, LEFT };
+
+  let oldLine = 0;
+  let newLine = 0;
+  for (const row of patch.split("\n")) {
+    const hunk = row.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      oldLine = parseInt(hunk[1], 10);
+      newLine = parseInt(hunk[2], 10);
+      continue;
+    }
+
+    const marker = row[0];
+    if (marker === "+") {
+      RIGHT.add(newLine++);
+    } else if (marker === "-") {
+      LEFT.add(oldLine++);
+    } else if (marker === " ") {
+      RIGHT.add(newLine++);
+      LEFT.add(oldLine++);
+    }
+  }
+
+  return { RIGHT, LEFT };
 }
 
 export function diffPromptBudgetChars(modelLabel: string, reservedChars = 0): number {

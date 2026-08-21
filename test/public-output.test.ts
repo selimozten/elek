@@ -285,4 +285,53 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("deepseek/deepseek-v4-pro");
     expect(result.body).not.toContain("deepseek-v4-pro");
   });
+
+  it("normalizes the strict verdict format and enforces the host severity threshold", () => {
+    const output = [
+      "Verdict: approve-with-amendments — two findings need attention",
+      "",
+      "### 🟡 Important",
+      "- `src/auth.ts:2` — the lookup omits tenant_id. Users can read another tenant's data.",
+      "",
+      "### 🟢 Nit",
+      "- `src/auth.ts:2` — the local name is unclear. Maintenance is slightly harder.",
+    ].join("\n");
+    const diff = [
+      "diff --git a/src/auth.ts b/src/auth.ts",
+      "@@ -1 +1,2 @@",
+      " old",
+      "+new",
+    ].join("\n");
+
+    const result = preparePublicReviewOutput(output, "success", {
+      requireVerdictFormat: true,
+      severityThreshold: "important",
+      diff,
+    });
+
+    expect(result.usable).toBe(true);
+    expect(result.body).toContain("Verdict: approve-with-amendments");
+    expect(result.body).toContain("### 🟡 Important");
+    expect(result.body).not.toContain("### 🟢 Nit");
+  });
+
+  it("rejects strict findings that do not cite a visible diff line", () => {
+    const output = [
+      "Verdict: request-changes — a blocking issue needs attention",
+      "",
+      "### 🔴 Blocker",
+      "- `src/missing.ts:99` — an invented path is unsafe. The change can fail.",
+    ].join("\n");
+    const diff = "diff --git a/src/auth.ts b/src/auth.ts\n@@ -1 +1 @@\n-old\n+new";
+
+    const result = preparePublicReviewOutput(output, "success", {
+      requireVerdictFormat: true,
+      severityThreshold: "important",
+      diff,
+    });
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe("Verdict: approve — no Blocker or Important findings");
+  });
 });

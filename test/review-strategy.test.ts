@@ -244,7 +244,7 @@ describe("review strategy", () => {
       "Then apply the Ponytail lens",
     );
     expect(buildSingleSessionReviewRequest("Review this PR.", plan)).toContain(
-      "without repository tools",
+      "Use read or search tools only to verify a specific candidate finding",
     );
   });
 

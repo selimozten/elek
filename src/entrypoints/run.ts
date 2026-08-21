@@ -461,7 +461,7 @@ async function run(): Promise<void> {
 
   const useReviewPlan = reviewPlanSupport.enabled;
   const singleSessionReview = useReviewPlan && usesSingleSessionReview(reviewPlan);
-  const finalTools = singleSessionReview ? "" : piTools;
+  const finalTools = singleSessionReview ? "read,grep,find,ls" : piTools;
   trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
   activeModelLabel = trackingModelLabel;
   console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
@@ -695,6 +695,9 @@ async function run(): Promise<void> {
       activeModelLabel,
     ]),
     publicModelLabel,
+    requireVerdictFormat: singleSessionReview,
+    severityThreshold: inputs.severityThreshold,
+    diff: data.diff,
   });
   const publicOutput = publicReview.body;
   const publicConclusion =

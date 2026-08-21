@@ -58,7 +58,7 @@ export function buildSingleSessionReviewRequest(
     userRequest || "Review this pull request.",
     "",
     "Use one model session. Do not delegate or launch subagents.",
-    "Apply these review lenses as separate passes before the final response:",
+    "Apply these review lenses before the final response:",
     ...jobs.map((job, index) => `${index + 1}. ${job.lens.title}: ${job.lens.focus}`),
     "",
     "Then apply the Ponytail lens to all candidate findings:",
@@ -67,9 +67,10 @@ export function buildSingleSessionReviewRequest(
     "- Reject complexity concerns without a concrete correctness, maintenance, or operational risk.",
     "- Prefer the smallest root-cause fix, existing code, the standard library, and native platform features.",
     "- Do not simplify away security, validation, error handling, or tests that prevent real regressions.",
-    "- The prompt contains the complete relevant diff and policy. Review it directly without repository tools.",
+    "- Review the supplied relevant diff first. Use read or search tools only to verify a specific candidate finding.",
     "",
-    "Return one final review only. Do not return pass notes, candidate reports, research narration, or unfinished work.",
+    "Return one final review only. Follow the strict Verdict format later in this prompt.",
+    "Do not return pass notes, candidate reports, research narration, or unfinished work.",
   ].join("\n");
 }
 

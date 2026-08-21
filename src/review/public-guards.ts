@@ -2,6 +2,7 @@ const REVIEW_HEADING_KEYWORDS =
   "review|finding|recommendation|security|correctness|performance|maintainability|bug|regression|race|leak|validation|cleanup|issue|concern|quality|design|architecture|coverage|testing|health|change";
 
 const REVIEW_SIGNAL_PATTERNS = [
+  /^Verdict:\s+(?:approve|approve-with-amendments|request-changes)\s+—\s+.+$/im,
   new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "im"),
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/im,
   /\bNo high-confidence\b/i,
@@ -10,6 +11,7 @@ const REVIEW_SIGNAL_PATTERNS = [
 ];
 
 const REVIEW_SIGNAL_LINE_PATTERNS = [
+  /^Verdict:\s+(?:approve|approve-with-amendments|request-changes)\s+—\s+.+$/i,
   new RegExp(`^#{2,3}\\s+(?=.*\\b(?:${REVIEW_HEADING_KEYWORDS})\\b).+`, "i"),
   /^\s*[-*]\s+(?:Severity|Confidence|Path|Line|Evidence|Impact|Fix)\s*:/i,
   /\bNo high-confidence\b/i,

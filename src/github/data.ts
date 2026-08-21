@@ -4,9 +4,13 @@
 import type { GitHubEntityContext } from "../types.js";
 import { getGitDiff } from "./git.js";
 import { mcpToolGuidance } from "./mcp-guidance.js";
-import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../review/contract.js";
+import { findingValidationBullets } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
-import { diffPromptBudgetChars, formatChangedFilesForPrompt } from "../review/diff-context.js";
+import {
+  DEFAULT_REVIEW_PATCH_OMIT_PATTERNS,
+  diffPromptBudgetChars,
+  formatChangedFilesForPrompt,
+} from "../review/diff-context.js";
 
 type MinimalOctokit = {
   rest: {
@@ -149,12 +153,12 @@ export function buildPrompt(
   );
   const canRunShell = canEdit && toolSet.has("bash");
   const hasLocalFileTools = ["read", "grep", "find", "ls"].some((tool) => toolSet.has(tool));
-  const publicModelLabel = options.publicModelLabel?.trim() || modelLabel;
+  void jobRunLink;
 
   const parts: string[] = [];
 
   // ── Header ──
-  parts.push(`You are an AI assistant reviewing a GitHub ${entityLabel}. Analyze the context carefully and respond with a thorough, structured review.`);
+  parts.push(`You are an adversarial reviewer for a GitHub ${entityLabel}. Find only concrete, consequential defects rooted in changed code.`);
   parts.push("");
 
   // ── Context (XML-tagged, structured) ──
@@ -187,7 +191,16 @@ export function buildPrompt(
       30_000;
     parts.push("<changed_files>");
     parts.push("```diff");
-    parts.push(formatChangedFilesForPrompt(data.diff, diffPromptBudgetChars(modelLabel, reservedChars)));
+    parts.push(formatChangedFilesForPrompt(
+      data.diff,
+      diffPromptBudgetChars(modelLabel, reservedChars),
+      {
+        omitPatchPatterns: [
+          ...DEFAULT_REVIEW_PATCH_OMIT_PATTERNS,
+          ...(options.repoConfig?.ignorePaths ?? []),
+        ],
+      },
+    ));
     parts.push("```");
     parts.push("</changed_files>");
     parts.push("");
@@ -258,14 +271,14 @@ export function buildPrompt(
     } else {
       parts.push(`   - The PR base branch is \`${baseBranch}\`. Use the supplied \`<changed_files>\` block as the code context.`);
     }
-    parts.push("   - **Iterate on prior Elek reviews.** If `<comments>` contains a previous Elek review (look for `<!-- elek-bot`), open with a status update for each prior finding — fixed, still present, or no longer relevant — before listing new findings. Don't repeat findings that were addressed.");
+    parts.push("   - Use prior review comments only to avoid duplicates. Do not summarize prior reviews in the final response.");
   }
   parts.push("");
   parts.push("2. **Review thoroughly** — Check for:");
   parts.push("   - **Correctness**: logic errors, edge cases, off-by-one, null/undefined handling");
   parts.push("   - **Security**: injection risks, missing validation, exposed secrets, auth bypasses");
   parts.push("   - **Performance**: N+1 queries, unnecessary allocations, blocking operations");
-  parts.push("   - **Style**: consistency with codebase conventions, naming, structure");
+  parts.push("   - **Maintainability**: structural problems with a concrete current correctness or operational effect");
   parts.push("   - **Tests**: missing test coverage for new code paths");
   parts.push("");
   if (canRunShell) {
@@ -280,16 +293,11 @@ export function buildPrompt(
   parts.push("");
   parts.push("4. **Provide your review** — Be specific:");
   parts.push("   - Reference exact file paths and line numbers");
-  parts.push("   - Use code blocks for suggestions");
-  parts.push("   - Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
-  parts.push("   - Follow the review finding contract for every finding.");
+  parts.push("   - Prioritize by severity: 🔴 Blocker → 🟡 Important → 🟢 Nit");
+  parts.push("   - Report only high-confidence findings that pass every acceptance gate.");
   parts.push(`   ${commentId ? "ALL feedback goes into your comment. Your console output is NOT visible to anyone." : ""}`);
   parts.push("");
 
-  parts.push("### Review finding contract");
-  parts.push("");
-  parts.push(...reviewContractBullets());
-  parts.push("");
   parts.push("### Finding acceptance gates");
   parts.push("");
   parts.push(...findingValidationBullets());
@@ -315,26 +323,30 @@ export function buildPrompt(
   parts.push("");
 
   // ── Output format ──
-  parts.push("### Response format");
+  parts.push("### Response format (strict)");
   parts.push("");
-  parts.push("Structure your review as:");
+  parts.push("The first character of your response must be `V`, from `Verdict:`.");
+  parts.push("Use exactly this shape:");
   parts.push("");
   parts.push("```markdown");
-  parts.push("## Review Summary");
-  parts.push("(1-2 sentence overview)");
+  parts.push("Verdict: <approve|approve-with-amendments|request-changes> — <one-clause reason, 5-120 chars>");
   parts.push("");
-  parts.push("## Findings");
+  parts.push("### 🔴 Blocker");
+  parts.push("- `<path>:<line>` — <what is wrong>. <why it matters>.");
   parts.push("");
-  parts.push(...reviewFindingTemplate());
+  parts.push("### 🟡 Important");
+  parts.push("- `<path>:<line>` — <what is wrong>. <why it matters>.");
   parts.push("");
-  parts.push("## Recommendations");
-  parts.push("(broader suggestions, architecture notes, etc.)");
+  parts.push("### 🟢 Nit");
+  parts.push("- `<path>:<line>` — <what is wrong>. <why it matters>.");
   parts.push("```");
   parts.push("");
-
-  // ── Footer ──
-  parts.push("---");
-  parts.push(`*${publicModelLabel} · [View run](${jobRunLink})*`);
+  parts.push("Omit empty severity headings. Omit Nit findings when the severity threshold is important.");
+  parts.push("Use at most five findings per severity and 800 words total.");
+  parts.push("Cite only paths and lines visible in the supplied diff.");
+  parts.push("Do not add a summary, recommendations, validation notes, process notes, or a footer.");
+  parts.push("Use request-changes only for a Blocker. Use approve-with-amendments when Important is the highest severity.");
+  parts.push("If no finding survives, return only: Verdict: approve — no Blocker or Important findings");
 
   return parts.join("\n");
 }

@@ -126,7 +126,7 @@ describe("buildPrompt", () => {
     expect(out).toContain("model: deepseek/v4");
   });
 
-  it("uses the public model label for the generated footer instruction", () => {
+  it("keeps model details internal and leaves the footer to the host", () => {
     const out = buildPrompt(
       baseData,
       "find bugs",
@@ -137,13 +137,58 @@ describe("buildPrompt", () => {
     );
 
     expect(out).toContain("model: deepseek/deepseek-v4-pro");
-    expect(out).toContain("*elek · [View run](https://github.com/acme/app/actions/runs/1)*");
+    expect(out).not.toContain("*elek · [View run](https://github.com/acme/app/actions/runs/1)*");
     expect(out).not.toContain("*deepseek/deepseek-v4-pro · [View run]");
   });
 
   it("falls back to default review prompt when userRequest is empty", () => {
     const out = buildPrompt(baseData, "", "m", "j");
     expect(out).toContain("Please review this pull request");
+  });
+
+  it("requires the concise verdict format used by the Claude reviewer", () => {
+    const out = buildPrompt(baseData, "review pls", "deepseek/v4", "https://job/1", undefined, {
+      repoConfig: {
+        severityThreshold: "important",
+        ignorePaths: [],
+        instructions: [],
+      },
+    });
+
+    expect(out).toContain("Verdict: <approve|approve-with-amendments|request-changes>");
+    expect(out).toContain("### 🔴 Blocker");
+    expect(out).toContain("### 🟡 Important");
+    expect(out).toContain("### 🟢 Nit");
+    expect(out).toContain("The first character of your response must be `V`");
+    expect(out).not.toContain("## Review Summary");
+    expect(out).not.toContain("## Recommendations");
+    expect(out).not.toContain("**Style**");
+  });
+
+  it("omits configured patch noise from the unified review prompt", () => {
+    const out = buildPrompt(
+      {
+        ...baseData,
+        diff: [
+          "diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new",
+          "diff --git a/docs/guide.md b/docs/guide.md\n@@ -1 +1 @@\n-old docs\n+new docs",
+        ].join("\n"),
+      },
+      "review pls",
+      "deepseek/v4",
+      "https://job/1",
+      undefined,
+      {
+        repoConfig: {
+          ignorePaths: ["**/*.md"],
+          instructions: [],
+        },
+      },
+    );
+
+    expect(out).toContain("+new");
+    expect(out).not.toContain("+new docs");
+    expect(out).toContain("docs/guide.md");
   });
 
   it("uses issue_body tag and omits diff for issue context", () => {
@@ -245,22 +290,17 @@ describe("buildPrompt", () => {
     expect(out).not.toContain("Run relevant tests");
   });
 
-  it("requires the review finding contract in the response format", () => {
+  it("requires the concise verdict contract in the response format", () => {
     const out = buildPrompt(baseData, "", "m", "j");
 
-    expect(out).toContain("### Review finding contract");
-    expect(out).toContain("Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
     expect(out).toContain("### Finding acceptance gates");
     expect(out).toContain("A finding must identify a concrete failure path from changed code");
     expect(out).toContain("Reject findings that contradict the diff, surrounding repo context, or already-visible comments.");
     expect(out).toContain("drop it instead of posting a caveat.");
-    expect(out).toContain("Prioritize by severity: 🔴 critical → 🟡 important → 🟢 minor");
-    expect(out).toContain("- Severity: critical|important|minor");
-    expect(out).toContain("- Confidence: high|medium");
-    expect(out).toContain("- Evidence: quote or summarize the concrete code path");
-    expect(out).toContain("- Fix: the smallest concrete change required");
-    expect(out).toContain("Do not surface low-confidence findings.");
-    expect(out).not.toContain("**Fix:**");
+    expect(out).toContain("Verdict: <approve|approve-with-amendments|request-changes>");
+    expect(out).toContain("- `<path>:<line>` — <what is wrong>. <why it matters>.");
+    expect(out).toContain("Report only high-confidence findings");
+    expect(out).not.toContain("- Severity: critical|important|minor");
   });
 
   it("includes repo config policy when supplied", () => {
