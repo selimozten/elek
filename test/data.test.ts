@@ -20,6 +20,49 @@ const baseData: GitHubData = {
 };
 
 describe("fetchGitHubData", () => {
+  it("excludes stale Elek tracking comments from review context", async () => {
+    const data = await fetchGitHubData(
+      {
+        eventName: "pull_request",
+        eventAction: "synchronize",
+        actor: "alice",
+        actorAssociation: "MEMBER",
+        repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
+        entityNumber: 17,
+        isPR: true,
+        triggerText: "",
+        pr: {
+          title: "Update review workflow",
+          body: "",
+          headRef: "feature/review",
+          baseRef: "main",
+          headSha: "",
+          baseSha: "",
+        },
+      },
+      {
+        rest: {
+          issues: {
+            listComments: async () => ({
+              data: [
+                {
+                  body: "Elek could not complete this review run\n\n<!-- elek-bot:lane:aaaaaaaaaaaa -->",
+                  user: { login: "github-actions[bot]" },
+                },
+                { body: "Please check the retry path", user: { login: "bob" } },
+              ],
+            }),
+          },
+          pulls: {
+            get: async () => ({ data: "diff --git a/a.ts b/a.ts\n+fixed\n" }),
+          },
+        },
+      } as any,
+    );
+
+    expect(data.comments).toEqual(["[bob]: Please check the retry path"]);
+  });
+
   it("falls back to the GitHub diff response when checkout refs cannot identify the PR head", async () => {
     const data = await fetchGitHubData(
       {

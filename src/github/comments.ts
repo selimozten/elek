@@ -13,6 +13,7 @@ const ELEK_UNSCOPED_COMMENT_SIGNATURE = "<!-- elek-bot -->";
 const ELEK_LEGACY_COMMENT_PREFIX = "<!-- elek-bot:";
 const ELEK_SUPERSEDED_SIGNATURE = "<!-- elek-bot:superseded -->";
 const ELEK_TRACKING_SIGNATURE_RE = /<!--\s*elek-bot(?::[^>]*)?\s*-->/gi;
+const ELEK_REVIEW_HEADER_RE = /<p>\s*<strong>elek<\/strong>\s+review:/i;
 
 // Loose adapter type matching @actions/github's getOctokit return shape.
 // Octokit's full types are deeply specific and don't structurally fit a
@@ -381,7 +382,7 @@ export async function fetchReviewComments(
 
     // Include review bodies
     for (const review of reviews) {
-      if (review.body?.trim()) {
+      if (review.body?.trim() && !ELEK_REVIEW_HEADER_RE.test(review.body)) {
         comments.push(`[Review: ${review.state}]: ${review.body.trim()}`);
       }
     }
@@ -390,8 +391,8 @@ export async function fetchReviewComments(
     for (const rc of reviewComments) {
       const loc = rc.path ? `${rc.path}:${rc.line || "?"}` : "";
       const ids = extractFindingIds(rc.body);
-      const prefix = ids.length ? `Prior Elek finding ${ids.join(", ")} @ ${loc}` : loc;
-      comments.push(`[${prefix}]: ${stripFindingMarkers(rc.body || "")}`);
+      if (ids.length > 0) continue;
+      comments.push(`[${loc}]: ${stripFindingMarkers(rc.body || "")}`);
     }
 
     return comments;
