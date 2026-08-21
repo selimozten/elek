@@ -15,8 +15,7 @@
  */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync, mkdirSync, existsSync, readFileSync, unlinkSync } from "fs";
-import { homedir } from "os";
+import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
@@ -25,13 +24,14 @@ import {
   applyConfigDefaults,
   formatConfigAuditLog,
   loadBaseBranchElekConfig,
+  loadBaseBranchRepoKnowledge,
   loadElekConfig,
   loadRepoKnowledge,
   mergeBasePolicyWithWorkspaceGuidance,
 } from "../config.js";
 import { detectTrigger, isActorAuthorized } from "../github/trigger.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
-import { resolveEffectivePiTools, resolveMode } from "../github/mode.js";
+import { resolveMode, resolvePiTools } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
 import {
   configureGitAuth,
@@ -52,23 +52,15 @@ import { formatProgressComment, type ProgressState } from "../github/progress.js
 import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
 import {
-  buildLensPrompt,
   buildSingleSessionReviewRequest,
-  buildSynthesisPrompt,
-  failedRequiredReviewLensIds,
   resolveReviewPlan,
   resolveReviewPlanSupport,
-  selectReviewPlanWithinBudget,
-  usesSingleSessionReview,
-  type ReviewJob,
-  type ReviewPlan,
 } from "../review/strategy.js";
 import { reviewPromptForAttempt, runPiWithTransientRecovery } from "../review/run-recovery.js";
 import {
   aggregateCosts,
   costFromPiResult,
   formatCostLine,
-  estimatePromptOnlyCost,
   modelLabelFor,
   type ReviewCost,
 } from "../review/cost.js";
@@ -78,10 +70,10 @@ import {
   type ReviewRunMetric,
 } from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
-import { preparePublicReviewOutput } from "../review/public-output.js";
+import { preparePublicReviewOutput, reviewConclusion } from "../review/public-output.js";
 import { modelLabelRedactionTerms, publicModelLabelFor } from "../review/public-label.js";
 import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
-import { sanitize } from "../mcp/handlers.js";
+import { sanitize } from "../review/host-output.js";
 import type { PostSummary } from "./post-buffered.js";
 
 async function run(): Promise<void> {
@@ -185,13 +177,29 @@ async function run(): Promise<void> {
       )
       : { config: { ignorePaths: [], instructions: [] }, loaded: false }
     : undefined;
-  const repoConfig = baseConfig
+  const repoConfig = baseConfig?.loaded
     ? mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig)
     : workspaceConfig;
-  const repoConfigWithKnowledge = loadRepoKnowledge(repoConfig, (message) => {
-    console.warn(`[config] ${message}`);
-  });
+  const repoConfigWithKnowledge = context.isPR && baseConfig?.loaded
+    ? loadBaseBranchRepoKnowledge(repoConfig, configBaseRef, (message) => {
+      console.warn(`[config] ${message}`);
+    })
+    : loadRepoKnowledge(repoConfig, (message) => {
+      console.warn(`[config] ${message}`);
+    });
   const inputs = applyConfigDefaults(parsedInputs, repoConfigWithKnowledge);
+  const ignoredOneSessionSettings = [
+    inputs.reviewModels && "review_models",
+    inputs.reviewAgentCount !== undefined && "review_agent_count",
+    inputs.advisorModel && "advisor_model",
+    inputs.advisorThinking && "advisor_thinking",
+    inputs.validatorModel && "validator_model",
+    inputs.validatorThinking && "validator_thinking",
+    inputs.maxCostUsd !== undefined && "max_cost_usd",
+  ].filter(Boolean);
+  if (ignoredOneSessionSettings.length > 0) {
+    console.warn(`[config] Ignoring obsolete one-session settings: ${ignoredOneSessionSettings.join(", ")}`);
+  }
   const effectiveRepoConfig = {
     ...repoConfigWithKnowledge,
     severityThreshold: inputs.severityThreshold || repoConfigWithKnowledge.severityThreshold,
@@ -202,7 +210,7 @@ async function run(): Promise<void> {
     inputs,
     context.isPR
       ? baseConfig?.loaded
-        ? "base-branch-policy+checked-out-guidance"
+        ? "base-branch-policy+base-branch-knowledge"
         : "checked-out-guidance-only"
       : undefined,
   ));
@@ -217,17 +225,10 @@ async function run(): Promise<void> {
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
-  // Resolve mode → tool allowlist + MCP wiring
+  // Resolve mode → native pi tool allowlist.
   const resolvedMode = resolveMode(inputs.mode);
-  // MCP is on by default for review/review+edit modes (off only for `agent`
-  // legacy mode). The earlier CI hang was caused by pi keeping stdin open;
-  // fixed via stdio:["ignore",…] in pi.ts. ELEK_DISABLE_MCP=1 escape hatch
-  // remains for emergency rollback.
-  const mcpEnabled = resolvedMode.useMcpServer && process.env.ELEK_DISABLE_MCP !== "1";
-  const piTools = resolveEffectivePiTools(resolvedMode, inputs.tools, { mcpEnabled });
-  console.log(
-    `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
-  );
+  const piTools = resolvePiTools(resolvedMode, inputs.tools);
+  console.log(`Mode: ${resolvedMode.mode} | tools: ${piTools}`);
   if (resolvedMode.mode === "review+edit" && !resolvedMode.allowEdit) {
     console.warn("mode=review+edit is currently review-only until sandboxed file tools are available.");
   }
@@ -236,14 +237,14 @@ async function run(): Promise<void> {
   }
   const piInputs = { ...inputs, tools: piTools };
 
-  let reviewPlan = resolveReviewPlan(inputs);
-  let reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
+  const reviewPlan = resolveReviewPlan(inputs);
+  const reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy, {
     isPR: context.isPR,
     mode: resolvedMode.mode,
   });
   if (reviewPlanSupport.warning) console.warn(reviewPlanSupport.warning);
 
-  let trackingModelLabel = reviewPlanSupport.enabled ? reviewPlan.validator.label : modelLabel;
+  const trackingModelLabel = modelLabel;
 
   // Determine base branch
   const baseBranch =
@@ -274,48 +275,7 @@ async function run(): Promise<void> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
   mkdirSync(promptDir, { recursive: true });
-  const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
   let prompt = "";
-
-  // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json. The
-  // config must not contain secret values because review modes intentionally
-  // expose read/search tools. GITHUB_TOKEN is inherited by the MCP child from
-  // pi's environment; this file only contains non-secret routing metadata.
-  const mcpConfigPath = mcpEnabled && context.isPR
-    ? join(homedir(), ".config", "mcp", "mcp.json")
-    : null;
-
-  const writeMcpConfig = () => {
-    if (!mcpConfigPath) return;
-    const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
-    const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
-    mkdirSync(join(homedir(), ".config", "mcp"), { recursive: true });
-    writeFileSync(
-      mcpConfigPath,
-      JSON.stringify(
-        {
-          mcpServers: {
-            "elek-review": {
-              command: "tsx",
-              args: [serverPath],
-              env: {
-                REPO_OWNER: context.repo.owner,
-                REPO_NAME: context.repo.repo,
-                PR_NUMBER: String(context.entityNumber),
-                ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
-                ELEK_BUFFER_PATH: bufferPath,
-              },
-              lifecycle: "eager",
-            },
-          },
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
-    console.log(`Wrote ${mcpConfigPath} for pi-mcp-adapter`);
-  };
 
   // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
@@ -373,99 +333,9 @@ async function run(): Promise<void> {
     }
   };
 
-  const lensPromptCache = new Map<string, string>();
-  const lensPromptFor = (job: ReviewJob): string => {
-    const key = `${job.lens.id}\0${job.model.label}`;
-    const cached = lensPromptCache.get(key);
-    if (cached !== undefined) return cached;
-    const lensPrompt = buildLensPrompt({
-      data,
-      userRequest,
-      lens: job.lens,
-      modelLabel: job.model.label,
-      repoConfig: effectiveRepoConfig,
-      includeDiscussion: false,
-    });
-    lensPromptCache.set(key, lensPrompt);
-    return lensPrompt;
-  };
-
-  const estimatePlannedInputCost = (plan: ReviewPlan): ReviewCost[] => {
-    // Defensive only: the budget selector stops before estimating solo plans.
-    if (plan.strategy === "solo") return [];
-
-    if (usesSingleSessionReview(plan)) {
-      return [estimatePromptOnlyCost({
-        modelLabel: plan.validator.label,
-        prompt: buildPrompt(
-          data,
-          buildSingleSessionReviewRequest(userRequest, plan),
-          plan.validator.label,
-          jobRunLink,
-          commentId,
-          {
-            useMcp: false,
-            allowEdit: resolvedMode.allowEdit,
-            tools: "",
-            repoConfig: effectiveRepoConfig,
-            publicModelLabel,
-          },
-        ),
-        costRates: inputs.costRates,
-      })];
-    }
-
-    const reviewerJobs = plan.validatorReview ? [...plan.jobs, plan.validatorReview] : plan.jobs;
-    const lensCosts = reviewerJobs.map((job) => estimatePromptOnlyCost({
-      modelLabel: job.model.label,
-      prompt: lensPromptFor(job),
-      costRates: inputs.costRates,
-    }));
-    const synthesisCost = estimatePromptOnlyCost({
-      modelLabel: plan.validator.label,
-      prompt: buildSynthesisPrompt({
-        data,
-        userRequest,
-        modelLabel: plan.validator.label,
-        jobRunLink,
-        commentId,
-        reports: reviewerJobs.map((job) => ({
-          lens: job.lens,
-          modelLabel: job.model.label,
-          output: "(candidate report pending)",
-          conclusion: "success",
-        })),
-        repoConfig: effectiveRepoConfig,
-      }),
-      costRates: inputs.costRates,
-    });
-    return [...lensCosts, synthesisCost];
-  };
-
-  if (reviewPlanSupport.enabled && inputs.maxCostUsd !== undefined) {
-    const budgetedPlan = selectReviewPlanWithinBudget({
-      inputs,
-      initialPlan: reviewPlan,
-      supportContext: { isPR: context.isPR, mode: resolvedMode.mode },
-      estimateCosts: estimatePlannedInputCost,
-    });
-    reviewPlan = budgetedPlan.plan;
-    reviewPlanSupport = budgetedPlan.support;
-    for (const event of budgetedPlan.events) {
-      if (event.level === "warn") {
-        console.warn(event.message);
-      } else {
-        console.log(event.message);
-      }
-    }
-  }
-
   const useReviewPlan = reviewPlanSupport.enabled;
-  const singleSessionReview = useReviewPlan && usesSingleSessionReview(reviewPlan);
-  const finalTools = singleSessionReview ? "" : piTools;
-  trackingModelLabel = useReviewPlan ? reviewPlan.validator.label : modelLabel;
-  activeModelLabel = trackingModelLabel;
-  console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}`);
+  activeModelLabel = modelLabel;
+  console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}-single-session`);
 
   if (inputs.stickyComment) {
     if (commentId) {
@@ -482,16 +352,15 @@ async function run(): Promise<void> {
 
   prompt = buildPrompt(
     data,
-    singleSessionReview
+    useReviewPlan
       ? buildSingleSessionReviewRequest(userRequest, reviewPlan)
       : userRequest,
-    singleSessionReview ? reviewPlan.validator.label : modelLabel,
+    modelLabel,
     jobRunLink,
     commentId,
     {
-      useMcp: singleSessionReview ? false : mcpEnabled,
       allowEdit: resolvedMode.allowEdit,
-      tools: finalTools,
+      tools: piTools,
       repoConfig: effectiveRepoConfig,
       publicModelLabel,
     },
@@ -501,21 +370,12 @@ async function run(): Promise<void> {
   const runCosts: ReviewCost[] = [];
   const runMetrics: ReviewRunMetric[] = [];
 
-  let finalInputs = piInputs;
   if (useReviewPlan) {
-    // Reviewer lanes receive the complete relevant diff and finish in one model turn.
-    const lensTools = "";
-
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
-        .map((j) => `${j.lens.id}:${j.model.label}`)
-        .join(", ")} | advisor: ${reviewPlan.validatorReview?.model.label || "(off)"} | orchestrator: ${reviewPlan.validator.label}`,
+        .map((job) => job.lens.id)
+        .join(", ")} | model: ${modelLabel} | one pi session`,
     );
-    if (singleSessionReview) {
-      console.warn(
-        `All review roles use ${reviewPlan.validator.label}; lenses and Ponytail validation will run in one pi session.`,
-      );
-    }
 
     if (commentId) {
       try {
@@ -527,13 +387,8 @@ async function run(): Promise<void> {
             spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
             "",
             ...reviewPlan.jobs.map((j) => `- ${j.lens.title}`),
-            reviewPlan.validatorReview
-              ? `- ${reviewPlan.validatorReview.lens.title}`
-              : "",
             "",
-            singleSessionReview
-              ? `Single-session Ponytail validation and posting`
-              : `Orchestrator validation and posting`,
+            "Single-session Ponytail validation and posting",
             `[View run](${jobRunLink})`,
           ].join("\n"),
           trackingModelLabel,
@@ -542,116 +397,11 @@ async function run(): Promise<void> {
         console.warn("Could not update strategy status:", err);
       }
     }
-
-    finalInputs = {
-      ...piInputs,
-      provider: reviewPlan.validator.provider,
-      model: reviewPlan.validator.model,
-      thinking: inputs.validatorThinking || inputs.thinking,
-      tools: finalTools,
-      mode: "review",
-    };
-    activeModelLabel = reviewPlan.validator.label;
-
-    const reviewerJobs = reviewPlan.validatorReview ? [...reviewPlan.jobs, reviewPlan.validatorReview] : reviewPlan.jobs;
-    const runReviewerJob = async (job: (typeof reviewerJobs)[number]) => {
-      const lensPrompt = lensPromptFor(job);
-      const lensInputs = {
-        ...piInputs,
-        provider: job.model.provider,
-        model: job.model.model,
-        thinking: job.role === "validator-review"
-          ? inputs.advisorThinking || inputs.validatorThinking || inputs.thinking
-          : inputs.thinking,
-        tools: lensTools,
-        mode: "review",
-      };
-      const lensResult = await runPiWithTransientRecovery(
-        (attempt) => runPi(
-          reviewPromptForAttempt(lensPrompt, attempt),
-          lensInputs,
-          undefined,
-          false,
-          { promptName: `lens-${job.lens.id}` },
-        ),
-      );
-      const lensOutput = sanitize(lensResult.output);
-      console.log(
-        `[${job.lens.id}] ${lensResult.conclusion} · ${lensOutput.substring(0, 180)}`,
-      );
-      return { job, lensResult, lensOutput };
-    };
-    const lensRuns: Awaited<ReturnType<typeof runReviewerJob>>[] = [];
-    if (!singleSessionReview && reviewPlan.reusedModels) {
-      for (const job of reviewerJobs) {
-        lensRuns.push(await runReviewerJob(job));
-      }
-    } else if (!singleSessionReview) {
-      lensRuns.push(...await Promise.all(reviewerJobs.map(runReviewerJob)));
-    }
-
-    for (const { job, lensResult } of lensRuns) {
-      runCosts.push(costFromPiResult(lensResult));
-      runMetrics.push(metricFromPiRun(lensResult, job.role || "reviewer", {
-        lensId: job.lens.id,
-        lensTitle: job.lens.title,
-      }));
-    }
-
-    const failedRequiredLenses = failedRequiredReviewLensIds(
-      lensRuns.map(({ job, lensResult }) => ({
-        job,
-        conclusion: lensResult.conclusion,
-      })),
-    );
-    if (failedRequiredLenses.length > 0) {
-      const failureMessage = `Required review lanes failed: ${failedRequiredLenses.join(", ")}`;
-      if (commentId) {
-        try {
-          await updateTrackingComment(
-            octokit,
-            context,
-            commentId,
-            [
-              spinnerHeader(modelLabel, "review failed"),
-              "",
-              failureMessage,
-              `[View run](${jobRunLink})`,
-            ].join("\n"),
-            trackingModelLabel,
-          );
-        } catch (err) {
-          console.warn("Could not update failed strategy status:", err);
-        }
-      }
-      throw new Error(failureMessage);
-    }
-
-    const reports = lensRuns.map(({ job, lensResult, lensOutput }) => ({
-      lens: job.lens,
-      modelLabel: job.model.label,
-      output: lensOutput,
-      conclusion: lensResult.conclusion,
-    }));
-
-    if (!singleSessionReview) {
-      prompt = buildSynthesisPrompt({
-        data,
-        userRequest,
-        modelLabel: reviewPlan.validator.label,
-        jobRunLink,
-        commentId,
-        reports,
-        repoConfig: effectiveRepoConfig,
-        publicModelLabel,
-      });
-      writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
-    }
   }
 
   let result: PiRunResult = {
     conclusion: "failure",
-    output: "MCP configuration failed",
+    output: "Review execution failed",
     turnsUsed: 0,
     providerRetries: 0,
     durationSeconds: 0,
@@ -666,13 +416,11 @@ async function run(): Promise<void> {
   };
   const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
   try {
-    writeMcpConfig();
     result = await runPiWithTransientRecovery(
       (attempt) => runPi(
         reviewPromptForAttempt(prompt, attempt),
-        finalInputs,
+        piInputs,
         onProgress,
-        singleSessionReview ? false : mcpEnabled,
         { promptName: "prompt" },
       ),
     );
@@ -682,11 +430,6 @@ async function run(): Promise<void> {
       ...result,
       output: `Review execution failed: ${(err as Error).message}`,
     };
-  } finally {
-    // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
-    if (mcpConfigPath) {
-      try { unlinkSync(mcpConfigPath); } catch { /* already gone */ }
-    }
   }
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
@@ -699,9 +442,6 @@ async function run(): Promise<void> {
       activeModelLabel,
     ]),
     publicModelLabel,
-    requireVerdictFormat: singleSessionReview,
-    severityThreshold: inputs.severityThreshold,
-    diff: data.diff,
   });
   const publicOutput = publicReview.body;
   const publicConclusion =
@@ -732,6 +472,7 @@ async function run(): Promise<void> {
 
   // Always post the review comment first (before git ops, which can fail)
   let reviewBody = "";
+  let reviewDelivered = false;
   if (commentId) {
     reviewBody = [
       publicConclusion === "success"
@@ -746,10 +487,12 @@ async function run(): Promise<void> {
 
     try {
       await updateTrackingComment(octokit, context, commentId, reviewBody, trackingModelLabel);
+      reviewDelivered = true;
     } catch (err) {
       console.warn("Could not update tracking comment, posting new one:", err);
       try {
         await postComment(octokit, context, reviewBody, trackingModelLabel);
+        reviewDelivered = true;
       } catch (err2) {
         console.warn("Could not post comment either:", err2);
       }
@@ -806,6 +549,7 @@ async function run(): Promise<void> {
         ? `${truncate(publicOutput)}\n\n_${costLine}_`
         : truncate(publicOutput);
       await createPRReview(octokit, context, reviewOutput, publicConclusion, activeModelLabel);
+      reviewDelivered = true;
     } catch (err) {
       console.warn("Could not create PR review:", err);
     }
@@ -829,36 +573,14 @@ async function run(): Promise<void> {
         ].join("\n"),
         activeModelLabel,
       );
+      reviewDelivered = true;
     } catch (err) {
       console.warn("Could not post comment:", err);
     }
   }
 
-  // ── Phase 5b: Drain the inline-comment buffer (MCP-only) ─────────────
+  // ── Phase 5b: Post structured inline findings when available ─────────
   let inlineSummary: PostSummary = { posted: 0, skipped: 0, failed: 0 };
-  if (mcpEnabled && context.isPR && existsSync(bufferPath)) {
-    try {
-      const summary = await postBuffered({
-        readBuffer: () => readFileSync(bufferPath, "utf-8"),
-        // @actions/github's octokit exposes the API under `.rest` —
-        // structurally compatible with PostBufferedOctokit (no cast needed).
-        octokit: octokit.rest,
-        env: {
-          repoOwner: context.repo.owner,
-          repoName: context.repo.repo,
-          prNumber: String(context.entityNumber),
-        },
-        log: (m) => console.log(`[post-buffered] ${m}`),
-      });
-      inlineSummary = summary;
-      console.log(
-        `[post-buffered] posted=${summary.posted} skipped=${summary.skipped} failed=${summary.failed}`,
-      );
-    } catch (err) {
-      console.warn("post-buffered failed:", (err as Error).message);
-    }
-  }
-
   const inlineFallbackBuffer =
     context.isPR && inlineSummary.posted === 0 && (inlineSummary.duplicate ?? 0) === 0
       ? inlineReviewBufferFromFindings(parsedFindings)
@@ -867,8 +589,7 @@ async function run(): Promise<void> {
     try {
       const summary = await postBuffered({
         readBuffer: () => inlineFallbackBuffer,
-        // Host-side fallback for models that returned structured findings
-        // but did not call the inline-comment MCP tool.
+        // Host-side delivery for models that returned structured findings.
         octokit: octokit.rest,
         env: {
           repoOwner: context.repo.owner,
@@ -904,7 +625,8 @@ async function run(): Promise<void> {
   }
 
   // ── Phase 6: Set outputs ─────────────────────────────────────────────
-  core.setOutput("conclusion", result.conclusion);
+  const finalConclusion = reviewConclusion(result.conclusion, publicReview.usable, reviewDelivered);
+  core.setOutput("conclusion", finalConclusion);
   core.setOutput("branch_name", workBranch || "");
   core.setOutput("comment_id", commentId ? String(commentId) : "");
   core.setOutput("session_id", result.sessionId || "");
@@ -917,7 +639,7 @@ async function run(): Promise<void> {
     context,
     runId,
     jobRunLink,
-    conclusion: result.conclusion,
+    conclusion: finalConclusion,
     mode: resolvedMode.mode,
     requestedStrategy: inputs.reviewStrategy,
     executedStrategy: useReviewPlan ? reviewPlan.strategy : "solo",
@@ -945,8 +667,14 @@ async function run(): Promise<void> {
   }
   core.setOutput("review_summary_json", reviewSummaryJson);
 
-  if (result.conclusion === "failure") {
-    core.setFailed("pi execution failed");
+  if (finalConclusion === "failure") {
+    core.setFailed(
+      result.conclusion === "failure"
+        ? `pi execution failed${result.errorKind ? ` (${result.errorKind})` : ""}`
+        : !publicReview.usable
+          ? "pi returned no usable public review"
+          : "review could not be delivered to GitHub",
+    );
   }
 }
 

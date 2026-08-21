@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test";
-import { preparePublicReviewOutput } from "../src/review/public-output";
+import { preparePublicReviewOutput, reviewConclusion } from "../src/review/public-output";
 
 describe("public review output filtering", () => {
+  it("succeeds only after a usable review reaches GitHub", () => {
+    expect(reviewConclusion("success", true, true)).toBe("success");
+    expect(reviewConclusion("success", false, true)).toBe("failure");
+    expect(reviewConclusion("success", true, false)).toBe("failure");
+    expect(reviewConclusion("failure", true, true)).toBe("failure");
+  });
+
   it("replaces internal-only MCP delivery chatter with a generic public body", () => {
     const output = [
       "The `elek_review_*` MCP tools are now consistently returning a gateway-level validation error (`args: must be string`).",
@@ -286,7 +293,21 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("deepseek-v4-pro");
   });
 
-  it("normalizes the strict verdict format and enforces the host severity threshold", () => {
+  it("keeps a useful review without requiring one exact Markdown contract", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Findings",
+        "- Important: `src/auth.ts:42` omits the tenant predicate and can expose another tenant's data.",
+      ].join("\n"),
+      "success",
+      { requireVerdictFormat: true },
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.body).toContain("src/auth.ts:42");
+  });
+
+  it("does not rewrite a useful model review", () => {
     const output = [
       "Verdict: approve-with-amendments — two findings need attention",
       "",
@@ -312,10 +333,10 @@ describe("public review output filtering", () => {
     expect(result.usable).toBe(true);
     expect(result.body).toContain("Verdict: approve-with-amendments");
     expect(result.body).toContain("### 🟡 Important");
-    expect(result.body).not.toContain("### 🟢 Nit");
+    expect(result.body).toContain("### 🟢 Nit");
   });
 
-  it("rejects strict findings that do not cite a visible diff line", () => {
+  it("keeps review text instead of discarding it for one parser mismatch", () => {
     const output = [
       "Verdict: request-changes — a blocking issue needs attention",
       "",
@@ -331,7 +352,7 @@ describe("public review output filtering", () => {
     });
 
     expect(result.usable).toBe(true);
-    expect(result.filtered).toBe(true);
-    expect(result.body).toBe("Verdict: approve — no Blocker or Important findings");
+    expect(result.filtered).toBe(false);
+    expect(result.body).toContain("src/missing.ts:99");
   });
 });

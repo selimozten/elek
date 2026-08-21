@@ -11,8 +11,8 @@ negative space, and hard long-shadow geometry.
 
 Use this line when the product needs to be explained in one sentence:
 
-> Elek cross-checks pull requests with independent AI reviewers while keeping
-> every model inside a narrow, non-destructive tool surface.
+> Elek reviews pull requests in one focused Pi session with native read-only
+> repository tools.
 
 Primary product CTA once hosted onboarding is open:
 
@@ -94,7 +94,7 @@ Write like a strict reviewer that is trying to be useful:
 - Clear over clever.
 - Evidence over confidence.
 - Review-only, not autonomous merge authority.
-- Cross-checks and validation, not "magic".
+- Verified findings, not "magic".
 
 Avoid phrases that imply elek can approve, merge, deploy, close issues, or own
 the final decision.

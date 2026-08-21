@@ -25,7 +25,7 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { createInterface } from "readline";
-import type { ActionInputs, PiRunResult, PiTurnMetric } from "./types";
+import type { ActionInputs, PiRunErrorKind, PiRunResult, PiTurnMetric } from "./types";
 import { estimateRunCost, modelLabelFor, resolveRates, type ReviewCost } from "./review/cost";
 
 const REVIEW_SYSTEM_PROMPT = [
@@ -33,7 +33,6 @@ const REVIEW_SYSTEM_PROMPT = [
   "Find only concrete, consequential issues rooted in changed code.",
   "Use repository inspection tools only to resolve a specific uncertainty required to validate a candidate finding; a self-contained change may require no tool calls.",
   "Do not edit files, ask questions, narrate research, or continue exploring after every candidate is either verified or rejected.",
-  "The output limit includes reasoning, so reserve enough output for the final review.",
   "Return the requested review format immediately when the review is complete, including when there are no findings.",
 ].join(" ");
 
@@ -43,7 +42,6 @@ const NO_TOOL_REVIEW_SYSTEM_PROMPT = [
   "You have no repository tools; the prompt contains the complete relevant diff and policy.",
   "Review the supplied context now and do not defer work or say that you will inspect files.",
   "Do not edit files, ask questions, or narrate research.",
-  "The output limit includes reasoning, so reserve enough output for the final review.",
   "Return the final review in this response, including the required no-findings format when applicable.",
 ].join(" ");
 
@@ -132,8 +130,6 @@ export async function runPi(
   prompt: string,
   inputs: ActionInputs,
   onProgress?: (event: ProgressEvent) => Promise<void>,
-  /** When true, pi loads extensions (needed for pi-mcp-adapter). */
-  loadExtensions?: boolean,
   options: { promptName?: string } = {},
 ): Promise<PiRunResult> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
@@ -150,7 +146,7 @@ export async function runPi(
   writeFileSync(promptFile, prompt, "utf-8");
 
   const piBin = findPiBinary();
-  const args = buildPiArgs(inputs, promptFile, !!loadExtensions);
+  const args = buildPiArgs(inputs, promptFile);
   const env = buildPiEnv(inputs);
 
   console.log(`pi binary: ${piBin}`);
@@ -390,6 +386,7 @@ export async function runPi(
           thinking: inputs.thinking,
           toolCalls: toolCount,
           turnMetrics,
+          stopReason,
           providerRetries,
           durationSeconds: elapsed,
           costUsd: usage.costUsd,
@@ -411,6 +408,13 @@ export async function runPi(
           output ||
           stderr.trim().slice(-500) ||
           `pi exited with code ${code}`;
+        const errorKind = classifyPiFailure({
+          code,
+          errorMessage: errMsg,
+          output,
+          stopReason,
+          terminationMessage,
+        });
         console.error(`pi failed: ${errMsg.substring(0, 500)}`);
         resolve({
           conclusion: "failure",
@@ -421,6 +425,8 @@ export async function runPi(
           thinking: inputs.thinking,
           toolCalls: toolCount,
           turnMetrics,
+          stopReason,
+          errorKind,
           providerRetries,
           durationSeconds: elapsed,
           costUsd: usage.costUsd,
@@ -458,6 +464,7 @@ export async function runPi(
         thinking: inputs.thinking,
         toolCalls: toolCount,
         turnMetrics,
+        errorKind: "process",
         providerRetries,
         durationSeconds: elapsed,
         costUsd: 0,
@@ -473,6 +480,25 @@ export async function runPi(
       });
     });
   });
+}
+
+function classifyPiFailure(args: {
+  code: number | null;
+  errorMessage: string;
+  output: string;
+  stopReason?: string;
+  terminationMessage?: string;
+}): PiRunErrorKind {
+  if (args.terminationMessage?.startsWith("pi timed out")) return "timeout";
+  if (args.terminationMessage?.startsWith("pi exceeded max turns")) return "turn-limit";
+  if (args.stopReason === "length") return "length";
+  if (args.code === 0 && !args.output && !args.stopReason) return "empty";
+  if (/\b429\b|too many requests|rate[ -]?limit/i.test(args.errorMessage)) return "rate-limit";
+  if (/h2 protocol error|error reading a body from connection|ECONNRESET|ETIMEDOUT|UND_ERR_|fetch failed|socket hang up|connection reset/i.test(args.errorMessage)) {
+    return "transport";
+  }
+  if (args.stopReason === "error" || args.stopReason === "aborted") return "model";
+  return "process";
 }
 
 /** Concatenate the text content blocks of an assistant message. */
@@ -670,7 +696,6 @@ function nonNegativeNumber(value: unknown): number | undefined {
 export function buildPiArgs(
   inputs: ActionInputs,
   promptFile: string,
-  loadExtensions: boolean,
 ): string[] {
   const args: string[] = [
     "--no-session",
@@ -678,24 +703,17 @@ export function buildPiArgs(
     "--no-skills",
     "--no-context-files",
   ];
-  // `pi --model provider/model` is legal, but pairing that with a separate
-  // `--provider` can make multi-provider review strategies ambiguous. When
-  // the model is provider-qualified, let the model spec route itself.
-  if (!inputs.model?.includes("/")) {
+  // Together and OpenRouter model ids can contain a slash without a provider
+  // prefix. Omit --provider only when the value starts with the selected one.
+  if (!inputs.model?.startsWith(`${inputs.provider}/`)) {
     args.push("--provider", inputs.provider);
   }
-  // Do not rely on user/global extension discovery or a runtime `pi install`
-  // (which would hit the npm registry during a review). Load exactly the
-  // already-installed, lockfile-pinned local adapter package when MCP is needed.
   args.push("--no-extensions");
-  if (inputs.mode !== "agent") {
-    args.push("--no-builtin-tools");
+  if (inputs.mode !== "agent" && inputs.tools) {
+    args.push("-e", localWorkspaceGuardPath());
   }
-  if (usesReadonlyReviewTools(inputs)) {
-    args.push("-e", localPiReadonlyToolsPath());
-  }
-  if (loadExtensions) {
-    args.push("-e", localPiMcpAdapterPath());
+  if (inputs.mode !== "agent" && !inputs.tools) {
+    args.push("--no-tools");
   }
 
   // Empty model string intentionally means "use this provider's default".
@@ -722,31 +740,9 @@ export function buildPiArgs(
   return args;
 }
 
-function localPiMcpAdapterPath(): string {
+function localWorkspaceGuardPath(): string {
   const packageRoot = process.env.GITHUB_ACTION_PATH || resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  return join(packageRoot, "node_modules", "pi-mcp-adapter");
-}
-
-function localPiReadonlyToolsPath(): string {
-  const packageRoot = process.env.GITHUB_ACTION_PATH || resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  return join(packageRoot, "src", "pi-readonly-tools.ts");
-}
-
-function toolSet(inputs: ActionInputs): Set<string> {
-  return new Set(
-    (inputs.tools || "")
-      .split(",")
-      .map((tool) => tool.trim())
-      .filter(Boolean),
-  );
-}
-
-function usesReadonlyReviewTools(inputs: ActionInputs): boolean {
-  if (inputs.mode === "agent") return false;
-  const tools = toolSet(inputs);
-  const hasReadonlyTool = ["read", "grep", "find", "ls"].some((tool) => tools.has(tool));
-  const hasMutationTool = ["write", "edit", "bash"].some((tool) => tools.has(tool));
-  return hasReadonlyTool && !hasMutationTool;
+  return join(packageRoot, "src", "pi-workspace-guard.ts");
 }
 
 /**
@@ -788,10 +784,6 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   for (const v of allowedVars) {
     if (process.env[v] !== undefined) env[v] = process.env[v];
-  }
-
-  if (inputs.mode !== "agent" && toolSet(inputs).has("mcp") && process.env.GITHUB_TOKEN !== undefined) {
-    env.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   }
 
   Object.assign(env, {

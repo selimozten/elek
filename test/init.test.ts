@@ -53,7 +53,7 @@ describe("elek-init", () => {
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("pull-requests: write");
     expect(workflow).toContain("issues: write");
-    expect(workflow).toContain("timeout-minutes: 15");
+    expect(workflow).not.toContain("timeout-minutes:");
     expect(workflow).toContain("name: Checkout repository");
     expect(workflow).toContain("actions/checkout@v6.0.3");
     expect(workflow).toContain("fetch-depth: 0");
@@ -77,16 +77,14 @@ describe("elek-init", () => {
     ]);
   });
 
-  it("renders repo config for strategy and budget policy", () => {
+  it("renders repo config for one-session review policy", () => {
     const config = renderConfig(parseArgs([
       "--strategy",
       "crosscheck",
-      "--max-cost-usd",
-      "0.05",
     ]));
 
     expect(config).toContain("review_strategy: crosscheck");
-    expect(config).toContain("max_cost_usd: 0.05");
+    expect(config).not.toContain("max_cost_usd");
     expect(config).toContain("severity_threshold: important");
     expect(config).toContain("knowledge_paths:");
     expect(config).toContain("AGENTS.md");
@@ -116,8 +114,6 @@ describe("elek-init", () => {
       const options = parseArgs([
         "--strategy",
         "crosscheck",
-        "--max-cost-usd",
-        "0.10",
         "--workflow",
         ".github/workflows/review.yml",
       ]);
@@ -125,7 +121,7 @@ describe("elek-init", () => {
 
       expect(written).toEqual([".github/workflows/review.yml", ".elek.yml"]);
       expect(existsSync(join(dir, ".github/workflows/review.yml"))).toBe(true);
-      expect(readFileSync(join(dir, ".elek.yml"), "utf8")).toContain("max_cost_usd: 0.10");
+      expect(readFileSync(join(dir, ".elek.yml"), "utf8")).toContain("review_strategy: crosscheck");
       expect(() => writePlannedFiles(options, dir)).toThrow("already exists");
       expect(writePlannedFiles({ ...options, force: true }, dir)).toEqual([
         ".github/workflows/review.yml",
@@ -139,7 +135,7 @@ describe("elek-init", () => {
   it("rejects unsupported choices before writing files", () => {
     expect(() => parseArgs(["--provider", "unknown"])).toThrow("Unsupported provider");
     expect(() => parseArgs(["--strategy", "many"])).toThrow("Unsupported strategy");
-    expect(() => parseArgs(["--max-cost-usd", "0"])).toThrow("positive number");
+    expect(() => parseArgs(["--max-cost-usd", "0.10"])).toThrow("Unknown option");
     expect(() => parseArgs(["--secret", "MY-SECRET"])).toThrow("valid GitHub Actions secret name");
     expect(() => parseArgs(["--secret", "GITHUB_TOKEN"])).toThrow("valid GitHub Actions secret name");
     expect(parseArgs(["--thinking", "max"]).thinking).toBe("max");

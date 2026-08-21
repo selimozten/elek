@@ -31,7 +31,7 @@ Useful variants:
 
 ```bash
 npx --package github:selimozten/elek elek-init --provider openrouter --model moonshotai/kimi-k2.7-code
-npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
+npx --package github:selimozten/elek elek-init --strategy crosscheck
 npx --package github:selimozten/elek elek-init --provider anthropic \
   --model claude-sonnet-4-6 --secret ANTHROPIC_API_KEY
 npx --package github:selimozten/elek elek-init --no-config
@@ -81,7 +81,6 @@ jobs:
   review:
     if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
         with: { fetch-depth: 0 }   # required for accurate PR diffs
@@ -91,7 +90,6 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
-          run_timeout_seconds: 600
 ```
 
 ## 3. Test it
@@ -108,9 +106,9 @@ Use current provider model IDs directly. Common review choices:
 |---|---|---|
 | DeepSeek | `deepseek-v4-pro` | Low-cost primary reviewer |
 | OpenRouter | `moonshotai/kimi-k2.7-code` | Independent second reviewer |
-| OpenAI | `gpt-5.5` | Strong reasoning reviewer or validator |
-| Anthropic | `claude-sonnet-4-6` | Balanced premium validator |
-| Anthropic | `claude-opus-4-8` | Highest-capability validator for critical PRs |
+| OpenAI | `gpt-5.5` | Strong reasoning reviewer |
+| Anthropic | `claude-sonnet-4-6` | Balanced premium reviewer |
+| Anthropic | `claude-opus-4-8` | High-capability reviewer for critical PRs |
 
 `thinking` uses pi's portable levels: `off`, `minimal`, `low`, `medium`,
 `high`, and `xhigh`. Provider adapters map those to native effort controls
@@ -139,45 +137,38 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 
 | `mode` | Tools | Inline comments | Edits | When to use |
 |---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Repo-scoped read-only code review |
-| `review+edit` | `read,grep,find,ls,mcp` | ✓ | ✗ | Read-only until sandboxed mutation tools are available |
+| `review` (default) | `read,grep,find,ls` | Host-posted | ✗ | Repo-scoped read-only code review |
+| `review+edit` | `read,grep,find,ls` | Host-posted | ✗ | Read-only until sandboxed mutation tools are available |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
 `review+edit` is currently held to the same read-only tool surface as
-`review`: repo-scoped read/search plus MCP review comments, with no write,
-edit, or bash tools. Use `agent` only in trusted workflows that intentionally
+`review`: native repo-scoped read/search tools, with no write, edit, bash, or
+MCP tools. Use `agent` only in trusted workflows that intentionally
 allow file edits and Git pushes.
 
 ## Review strategies
 
-`review_strategy` controls how many independent review passes run before the
-visible review is posted:
+`review_strategy` selects the perspectives that one Pi session applies:
 
 ```yaml
 - uses: selimozten/elek@v1
   with:
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    provider: deepseek
-    model: deepseek-v4-pro
+    together_api_key: ${{ secrets.TOGETHER_API_KEY }}
+    provider: together
+    model: deepseek-ai/DeepSeek-V4-Pro-0813
+    thinking: max
     review_strategy: crosscheck
-    review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
-    advisor_model: openai/gpt-5.6-sol
-    advisor_thinking: medium
-    validator_model: deepseek/deepseek-v4-pro
-    max_cost_usd: "0.05"
 ```
 
 | `review_strategy` | Behavior |
 |---|---|
 | `solo` | One model reviews and posts. |
-| `crosscheck` | Risk + design lenses and an advisor run read-only, then a final orchestrator validates and posts. |
-| `council` | Risk + design + tests + operations lenses and an advisor run read-only, then a final orchestrator validates and posts. |
-| `thermos` | A configurable built-in lens council and an advisor run read-only, then a final orchestrator validates and posts. |
+| `crosscheck` | One session applies risk and design lenses. |
+| `council` | One session applies risk, design, test, and operations lenses. |
+| `thermos` | One session applies the selected Thermos lenses and a Ponytail filter. |
 
-Candidate reviewers cannot post comments. They run without MCP access; only the
-final orchestrator can call elek's review tools.
+Review mode runs without MCP access. The host posts the sanitized final review.
 
 Non-solo strategies currently require `mode: review`. If one is configured
 with `review+edit` or `agent`, elek runs a solo review and logs a warning.
@@ -190,13 +181,8 @@ behavior alongside the code.
 
 ```yaml
 review_strategy: thermos
-review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
 review_lenses: security-correctness,contract-drift,mobile-runtime
-advisor_model: openai/gpt-5.6-sol
-advisor_thinking: medium
-validator_model: deepseek/deepseek-v4-pro
 cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
-max_cost_usd: 0.05
 severity_threshold: important
 
 knowledge_paths:
@@ -218,13 +204,8 @@ Supported keys:
 | Key | Behavior |
 |---|---|
 | `review_strategy` | Default strategy when the workflow input is unset |
-| `review_models` | Default reviewer model list |
 | `review_lenses` | Ordered built-in lens IDs for a smaller domain-specific council |
-| `advisor_model` | Independent advisor model; defaults to the validator model; set `off` to disable |
-| `advisor_thinking` | Advisor reasoning level; defaults to the validator/reviewer setting |
-| `validator_model` | Default final orchestrator/validation model |
 | `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
-| `max_cost_usd` | Soft cap; downgrade multi-lens reviews when known input-side estimates already exceed it |
 | `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
 | `knowledge_paths` | Repo-local docs or directories to include as bounded review context |
 | `ignore_paths` | Skip a finding only when all of its evidence lies inside these paths; still surface issues that leak impact outside them |
@@ -237,11 +218,10 @@ existing config file has malformed YAML, elek fails the run instead of silently
 dropping repo policy.
 
 Security note: on pull requests, elek loads policy and guidance fields
-(`review_strategy`, `review_models`, `review_lenses`, `advisor_model`,
-`validator_model`, `cost_rates`, `max_cost_usd`,
+(`review_strategy`, `review_lenses`, `cost_rates`,
 `severity_threshold`, `knowledge_paths`, `ignore_paths`, and `instructions`)
 from the base branch when available. A pull request cannot weaken its own
-review policy. Each run logs the loaded config source plus effective
+review policy or inject repository guidance. Each run logs the loaded config source plus effective
 strategy/model/severity choices.
 If `knowledge_paths` is unset, elek automatically tries `AGENTS.md`,
 `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, and `docs/adr`. Files are loaded
@@ -315,12 +295,10 @@ per 1M input/output tokens:
     model: moonshotai/kimi-k2.7-code
     show_cost: true
     cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
-    max_cost_usd: "0.10"
 ```
 
-`max_cost_usd` is conservative. elek only downgrades a multi-lens strategy
-when the known prompt/input-side estimate already exceeds the cap before
-output tokens. Add `cost_rates` for custom models so the guard can enforce it.
+`cost_rates` changes reporting only. Elek does not reduce review coverage from
+a cost estimate.
 
 Diff context uses the selected model's available input window. The full diff
 is included whenever it fits; only context-window overflow falls back to a
@@ -377,7 +355,9 @@ permissions:
   issues: write
 ```
 
-Keep `contents: read` for `review` and `review+edit`. Use `agent` only in trusted workflows that intentionally allow edits and Git pushes. The model still cannot approve or merge — those code paths don't exist in the MCP server.
+Keep `contents: read` for `review` and `review+edit`. Use `agent` only in
+trusted workflows that allow edits and Git pushes. Review-mode Pi does not
+receive the GitHub token.
 
 ## Comment identity
 
@@ -430,7 +410,8 @@ on:
 
 ### Comment stuck on "analyzing…" with no progress
 
-The most common cause: `pi --mode json` was hanging on stdin. Make sure you're on `selimozten/elek@v1` or later — older revs had this bug. If on latest and still stuck, check the run logs for the `Command:` line and confirm it doesn't mention `--no-extensions` (it shouldn't in MCP modes).
+Older revisions could keep Pi standard input open. Current Elek closes it.
+Check the `Command:` line and each turn duration in the run log.
 
 ### Empty PR diff
 
@@ -438,7 +419,8 @@ The most common cause: `pi --mode json` was hanging on stdin. Make sure you're o
 
 ### "Tool not found" errors in the review
 
-The model called `mcp({tool: "update_tracking_comment", …})` without the server prefix. Pi-mcp-adapter exposes ours as `elek_review_update_tracking_comment`. The prompt explains this; if you see this often, the model may need a stronger prompt or higher thinking level.
+Review mode exposes only `read`, `grep`, `find`, and `ls`. Check custom prompts
+for requests to use shell, edit, or MCP tools.
 
 ### `403` on inline comments for fork PRs
 

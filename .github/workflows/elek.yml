@@ -25,7 +25,6 @@ jobs:
     if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
@@ -35,7 +34,6 @@ jobs:
         id: review
         uses: ./
         continue-on-error: true
-        timeout-minutes: 12
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
@@ -59,7 +57,6 @@ jobs:
     if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
@@ -69,13 +66,11 @@ jobs:
         id: review
         uses: ./
         continue-on-error: true
-        timeout-minutes: 12
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
           model: moonshotai/kimi-k2.7-code
           thinking: medium
-          max_turns: 6
           branch_prefix: elek/kimi/
           prompt: |
             Review this PR for correctness, security, performance, and style.

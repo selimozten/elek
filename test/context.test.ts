@@ -209,9 +209,9 @@ describe("parseInputs", () => {
     expect(parseInputs().showCost).toBe(true);
   });
 
-  it("keeps a default turn cap and accepts an explicit unlimited value", () => {
+  it("uses no turn cap unless one is explicit", () => {
     delete process.env.INPUT_MAX_TURNS;
-    expect(parseInputs().maxTurns).toBe(20);
+    expect(parseInputs().maxTurns).toBeUndefined();
 
     for (const value of ["0", "off", "none", "false", "disabled"]) {
       process.env.INPUT_MAX_TURNS = value;
@@ -261,13 +261,13 @@ describe("parseInputs", () => {
     }
   });
 
-  it("parses run_timeout_seconds and falls back on invalid values", () => {
+  it("uses no run timeout unless one is explicit", () => {
     delete process.env.INPUT_RUN_TIMEOUT_SECONDS;
-    expect(parseInputs().runTimeoutSeconds).toBe(600);
+    expect(parseInputs().runTimeoutSeconds).toBeUndefined();
 
     for (const value of ["-10", "1.5", "abc"]) {
       process.env.INPUT_RUN_TIMEOUT_SECONDS = value;
-      expect(parseInputs().runTimeoutSeconds).toBe(600);
+      expect(parseInputs().runTimeoutSeconds).toBeUndefined();
     }
 
     process.env.INPUT_RUN_TIMEOUT_SECONDS = "120";

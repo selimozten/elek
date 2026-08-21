@@ -48,7 +48,6 @@ const DEFAULTS = {
   actionRef: "selimozten/elek@v1",
   workflowPath: ".github/workflows/elek.yml",
   configPath: ".elek.yml",
-  maxCostUsd: "",
   writeConfig: true,
   force: false,
 };
@@ -79,7 +78,6 @@ export function parseArgs(argv) {
       "--secret",
       "--thinking",
       "--strategy",
-      "--max-cost-usd",
       "--action-ref",
       "--workflow",
       "--config-path",
@@ -102,9 +100,6 @@ export function parseArgs(argv) {
           break;
         case "--strategy":
           options.strategy = value;
-          break;
-        case "--max-cost-usd":
-          options.maxCostUsd = value;
           break;
         case "--action-ref":
           options.actionRef = value;
@@ -134,9 +129,6 @@ export function finalizeOptions(options) {
   }
   if (!["solo", "crosscheck", "council", "thermos"].includes(options.strategy)) {
     throw new Error("Unsupported strategy. Choose one of: solo, crosscheck, council, thermos");
-  }
-  if (options.maxCostUsd && (!Number.isFinite(Number(options.maxCostUsd)) || Number(options.maxCostUsd) <= 0)) {
-    throw new Error("--max-cost-usd must be a positive number");
   }
   const secret = options.secret ?? providerDefaults.secret;
   const thinking = options.thinking ?? providerDefaults.thinking;
@@ -214,7 +206,6 @@ jobs:
   review:
     if: \${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.3
@@ -234,9 +225,6 @@ export function renderConfig(options) {
   const lines = [];
   if (options.strategy !== "solo") {
     lines.push(`review_strategy: ${options.strategy}`, "");
-  }
-  if (options.maxCostUsd) {
-    lines.push(`max_cost_usd: ${options.maxCostUsd}`, "");
   }
   lines.push(
     "severity_threshold: important",
@@ -300,7 +288,6 @@ Options:
   --secret <name>         GitHub Actions secret name for the provider key
   --thinking <level>      off, minimal, low, medium, high, xhigh, or max
   --strategy <name>       solo, crosscheck, council, or thermos
-  --max-cost-usd <n>      add a soft cost cap to .elek.yml
   --config                write .elek.yml, enabled by default
   --no-config             write only .github/workflows/elek.yml
   --force                 overwrite existing files

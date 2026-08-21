@@ -36,7 +36,10 @@ describe("transient review recovery", () => {
 
   it("retries one HTTP/2 stream reset and aggregates both attempts", async () => {
     const attempts = [
-      result({ output: "Stream error: h2 protocol error: error reading a body from connection" }),
+      result({
+        output: "Stream error: h2 protocol error: error reading a body from connection",
+        errorKind: "transport",
+      }),
       result({
         conclusion: "success",
         output: "Verdict: approve — no Blocker or Important findings",
@@ -68,9 +71,9 @@ describe("transient review recovery", () => {
     });
   });
 
-  it("retries one empty provider completion", async () => {
+  it("does not retry an empty model completion", async () => {
     const attempts = [
-      result({ output: "pi exited with code 0" }),
+      result({ output: "pi exited with code 0", errorKind: "empty" }),
       result({
         conclusion: "success",
         output: "Verdict: approve — no Blocker or Important findings",
@@ -84,9 +87,10 @@ describe("transient review recovery", () => {
       return attempts[calls++]!;
     });
 
-    expect(calls).toBe(2);
-    expect(attemptNumbers).toEqual([0, 1]);
-    expect(recovered.conclusion).toBe("success");
+    expect(calls).toBe(1);
+    expect(attemptNumbers).toEqual([0]);
+    expect(recovered.conclusion).toBe("failure");
+    expect(recovered.errorKind).toBe("empty");
   });
 
   it("does not retry model, policy, timeout, or turn-limit failures", async () => {

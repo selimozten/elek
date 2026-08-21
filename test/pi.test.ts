@@ -43,21 +43,23 @@ afterEach(() => {
 
 describe("buildPiArgs", () => {
   it("omits --model when the provider default model is requested", () => {
-    const args = buildPiArgs({ ...baseInputs, model: "" }, "/tmp/prompt.md", false);
+    const args = buildPiArgs({ ...baseInputs, model: "" }, "/tmp/prompt.md");
 
     expect(args).toContain("--provider");
     expect(args).toContain("deepseek");
     expect(args).not.toContain("--model");
     expect(args).toContain("--no-extensions");
-    expect(args).toContain("--no-builtin-tools");
-    expect(args.join(" ")).toContain("src/pi-readonly-tools.ts");
+    expect(args).toContain("-e");
+    expect(args.join(" ")).toContain("src/pi-workspace-guard.ts");
+    expect(args).not.toContain("--no-builtin-tools");
+    expect(args.join(" ")).not.toContain("src/pi-readonly-tools.ts");
+    expect(args).toContain("--tools");
   });
 
   it("defensively omits --model when model is undefined", () => {
     const args = buildPiArgs(
       { ...baseInputs, model: undefined as unknown as string },
       "/tmp/prompt.md",
-      false,
     );
 
     expect(args).toContain("--provider");
@@ -72,7 +74,6 @@ describe("buildPiArgs", () => {
         model: "openrouter/moonshotai/kimi-k2.7-code",
       },
       "/tmp/prompt.md",
-      true,
     );
 
     expect(args).not.toContain("--provider");
@@ -80,20 +81,35 @@ describe("buildPiArgs", () => {
     expect(args).toContain("openrouter/moonshotai/kimi-k2.7-code");
     expect(args).toContain("--no-extensions");
     expect(args).toContain("-e");
-    expect(args).toContain("--no-builtin-tools");
-    expect(args.join(" ")).toContain("src/pi-readonly-tools.ts");
-    expect(args.join(" ")).toContain("node_modules/pi-mcp-adapter");
+    expect(args.join(" ")).toContain("src/pi-workspace-guard.ts");
+    expect(args).not.toContain("--no-builtin-tools");
+    expect(args.join(" ")).not.toContain("src/pi-readonly-tools.ts");
+  });
+
+  it("keeps the provider for native model ids that contain a slash", () => {
+    const args = buildPiArgs(
+      {
+        ...baseInputs,
+        provider: "together",
+        model: "deepseek-ai/DeepSeek-V4-Pro-0813",
+      },
+      "/tmp/prompt.md",
+    );
+
+    expect(args).toContain("--provider");
+    expect(args[args.indexOf("--provider") + 1]).toBe("together");
+    expect(args[args.indexOf("--model") + 1]).toBe("deepseek-ai/DeepSeek-V4-Pro-0813");
   });
 
   it("passes max thinking to pi without reducing it", () => {
-    const args = buildPiArgs({ ...baseInputs, thinking: "max" }, "/tmp/prompt.md", false);
+    const args = buildPiArgs({ ...baseInputs, thinking: "max" }, "/tmp/prompt.md");
 
     expect(args).toContain("--thinking");
     expect(args[args.indexOf("--thinking") + 1]).toBe("max");
   });
 
   it("appends Elek's noninteractive reviewer contract in review mode", () => {
-    const args = buildPiArgs(baseInputs, "/tmp/prompt.md", false);
+    const args = buildPiArgs(baseInputs, "/tmp/prompt.md");
     const promptIndex = args.indexOf("--append-system-prompt");
 
     expect(promptIndex).toBeGreaterThan(-1);
@@ -101,22 +117,19 @@ describe("buildPiArgs", () => {
     expect(args[promptIndex + 1]).toContain(
       "Use repository inspection tools only to resolve a specific uncertainty",
     );
-    expect(args[promptIndex + 1]).toContain("reserve enough output for the final review");
   });
 
-  it("disables all built-in tools for a review lane with no requested tools", () => {
+  it("disables all tools for a review with no requested tools", () => {
     const args = buildPiArgs(
       { ...baseInputs, tools: "" },
       "/tmp/prompt.md",
-      false,
     );
 
-    expect(args).toContain("--no-builtin-tools");
+    expect(args).toContain("--no-tools");
     expect(args).not.toContain("--tools");
     expect(args).not.toContain("-e");
     const systemPrompt = args[args.indexOf("--append-system-prompt") + 1];
     expect(systemPrompt).toContain("You have no repository tools");
-    expect(systemPrompt).toContain("reserve enough output for the final review");
     expect(systemPrompt).toContain("Return the final review in this response");
     expect(systemPrompt).not.toContain("Use repository inspection tools");
   });
@@ -125,7 +138,6 @@ describe("buildPiArgs", () => {
     const args = buildPiArgs(
       { ...baseInputs, mode: "agent" },
       "/tmp/prompt.md",
-      false,
     );
 
     expect(args).not.toContain("--append-system-prompt");
@@ -168,17 +180,17 @@ describe("buildPiEnv", () => {
     const env = __buildPiEnv({ ...baseInputs, mode: "review" });
 
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
-    // GITHUB_TOKEN is granted to review mode only when the MCP proxy is enabled.
+    // The host owns GitHub delivery.
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH);
   });
 
-  it("review mode passes GITHUB_TOKEN only when MCP is enabled", () => {
+  it("review mode never passes GITHUB_TOKEN through an unsafe tool string", () => {
     process.env.GITHUB_TOKEN = "ghs_fake_token";
 
     const env = __buildPiEnv({ ...baseInputs, mode: "review", tools: "read,grep,find,ls,mcp" });
 
-    expect(env.GITHUB_TOKEN).toBe("ghs_fake_token");
+    expect(env.GITHUB_TOKEN).toBeUndefined();
   });
 
   it("passes Together credentials to the review child env without leaking unrelated secrets", () => {
@@ -216,7 +228,6 @@ describe("runPi", () => {
         "review this change",
         { ...baseInputs, provider: "together", model: "together/moonshotai/Kimi-K2.7-Code" },
         undefined,
-        false,
         { promptName: "usage-test" },
       );
 
@@ -230,6 +241,7 @@ describe("runPi", () => {
         source: "provider",
       });
       expect(result.providerRetries).toBe(1);
+      expect(result.stopReason).toBe("stop");
       expect(result.costUsd).toBe(0.00789);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -258,7 +270,7 @@ describe("runPi", () => {
 
     try {
       const prompt = "review this change";
-      const result = await runPi(prompt, baseInputs, undefined, false, { promptName: "turn-metrics-test" });
+      const result = await runPi(prompt, baseInputs, undefined, { promptName: "turn-metrics-test" });
 
       expect(result.conclusion).toBe("success");
       expect(result.promptChars).toBe(prompt.length);
@@ -303,7 +315,6 @@ describe("runPi", () => {
         async (event) => {
           progressEvents.push(event.type);
         },
-        false,
         { promptName: "timeout-test" },
       );
 
@@ -338,7 +349,6 @@ describe("runPi", () => {
         "review this change",
         { ...baseInputs, maxTurns: 2, runTimeoutSeconds: 10 },
         undefined,
-        false,
         { promptName: "turn-limit-test" },
       );
 

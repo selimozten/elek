@@ -3,7 +3,6 @@
  */
 import type { GitHubEntityContext } from "../types.js";
 import { getGitDiff } from "./git.js";
-import { mcpToolGuidance } from "./mcp-guidance.js";
 import { findingValidationBullets } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 import {
@@ -131,7 +130,6 @@ export function buildPrompt(
   jobRunLink: string,
   commentId?: number,
   options: {
-    useMcp?: boolean;
     allowEdit?: boolean;
     tools?: string;
     repoConfig?: ElekConfig;
@@ -243,14 +241,6 @@ export function buildPrompt(
   parts.push("</user_request>");
   parts.push("");
 
-  // ── MCP tool guidance (review/review+edit modes) ──
-  if (options.useMcp) {
-    parts.push("## Available tools (via the `mcp` proxy)");
-    parts.push("");
-    parts.push(...mcpToolGuidance());
-    parts.push("");
-  }
-
   // ── Workflow Instructions ──
   parts.push("## Instructions");
   parts.push("");
@@ -320,13 +310,12 @@ export function buildPrompt(
   parts.push("");
 
   // ── Output format ──
-  parts.push("### Response format (strict)");
+  parts.push("### Response format");
   parts.push("");
-  parts.push("The first character of your response must be `V`, from `Verdict:`.");
-  parts.push("Use exactly this shape:");
+  parts.push("Return a concise GitHub review with this shape:");
   parts.push("");
   parts.push("```markdown");
-  parts.push("Verdict: <approve|approve-with-amendments|request-changes> — <one-clause reason, 5-120 chars>");
+  parts.push("## Findings");
   parts.push("");
   parts.push("### 🔴 Blocker");
   parts.push("- `<path>:<line>` — <what is wrong>. <why it matters>.");
@@ -339,11 +328,11 @@ export function buildPrompt(
   parts.push("```");
   parts.push("");
   parts.push("Omit empty severity headings. Omit Nit findings when the severity threshold is important.");
-  parts.push("Use at most five findings per severity and 800 words total.");
   parts.push("Cite only paths and lines visible in the supplied diff.");
   parts.push("Do not add a summary, recommendations, validation notes, process notes, or a footer.");
-  parts.push("Use request-changes only for a Blocker. Use approve-with-amendments when Important is the highest severity.");
-  parts.push("If no finding survives, return only: Verdict: approve — no Blocker or Important findings");
+  parts.push("If no finding survives, return only:");
+  parts.push("## Findings");
+  parts.push("No high-confidence Important or Blocker findings.");
 
   return parts.join("\n");
 }
