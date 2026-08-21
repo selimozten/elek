@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { runPiWithTransientRecovery } from "../src/review/run-recovery";
+import { reviewPromptForAttempt, runPiWithTransientRecovery } from "../src/review/run-recovery";
 import type { PiRunResult } from "../src/types";
 
 function result(overrides: Partial<PiRunResult> = {}): PiRunResult {
@@ -26,6 +26,14 @@ function result(overrides: Partial<PiRunResult> = {}): PiRunResult {
 }
 
 describe("transient review recovery", () => {
+  it("changes the retry prompt to bypass a cached empty response", () => {
+    const prompt = "Review this pull request.";
+
+    expect(reviewPromptForAttempt(prompt, 0)).toBe(prompt);
+    expect(reviewPromptForAttempt(prompt, 1)).toContain("<provider_recovery");
+    expect(reviewPromptForAttempt(prompt, 1)).not.toBe(prompt);
+  });
+
   it("retries one HTTP/2 stream reset and aggregates both attempts", async () => {
     const attempts = [
       result({ output: "Stream error: h2 protocol error: error reading a body from connection" }),
@@ -69,10 +77,15 @@ describe("transient review recovery", () => {
       }),
     ];
     let calls = 0;
+    const attemptNumbers: number[] = [];
 
-    const recovered = await runPiWithTransientRecovery(async () => attempts[calls++]!);
+    const recovered = await runPiWithTransientRecovery(async (attempt) => {
+      attemptNumbers.push(attempt);
+      return attempts[calls++]!;
+    });
 
     expect(calls).toBe(2);
+    expect(attemptNumbers).toEqual([0, 1]);
     expect(recovered.conclusion).toBe("success");
   });
 

@@ -4,14 +4,20 @@ const RECOVERABLE_PROVIDER_FAILURE =
   /(?:h2 protocol error|error reading a body from connection|ECONNRESET|ETIMEDOUT|UND_ERR_|fetch failed|socket hang up|connection reset|^pi exited with code 0$)/i;
 
 export async function runPiWithTransientRecovery(
-  run: () => Promise<PiRunResult>,
+  run: (attempt: number) => Promise<PiRunResult>,
   warn: (message: string) => void = console.warn,
 ): Promise<PiRunResult> {
-  const first = await run();
+  const first = await run(0);
   if (first.conclusion === "success" || !RECOVERABLE_PROVIDER_FAILURE.test(first.output)) return first;
 
   warn(`[review-retry] recoverable provider failure; retrying once`);
-  return mergeAttempts(first, await run());
+  return mergeAttempts(first, await run(1));
+}
+
+export function reviewPromptForAttempt(prompt: string, attempt: number): string {
+  if (attempt === 0) return prompt;
+  const runId = (process.env.GITHUB_RUN_ID || "local").replace(/[^a-zA-Z0-9_.-]/g, "");
+  return `${prompt}\n\n<provider_recovery run_id="${runId}">A prior provider attempt returned no usable final response. Return the final review now.</provider_recovery>`;
 }
 
 function mergeAttempts(first: PiRunResult, second: PiRunResult): PiRunResult {
