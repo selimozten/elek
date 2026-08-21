@@ -15,7 +15,7 @@ The strongest review tools are converging on the same capabilities:
 | Repo-indexed reviewer | Full-codebase context, code graph/indexing, team style learning, analytics, self-hosting focus. |
 | Enterprise reviewer | Repository-aware reviews using AST/symbol/embedding context, docs/wiki context, privacy positioning. |
 | Low-friction reviewer | Automatic review on every PR, summary plus line-by-line comments, multiple Git surfaces. |
-| Open-source BYOK agent | GitHub Actions execution, model-agnostic provider support, safe MCP surface, issue/CI automation. |
+| Open-source BYOK agent | GitHub Actions execution, model-agnostic provider support, read-only review tools, issue/CI automation. |
 
 ## elek positioning
 
@@ -35,12 +35,11 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 ### Shipped
 
 - Minimal elek brand and GitHub comment identity.
-- Review-only MCP surface with inline comments and tracking updates.
+- One-session review path with native Pi read-only tools and host delivery.
 - `solo`, `crosscheck`, and `council` review strategies.
 - OpenRouter Kimi K2.7 Code support in examples.
 - Estimated token/cost reporting through `show_cost`, `cost_rates`, and outputs.
-- Cost controls through `max_cost_usd`, including conservative downgrades from
-  expensive multi-lens reviews when known prompt/input estimates exceed budget.
+- Cost reporting without review-coverage downgrades.
 - Model-aware diff context budgets that preserve the requested review strategy
   and use the available GLM, GPT, or Kimi context window before falling back to
   per-file slices.
@@ -62,9 +61,8 @@ elek should not compete by becoming a general coding agent. The winning lane is:
 - `elek-feedback` for agent-native per-finding adjudication so the
   implementation agent or maintainer can mark findings accepted, partial,
   rejected, or unreviewed with a `0-5` usefulness score.
-- Finding validation gates that require a concrete failure path, reject
-  contradicted or unverifiable claims, and tell validators to drop weak
-  candidates instead of posting caveats.
+- Finding guidance that requires a concrete failure path and rejects
+  contradicted or unverifiable claims.
 
 ### Next
 
@@ -89,7 +87,7 @@ Use a fixed benchmark suite of seeded PRs:
 - large refactor with no bug
 - docs-only change
 
-Run each model/strategy with the same prompt and score with `elek-eval`:
+Run each model and lens set with the same prompt. Score with `elek-eval`:
 
 - valid high/medium findings
 - false positives
@@ -98,6 +96,5 @@ Run each model/strategy with the same prompt and score with `elek-eval`:
 - duration
 - inline anchoring success
 
-Prefer model pairs that disagree usefully and keep false positives low. The
-default recommendation should be cheap crosscheck plus a stronger validator only
-for risky PRs.
+Prefer one capable model with low false positives. Add another workflow only
+when benchmark evidence shows a quality gain.

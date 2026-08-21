@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -32,58 +32,31 @@ describe("bundled pi model registry", () => {
     });
   });
 
-  it("enables Together max reasoning and caps DeepSeek V4 review output", async () => {
+  it("uses the native Together capabilities for DeepSeek V4 Pro", async () => {
     const runtime = await ModelRuntime.create({
       authPath: join(tmpdir(), `elek-model-registry-${randomUUID()}.json`),
       modelsPath: resolve("pi-config/models.json"),
     });
 
-    expect(runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Flash-0731")).toMatchObject({
-      thinkingLevelMap: {
-        max: "max",
-      },
-      samplingParams: {
-        max_tokens: 32_768,
-      },
-      compat: {
-        supportsReasoningEffort: true,
-      },
-    });
-
-    expect(runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Pro-0813")).toMatchObject({
+    const model = runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Pro-0813");
+    expect(model).toMatchObject({
       reasoning: true,
       contextWindow: 1_048_576,
-      maxTokens: 16_384,
-      thinkingLevelMap: {
-        high: "high",
-        max: "max",
-      },
+      maxTokens: 384_000,
       cost: {
         input: 1.32,
         output: 3.96,
         cacheRead: 0.13,
       },
-      samplingParams: {
-        max_tokens: 16_384,
-      },
       compat: {
-        supportsReasoningEffort: true,
+        supportsReasoningEffort: false,
       },
     });
+    expect(model?.samplingParams).toBeUndefined();
+    expect(model?.thinkingLevelMap?.max).toBeUndefined();
   });
 
-  it("retries stalled provider requests after ten minutes", () => {
-    const settings = JSON.parse(readFileSync(resolve("pi-config/settings.json"), "utf8"));
-
-    expect(settings).toMatchObject({
-      retry: {
-        enabled: true,
-        maxRetries: 3,
-        provider: {
-          timeoutMs: 600_000,
-          maxRetries: 0,
-        },
-      },
-    });
+  it("does not override native Pi retry or timeout settings", () => {
+    expect(existsSync(resolve("pi-config/settings.json"))).toBe(false);
   });
 });

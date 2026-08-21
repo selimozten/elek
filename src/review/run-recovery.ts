@@ -1,14 +1,11 @@
 import type { PiRunResult, PiTurnMetric } from "../types.js";
 
-const RECOVERABLE_PROVIDER_FAILURE =
-  /(?:h2 protocol error|error reading a body from connection|ECONNRESET|ETIMEDOUT|UND_ERR_|fetch failed|socket hang up|connection reset|^pi exited with code 0$)/i;
-
 export async function runPiWithTransientRecovery(
   run: (attempt: number) => Promise<PiRunResult>,
   warn: (message: string) => void = console.warn,
 ): Promise<PiRunResult> {
   const first = await run(0);
-  if (first.conclusion === "success" || !RECOVERABLE_PROVIDER_FAILURE.test(first.output)) return first;
+  if (first.conclusion === "success" || first.errorKind !== "transport") return first;
 
   warn(`[review-retry] recoverable provider failure; retrying once`);
   return mergeAttempts(first, await run(1));

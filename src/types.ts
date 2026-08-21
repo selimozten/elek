@@ -27,24 +27,24 @@ export interface ActionInputs {
   /**
    * Review orchestration strategy:
    * - solo: one reviewer, current behavior
-   * - crosscheck: two independent read-only lenses, then synthesis
-   * - council: four independent read-only lenses, then synthesis
-   * - thermos: N independent Thermos-style audit lenses, then synthesis
+   * - crosscheck: one session with risk and design lenses
+   * - council: one session with risk, design, test, and operations lenses
+   * - thermos: one session with selected Thermos lenses
    */
   reviewStrategy: string;
-  /** Optional comma-separated model specs for reviewer lenses. */
+  /** Deprecated compatibility input. */
   reviewModels: string;
-  /** Optional comma-separated built-in lens IDs for multi-agent reviews. */
+  /** Optional comma-separated built-in lens IDs for one-session reviews. */
   reviewLenses?: string;
-  /** Optional number of parallel reviewer agents for thermos strategy. */
+  /** Deprecated compatibility input. */
   reviewAgentCount?: number;
-  /** Optional model spec for the independent advisor audit. */
+  /** Deprecated compatibility input. */
   advisorModel?: string;
-  /** Optional thinking level for the independent advisor audit. */
+  /** Deprecated compatibility input. */
   advisorThinking?: string;
-  /** Optional model spec for the final orchestrator/validator. */
+  /** Deprecated compatibility input. */
   validatorModel: string;
-  /** Optional thinking level for the final orchestrator/validator. */
+  /** Deprecated compatibility input. */
   validatorThinking: string;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";
@@ -56,9 +56,7 @@ export interface ActionInputs {
    */
   costRates: string;
   /**
-   * Optional soft cap for the estimated review cost. When a multi-lens
-   * strategy would exceed this cap before execution, elek downgrades to a
-   * cheaper strategy.
+   * Deprecated compatibility input.
   */
   maxCostUsd?: number | null;
 }
@@ -104,6 +102,16 @@ export interface PiTurnMetric {
   stopReason?: string;
 }
 
+export type PiRunErrorKind =
+  | "empty"
+  | "length"
+  | "model"
+  | "process"
+  | "rate-limit"
+  | "timeout"
+  | "transport"
+  | "turn-limit";
+
 export interface PiRunResult {
   conclusion: "success" | "failure";
   output: string;
@@ -113,6 +121,8 @@ export interface PiRunResult {
   thinking?: string;
   toolCalls?: number;
   turnMetrics?: PiTurnMetric[];
+  stopReason?: string;
+  errorKind?: PiRunErrorKind;
   providerRetries: number;
   durationSeconds: number;
   costUsd: number;

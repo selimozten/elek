@@ -189,7 +189,7 @@ describe("buildPrompt", () => {
     expect(out).toContain("Please review this pull request");
   });
 
-  it("requires the concise verdict format used by the Claude reviewer", () => {
+  it("requests a concise GitHub review without a parser-specific verdict", () => {
     const out = buildPrompt(baseData, "review pls", "deepseek/v4", "https://job/1", undefined, {
       repoConfig: {
         severityThreshold: "important",
@@ -198,11 +198,12 @@ describe("buildPrompt", () => {
       },
     });
 
-    expect(out).toContain("Verdict: <approve|approve-with-amendments|request-changes>");
+    expect(out).toContain("## Findings");
     expect(out).toContain("### 🔴 Blocker");
     expect(out).toContain("### 🟡 Important");
     expect(out).toContain("### 🟢 Nit");
-    expect(out).toContain("The first character of your response must be `V`");
+    expect(out).not.toContain("The first character of your response must be `V`");
+    expect(out).not.toContain("Verdict: <approve|approve-with-amendments|request-changes>");
     expect(out).not.toContain("## Review Summary");
     expect(out).not.toContain("## Recommendations");
     expect(out).not.toContain("**Style**");
@@ -272,22 +273,10 @@ describe("buildPrompt", () => {
     expect(out).toContain("(no description)");
   });
 
-  it("injects MCP tool guidance only when useMcp is true", () => {
-    const withMcp = buildPrompt(baseData, "", "m", "j", undefined, { useMcp: true });
-    expect(withMcp).toContain("create_inline_comment");
-    expect(withMcp).toContain("update_tracking_comment");
-    expect(withMcp).toContain("```suggestion");
-
-    const noMcp = buildPrompt(baseData, "", "m", "j");
-    expect(noMcp).not.toContain("create_inline_comment");
-    expect(noMcp).not.toContain("update_tracking_comment");
-  });
-
   it("does not tell review-only models to run commands or make edits", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      useMcp: true,
       allowEdit: false,
-      tools: "read,grep,find,ls,mcp",
+      tools: "read,grep,find,ls",
     });
 
     expect(out).toContain("Use the read, grep, find, and ls tools");
@@ -299,9 +288,8 @@ describe("buildPrompt", () => {
 
   it("can describe host-managed edits when sandboxed write/edit tools are allowed", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      useMcp: true,
       allowEdit: true,
-      tools: "read,write,edit,grep,find,ls,mcp",
+      tools: "read,write,edit,grep,find,ls",
     });
 
     expect(out).toContain("Make focused edits using write/edit tools");
@@ -320,7 +308,7 @@ describe("buildPrompt", () => {
     expect(out).toContain("Stage changes: `git add <files>`");
   });
 
-  it("does not infer shell access from disabled MCP alone", () => {
+  it("does not infer shell access from a tool name alone", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: false,
       allowEdit: true,
@@ -333,14 +321,15 @@ describe("buildPrompt", () => {
     expect(out).not.toContain("Run relevant tests");
   });
 
-  it("requires the concise verdict contract in the response format", () => {
+  it("requires concise findings in the response format", () => {
     const out = buildPrompt(baseData, "", "m", "j");
 
     expect(out).toContain("### Finding acceptance gates");
     expect(out).toContain("A finding must identify a concrete failure path from changed code");
     expect(out).toContain("Reject findings that contradict the diff, surrounding repo context, or already-visible comments.");
     expect(out).toContain("drop it instead of posting a caveat.");
-    expect(out).toContain("Verdict: <approve|approve-with-amendments|request-changes>");
+    expect(out).toContain("## Findings");
+    expect(out).toContain("No high-confidence Important or Blocker findings.");
     expect(out).toContain("- `<path>:<line>` — <what is wrong>. <why it matters>.");
     expect(out).toContain("Report only high-confidence findings");
     expect(out).not.toContain("- Severity: critical|important|minor");

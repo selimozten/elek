@@ -117,10 +117,10 @@ jobs:
           branch_prefix: elek/kimi/
 ```
 
-## Cost-aware council review
+## One-session council review
 
-Run cheap independent lenses, then use a validator once. The final comment
-shows the aggregate estimated cost across all runs.
+Apply the council lenses in one model session. The final comment shows the
+reported cost for that run.
 
 ```yaml
 on:
@@ -137,17 +137,13 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: selimozten/elek@v1
         with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
+          together_api_key: ${{ secrets.TOGETHER_API_KEY }}
+          provider: together
+          model: deepseek-ai/DeepSeek-V4-Pro-0813
+          thinking: max
           review_strategy: council
-          review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
-          validator_model: deepseek/deepseek-v4-pro
           severity_threshold: important
           show_cost: true
-          cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
-          max_cost_usd: "0.10"
 ```
 
 ## Repo-local review policy
@@ -156,9 +152,6 @@ jobs:
 
 ```yaml
 review_strategy: crosscheck
-review_models: deepseek/deepseek-v4-pro,openrouter/moonshotai/kimi-k2.7-code
-validator_model: deepseek/deepseek-v4-pro
-max_cost_usd: 0.05
 severity_threshold: important
 
 ignore_paths:

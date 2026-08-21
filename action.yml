@@ -1,8 +1,8 @@
 name: "elek — AI Code Review"
 description: >
-  Review-only AI for pull requests. Cross-check changes with independent
-  models while keeping every reviewer inside a narrow, non-destructive tool
-  surface. Anthropic, OpenAI, Google, Bedrock, DeepSeek, Groq, Mistral,
+  Review-only AI for pull requests. Run one Pi review session with selected
+  review lenses and native read-only tools. Anthropic, OpenAI, Google,
+  Bedrock, DeepSeek, Groq, Mistral,
   Together, xAI, OpenRouter — bring your own key.
 branding:
   icon: "filter"
@@ -74,13 +74,13 @@ inputs:
     required: false
     default: ""
   max_turns:
-    description: "Maximum conversation turns. Set to off, none, false, disabled, or 0 for no turn cap. Default: 20."
+    description: "Optional conversation turn cap. The default has no Elek turn cap."
     required: false
-    default: "20"
+    default: "0"
   run_timeout_seconds:
-    description: "Wall-clock timeout for each model run. Set to off, none, false, disabled, or 0 for no run timeout."
+    description: "Optional model-run timeout. The default has no Elek timeout."
     required: false
-    default: "600"
+    default: "0"
   tools:
     description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
     required: false
@@ -111,9 +111,8 @@ inputs:
   mode:
     description: >
       Tool surface preset:
-        review (default) — repo-scoped read/search tools plus the elek MCP
-          server (inline comments + tracking comment). No bash, no write, no
-          edit. Cannot approve, merge, or close.
+        review (default) — native pi read/search tools. No bash, write, edit,
+          or MCP tools. The host posts the final review.
         review+edit — currently the same read-only review surface until
           sandboxed mutation tools are available. Cannot approve/merge/close.
         agent — legacy: full tool surface (read,write,edit,bash,grep,find,ls)
@@ -125,60 +124,46 @@ inputs:
     description: >
       Review orchestration strategy:
         solo (resolved when unset) — one model reviews and posts.
-        crosscheck — two independent read-only review lenses, then a final
-          orchestrator/validator posts only high-confidence findings.
-        council — four independent read-only lenses for larger/high-risk PRs,
-          then final orchestrator validation/synthesis.
-        thermos — N independent Thermos-style audit agents for high-risk PRs,
-          then final orchestrator validation/synthesis.
+        crosscheck — one session applies risk and design lenses.
+        council — one session applies risk, design, test, and operations lenses.
+        thermos — one session applies the selected Thermos lenses.
     required: false
     default: ""
   review_models:
     description: >
-      Optional comma-separated model specs for multi-agent reviewer
-      lenses. Examples: together/moonshotai/Kimi-K2.7-Code,together/deepseek-ai/DeepSeek-V4-Pro.
-      If omitted, the primary provider/model is reused for every lens.
+      Deprecated compatibility input. One-session reviews always use model.
     required: false
     default: ""
   review_lenses:
     description: >
-      Optional comma-separated built-in lens IDs for multi-agent reviews.
-      This lets repositories select a smaller, domain-specific council, for
+      Optional comma-separated built-in lens IDs for one-session reviews.
+      This lets repositories select a small domain-specific set, for
       example: security-correctness,contract-drift,mobile-runtime.
     required: false
     default: ""
   review_agent_count:
     description: >
-      Optional number of parallel reviewer agents for review_strategy=thermos.
-      Valid range: 1-8. If omitted, thermos uses the larger of five default
-      audit lenses or the number of review_models supplied.
+      Deprecated compatibility input. Elek runs one Pi session.
     required: false
     default: ""
   advisor_model:
     description: >
-      Optional model spec for the independent advisor audit that runs in
-      parallel with reviewer lenses. If omitted, the validator model is reused.
-      Set to off, none, false, or disabled to skip the advisor wave.
+      Deprecated compatibility input. Elek runs one Pi session.
     required: false
     default: ""
   advisor_thinking:
     description: >
-      Optional thinking level for the independent advisor audit. If omitted,
-      validator_thinking is reused, then the primary thinking level.
+      Deprecated compatibility input. Elek uses thinking.
     required: false
     default: ""
   validator_model:
     description: >
-      Optional model spec for the final orchestrator that validates reviewer
-      reports and posts findings. Example:
-      deepseek/deepseek-v4-pro. If omitted, the primary provider/model is used.
+      Deprecated compatibility input. Elek uses model.
     required: false
     default: ""
   validator_thinking:
     description: >
-      Optional thinking level for the final orchestrator. Leave empty to
-      reuse thinking. Useful when cheap reviewer agents run high/max reasoning
-      but a frontier orchestrator should use medium reasoning.
+      Deprecated compatibility input. Elek uses thinking.
     required: false
     default: ""
   severity_threshold:
@@ -198,10 +183,8 @@ inputs:
     default: ""
   max_cost_usd:
     description: >
-      Optional soft cap for estimated review cost in USD. If a multi-lens
-      strategy already exceeds this cap before output tokens, elek downgrades
-      to a cheaper strategy. Use 0, off, none, false, or disabled to explicitly
-      disable an inherited repo cap.
+      Deprecated compatibility input. Elek reports cost but does not reduce
+      review coverage or stop the Pi session.
     required: false
     default: ""
 outputs:
@@ -249,9 +232,7 @@ runs:
       run: |
         cd "$GITHUB_ACTION_PATH"
         npm ci --omit=dev
-        # Make node_modules/.bin available on PATH (pi, tsx) so the local,
-        # lockfile-pinned pi-mcp-adapter extension can find tsx when pi loads it
-        # via `-e $GITHUB_ACTION_PATH/node_modules/pi-mcp-adapter`.
+        # Make the local pi and tsx binaries available to later steps.
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
 
     - name: Run pi Action

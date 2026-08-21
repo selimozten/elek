@@ -47,23 +47,23 @@ function parseReviewAgentCountInput(value: string): number | undefined {
 
 function parseMaxTurnsInput(value: string): number | undefined {
   const normalized = value.trim();
-  if (!normalized) return 20;
+  if (!normalized) return undefined;
   if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return undefined;
   const parsed = Number(normalized);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     core.warning(`Ignoring invalid max_turns input: ${normalized}`);
-    return 20;
+    return undefined;
   }
   return parsed;
 }
 
-function parsePositiveIntegerInput(name: string, value: string, defaultValue: number): number {
+function parsePositiveIntegerInput(name: string, value: string): number | undefined {
   const normalized = value.trim();
-  if (!normalized) return defaultValue;
+  if (!normalized) return undefined;
   const parsed = Number(normalized);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     core.warning(`Ignoring invalid ${name} input: ${normalized}`);
-    return defaultValue;
+    return undefined;
   }
   return parsed;
 }
@@ -71,7 +71,7 @@ function parsePositiveIntegerInput(name: string, value: string, defaultValue: nu
 function parseRunTimeoutInput(value: string): number | undefined {
   const normalized = value.trim();
   if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return undefined;
-  return parsePositiveIntegerInput("run_timeout_seconds", normalized, 600);
+  return parsePositiveIntegerInput("run_timeout_seconds", normalized);
 }
 
 export function parseInputs(): ActionInputs {

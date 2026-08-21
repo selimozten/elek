@@ -1,11 +1,11 @@
 /**
- * Post-step: drains the inline-comment buffer left by the MCP server during
- * the pi run, and posts each surviving entry as a real PR review comment.
+ * Host-side inline finding delivery after the Pi run. The model cannot
+ * observe or iterate on GitHub API failures.
  *
  * Pure orchestration logic lives in `postBuffered(deps)`; the file's bottom
  * runs it against real fs/octokit when invoked as a CLI.
  */
-import { buildReviewCommentParams } from "../mcp/handlers";
+import { buildReviewCommentParams } from "../review/host-output";
 import {
   appendFindingMarker,
   extractFindingIds,
