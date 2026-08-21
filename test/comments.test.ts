@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createHash } from "crypto";
-import { createTrackingComment, updateTrackingComment } from "../src/github/comments";
+import { createTrackingComment, fetchReviewComments, updateTrackingComment } from "../src/github/comments";
 import type { GitHubEntityContext } from "../src/types";
 
 const context: GitHubEntityContext = {
@@ -304,5 +304,43 @@ describe("comment branding", () => {
     expect(updates).toHaveLength(1);
     expect(updates[0]).toMatchObject({ comment_id: 20 });
     expect(String(updates[0].body)).toContain("superseded by a newer run");
+  });
+});
+
+describe("review comment context", () => {
+  it("excludes Elek review bodies and inline findings", async () => {
+    const comments = await fetchReviewComments(
+      {
+        rest: {
+          pulls: {
+            listReviews: async () => ({
+              data: [
+                {
+                  state: "COMMENTED",
+                  body: "<p><strong>elek</strong> review: analysis complete</p>\n\nstale finding",
+                },
+                { state: "COMMENTED", body: "Claude found a current issue" },
+              ],
+            }),
+            listReviewComments: async () => ({
+              data: [
+                {
+                  path: "src/a.ts",
+                  line: 4,
+                  body: "stale Elek inline finding\n\n<!-- elek-finding:v1 id=aaaaaaaaaaaaaaaa -->",
+                },
+                { path: "src/b.ts", line: 9, body: "human inline comment" },
+              ],
+            }),
+          },
+        },
+      } as any,
+      context,
+    );
+
+    expect(comments).toEqual([
+      "[Review: COMMENTED]: Claude found a current issue",
+      "[src/b.ts:9]: human inline comment",
+    ]);
   });
 });

@@ -23,6 +23,8 @@ type MinimalOctokit = {
   };
 };
 
+const ELEK_COMMENT_SIGNATURE_RE = /<!--\s*elek-bot(?::[^>]*)?\s*-->/i;
+
 export interface GitHubData {
   type: "pr" | "issue";
   title: string;
@@ -104,13 +106,8 @@ export async function fetchGitHubData(
         direction: "desc",
       });
 
-      // Include EVERY comment, including our own prior bot reviews — the
-      // model needs to see its previous findings so it can iterate on them
-      // (acknowledge what's been addressed, flag what's still outstanding).
-      // Feed full context so the model can reason about its own history
-      // rather than us pre-processing it.
       base.comments = (comments as Array<{ body?: string; user?: { login?: string } }>)
-        .filter((c) => !!c.body)
+        .filter((c) => !!c.body && !ELEK_COMMENT_SIGNATURE_RE.test(c.body))
         .map((c) => `[${c.user?.login || "unknown"}]: ${c.body}`)
         .reverse();
     } catch (err) {
