@@ -18,7 +18,7 @@
           },
           "input": ["text"],
           "contextWindow": 1048576,
-          "maxTokens": 131072,
+          "maxTokens": 16384,
           "cost": {
             "input": 1.32,
             "output": 3.96,
@@ -26,7 +26,7 @@
             "cacheWrite": 0
           },
           "samplingParams": {
-            "max_tokens": 131072
+            "max_tokens": 16384
           },
           "compat": {
             "supportsStore": false,
