@@ -27,6 +27,8 @@ jobs:
           cat > "$RUNNER_TEMP/capture-pi" <<'BASH'
           #!/usr/bin/env bash
           set -euo pipefail
+          exec 9>"$RUNNER_TEMP/native-mcp-model.lock"
+          flock 9
           prompt_name=unknown
           for arg in "$@"; do
             if [[ "$arg" == @* ]]; then
@@ -36,7 +38,7 @@ jobs:
           agent_dir="${PI_CODING_AGENT_DIR:-$(mktemp -d "$RUNNER_TEMP/native-mcp-models-XXXXXX")}"
           mkdir -p "$agent_dir"
           cat > "$agent_dir/models.json" <<'JSON'
-          {"providers":{"openrouter":{"modelOverrides":{"deepseek/deepseek-v4-pro":{"maxTokens":2048}}}}}
+          {"providers":{"openrouter":{"modelOverrides":{"deepseek/deepseek-v4-flash":{"maxTokens":2048}}}}}
           JSON
           export PI_CODING_AGENT_DIR="$agent_dir"
           "$GITHUB_ACTION_PATH/node_modules/.bin/pi" "$@" | tee "$RUNNER_TEMP/native-mcp-$prompt_name.jsonl"
@@ -51,7 +53,7 @@ jobs:
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
-          model: openrouter/deepseek/deepseek-v4-pro
+          model: openrouter/deepseek/deepseek-v4-flash
           thinking: off
           review_strategy: crosscheck
           run_timeout_seconds: 180
@@ -61,7 +63,12 @@ jobs:
             This PR intentionally introduces a review fixture regression. Report
             its demonstrated security impact; focus exclusively on this fixture
             and skip all other files and the temporary workflow scaffolding.
-            Candidate reviewers must return findings without posting them.
+            Treat getSessionForTenant as the exported production tenant-authorization
+            boundary: a session owned by tenant-a is returned unchanged when called
+            by tenant-b with the same session ID. The complete function is in the
+            diff. No repository inspection is required; do not call read, grep,
+            find, or ls for this bounded smoke test. Finish each candidate review
+            in one pass, returning the tenant isolation finding without posting it.
             The posting reviewer must use the available native review tools:
             buffer the validated fixtures/native-mcp/session.js finding with create_inline_comment,
             omitting confirmed so the host posts it at the end; update the tracking
