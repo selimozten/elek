@@ -33,6 +33,12 @@ jobs:
               prompt_name=$(basename "${arg#@}" .md)
             fi
           done
+          agent_dir="${PI_CODING_AGENT_DIR:-$(mktemp -d "$RUNNER_TEMP/native-mcp-models-XXXXXX")}"
+          mkdir -p "$agent_dir"
+          cat > "$agent_dir/models.json" <<'JSON'
+          {"providers":{"openrouter":{"modelOverrides":{"deepseek/deepseek-v4-pro":{"maxTokens":2048}}}}}
+          JSON
+          export PI_CODING_AGENT_DIR="$agent_dir"
           "$GITHUB_ACTION_PATH/node_modules/.bin/pi" "$@" | tee "$RUNNER_TEMP/native-mcp-$prompt_name.jsonl"
           BASH
           chmod +x "$RUNNER_TEMP/capture-pi"
@@ -45,7 +51,7 @@ jobs:
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
-          model: openrouter/moonshotai/kimi-k2.7-code
+          model: openrouter/deepseek/deepseek-v4-pro
           thinking: off
           review_strategy: crosscheck
           run_timeout_seconds: 180
