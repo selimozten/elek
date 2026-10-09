@@ -252,7 +252,7 @@ runs:
         # ── API Keys ──
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         OPENAI_API_KEY: ${{ inputs.openai_api_key }}
-        GOOGLE_API_KEY: ${{ inputs.google_api_key }}
+        GEMINI_API_KEY: ${{ inputs.google_api_key }}
         DEEPSEEK_API_KEY: ${{ inputs.deepseek_api_key }}
         GROQ_API_KEY: ${{ inputs.groq_api_key }}
         MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}

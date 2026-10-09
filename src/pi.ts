@@ -3,7 +3,7 @@
  * Calls back on progress events so the orchestrator can update the tracking comment
  * step-by-step, matching the progressive checklist UX users expect.
  *
- * Event format (verified against pi 0.72.1, see /opt/homebrew/.../docs/json.md):
+ * Pi's JSON event stream:
  *   - {"type":"session", id, version, ...}                 first line, session header
  *   - {"type":"agent_start"} | {"type":"agent_end", messages:[...]}
  *   - {"type":"turn_start"} | {"type":"turn_end", message, toolResults}
@@ -702,6 +702,8 @@ export function buildPiArgs(
     "--thinking", inputs.thinking,
     "--no-skills",
     "--no-context-files",
+    "--no-approve",
+    "--no-mcp",
   ];
   // Together and OpenRouter model ids can contain a slash without a provider
   // prefix. Omit --provider only when the value starts with the selected one.
@@ -716,10 +718,9 @@ export function buildPiArgs(
     args.push("--no-tools");
   }
 
-  // Empty model string intentionally means "use this provider's default".
-  if (inputs.model) {
-    args.push("--model", inputs.model);
-  }
+  // Pi 1.0 requires a model with --provider. An empty provider-qualified
+  // pattern selects an available model from that provider without switching.
+  args.push("--model", inputs.model || `${inputs.provider}/`);
 
   if (inputs.systemPrompt) {
     args.push("--system-prompt", inputs.systemPrompt);
@@ -794,7 +795,7 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   // Pass through all API key env vars that pi's AuthStorage checks
   const keyVars = [
-    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "DEEPSEEK_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY",
     "TOGETHER_API_KEY", "XAI_API_KEY", "OPENROUTER_API_KEY",
     "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
@@ -804,6 +805,9 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   for (const v of keyVars) {
     if (process.env[v]) env[v] = process.env[v];
+  }
+  if (!env.GEMINI_API_KEY && env.GOOGLE_API_KEY) {
+    env.GEMINI_API_KEY = env.GOOGLE_API_KEY;
   }
 
   return env;

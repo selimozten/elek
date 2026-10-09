@@ -7,23 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-10
+
 ### Changed
 
-- Update pi coding agent to 0.83.0 for native Together metadata for Kimi K3
-  and GLM-5.2, pi-mcp-adapter to 2.15.0, and the MCP SDK to 1.30.0.
-- Give review runs a noninteractive, read-only reviewer contract so agents
-  converge after verifying concrete findings instead of exploring
-  indefinitely.
+- Upgrade Pi from 0.84.2 to 1.1.0 while preserving the single-session review
+  flow and host-side GitHub delivery.
+- Disable Pi's built-in MCP discovery and project approval for noninteractive
+  Action runs. Elek needs no MCP adapter, server, or generated configuration.
+- Run CI on Node 24 and install from the production lockfile.
+- Review selected perspectives in one native Pi session, followed by the
+  Ponytail validation lens and host-side delivery.
+- Give review runs a noninteractive, read-only contract so agents converge
+  after verifying concrete findings.
 
 ### Added
 
-- Report provider retry counts in per-run review metrics and action logs.
+- Provider retry counts and per-turn usage and duration in review metrics.
 
 ### Fixed
 
-- Fall back to live repository permissions when GitHub webhook payloads contain
-  stale or missing actor-association data, while keeping explicit allowlists and
-  bot filters authoritative.
+- Keep provider-default model selection working with Pi's required
+  provider/model pairing.
+- Pass Google API credentials through Pi's native `GEMINI_API_KEY` variable.
+- Refresh runtime dependencies to clear the dependency audit.
+- Fall back to live repository permissions when webhook actor-association
+  data is stale, while preserving explicit allowlists and bot filters.
+- Retry one confirmed transient provider transport failure without reusing a
+  cached empty response.
 
 ## [1.1.4] - 2026-06-21
 
