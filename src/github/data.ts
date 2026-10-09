@@ -207,7 +207,7 @@ export function buildPrompt(
 
   // ── MCP tool guidance (review/review+edit modes) ──
   if (options.useMcp) {
-    parts.push("## Available tools (via the `mcp` proxy)");
+    parts.push("## Available review tools (Pi's built-in MCP)");
     parts.push("");
     parts.push(...mcpToolGuidance());
     parts.push("");

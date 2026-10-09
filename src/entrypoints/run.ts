@@ -11,12 +11,11 @@
  *  5. Post results back to GitHub (comments, reviews)
  *  6. Handle git branches for code changes
  *
- * No MCP servers, no bun, no vendor lock-in. Just pi and a few modules.
+ * Pi handles providers and MCP transport; Elek handles review delivery.
  */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync, mkdirSync, existsSync, readFileSync, unlinkSync } from "fs";
-import { homedir } from "os";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
@@ -80,6 +79,7 @@ import { preparePublicReviewOutput } from "../review/public-output.js";
 import { modelLabelRedactionTerms, publicModelLabelFor } from "../review/public-label.js";
 import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
 import { sanitize } from "../mcp/handlers.js";
+import { writeReviewMcpConfig } from "../mcp/config.js";
 import type { PostSummary } from "./post-buffered.js";
 
 async function run(): Promise<void> {
@@ -206,7 +206,7 @@ async function run(): Promise<void> {
   // legacy mode). The earlier CI hang was caused by pi keeping stdin open;
   // fixed via stdio:["ignore",…] in pi.ts. ELEK_DISABLE_MCP=1 escape hatch
   // remains for emergency rollback.
-  const mcpEnabled = resolvedMode.useMcpServer && process.env.ELEK_DISABLE_MCP !== "1";
+  const mcpEnabled = resolvedMode.useMcpServer && context.isPR && process.env.ELEK_DISABLE_MCP !== "1";
   const piTools = resolveEffectivePiTools(resolvedMode, inputs.tools, { mcpEnabled });
   console.log(
     `Mode: ${resolvedMode.mode} | tools: ${piTools} | mcp: ${mcpEnabled}`,
@@ -259,46 +259,6 @@ async function run(): Promise<void> {
   mkdirSync(promptDir, { recursive: true });
   const bufferPath = join(tmpDir, "elek-inline-buffer.jsonl");
   let prompt = "";
-
-  // pi-mcp-adapter reads either ./.mcp.json or ~/.config/mcp/mcp.json. The
-  // config must not contain secret values because review modes intentionally
-  // expose read/search tools. GITHUB_TOKEN is inherited by the MCP child from
-  // pi's environment; this file only contains non-secret routing metadata.
-  const mcpConfigPath = mcpEnabled && context.isPR
-    ? join(homedir(), ".config", "mcp", "mcp.json")
-    : null;
-
-  const writeMcpConfig = () => {
-    if (!mcpConfigPath) return;
-    const actionPath = process.env.GITHUB_ACTION_PATH || process.cwd();
-    const serverPath = join(actionPath, "src/mcp/github-review-server.ts");
-    mkdirSync(join(homedir(), ".config", "mcp"), { recursive: true });
-    writeFileSync(
-      mcpConfigPath,
-      JSON.stringify(
-        {
-          mcpServers: {
-            "elek-review": {
-              command: "tsx",
-              args: [serverPath],
-              env: {
-                REPO_OWNER: context.repo.owner,
-                REPO_NAME: context.repo.repo,
-                PR_NUMBER: String(context.entityNumber),
-                ELEK_TRACKING_COMMENT_ID: commentId ? String(commentId) : "",
-                ELEK_BUFFER_PATH: bufferPath,
-              },
-              lifecycle: "eager",
-            },
-          },
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
-    console.log(`Wrote ${mcpConfigPath} for pi-mcp-adapter`);
-  };
 
   // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
@@ -388,6 +348,7 @@ async function run(): Promise<void> {
       prompt: buildSynthesisPrompt({
         data,
         userRequest,
+        useMcp: mcpEnabled,
         modelLabel: plan.validator.label,
         jobRunLink,
         commentId,
@@ -476,10 +437,7 @@ async function run(): Promise<void> {
 
   let finalInputs = piInputs;
   if (useReviewPlan) {
-    const lensTools = resolveMode("review").piTools
-      .split(",")
-      .filter((tool) => tool !== "mcp")
-      .join(",");
+    const lensTools = resolveEffectivePiTools(resolveMode("review"), "", { mcpEnabled: false });
 
     console.log(
       `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
@@ -572,6 +530,7 @@ async function run(): Promise<void> {
     prompt = buildSynthesisPrompt({
       data,
       userRequest,
+      useMcp: mcpEnabled,
       modelLabel: reviewPlan.validator.label,
       jobRunLink,
       commentId,
@@ -597,9 +556,25 @@ async function run(): Promise<void> {
     },
   };
   const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
+  let mcpAgentDir: string | undefined;
   try {
-    writeMcpConfig();
-    result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, { promptName: "prompt" });
+    if (mcpEnabled) {
+      // Isolate native MCP discovery from user configuration and concurrent
+      // runs. The token stays in the child environment, never in this file.
+      mcpAgentDir = mkdtempSync(join(tmpDir, "elek-pi-"));
+      writeReviewMcpConfig(mcpAgentDir, {
+        actionPath: process.env.GITHUB_ACTION_PATH || process.cwd(),
+        repoOwner: context.repo.owner,
+        repoName: context.repo.repo,
+        prNumber: context.entityNumber,
+        commentId,
+        bufferPath,
+      });
+    }
+    result = await runPi(prompt, finalInputs, onProgress, mcpEnabled, {
+      promptName: "prompt",
+      agentDir: mcpAgentDir,
+    });
     runCosts[finalCostIndex] = costFromPiResult(result);
   } catch (err) {
     result = {
@@ -607,9 +582,8 @@ async function run(): Promise<void> {
       output: `Review execution failed: ${(err as Error).message}`,
     };
   } finally {
-    // Drop the MCP config (carries GITHUB_TOKEN) the moment pi exits.
-    if (mcpConfigPath) {
-      try { unlinkSync(mcpConfigPath); } catch { /* already gone */ }
+    if (mcpAgentDir) {
+      try { rmSync(mcpAgentDir, { recursive: true, force: true }); } catch { /* already gone */ }
     }
   }
 

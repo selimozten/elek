@@ -113,7 +113,7 @@ Use current provider model IDs directly. Common review choices:
 | Anthropic | `claude-opus-4-8` | Highest-capability validator for critical PRs |
 
 `thinking` uses pi's portable levels: `off`, `minimal`, `low`, `medium`,
-`high`, and `xhigh`. Provider adapters map those to native effort controls
+`high`, `xhigh`, and `max`. Provider adapters map those to native effort controls
 where needed; for Claude models, the top effort maps to Claude's native `max`
 reasoning effort when supported.
 
@@ -139,8 +139,8 @@ Customize the trigger phrase via `trigger_phrase: "@bot"`.
 
 | `mode` | Tools | Inline comments | Edits | When to use |
 |---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Repo-scoped read-only code review |
-| `review+edit` | `read,grep,find,ls,mcp` | ✓ | ✗ | Read-only until sandboxed mutation tools are available |
+| `review` (default) | `read,grep,find,ls` + review tools | ✓ | ✗ | Repo-scoped read-only code review |
+| `review+edit` | `read,grep,find,ls` + review tools | ✓ | ✗ | Read-only until sandboxed mutation tools are available |
 | `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
 
 `review+edit` is currently held to the same read-only tool surface as
@@ -426,7 +426,7 @@ on:
 
 ### Comment stuck on "analyzing…" with no progress
 
-The most common cause: `pi --mode json` was hanging on stdin. Make sure you're on `selimozten/elek@v1` or later — older revs had this bug. If on latest and still stuck, check the run logs for the `Command:` line and confirm it doesn't mention `--no-extensions` (it shouldn't in MCP modes).
+The most common cause in older versions was `pi --mode json` hanging on stdin. Current Elek closes stdin. For a posting PR review, check that the logged command includes `-e builtin:mcp`. `--no-extensions` is expected: Elek loads only its trusted file tools and Pi's built-in MCP extension.
 
 ### Empty PR diff
 
@@ -434,7 +434,7 @@ The most common cause: `pi --mode json` was hanging on stdin. Make sure you're o
 
 ### "Tool not found" errors in the review
 
-The model called `mcp({tool: "update_tracking_comment", …})` without the server prefix. Pi-mcp-adapter exposes ours as `elek_review_update_tracking_comment`. The prompt explains this; if you see this often, the model may need a stronger prompt or higher thinking level.
+Pi's native tool names are `mcp__elek_review__create_inline_comment` and `mcp__elek_review__update_tracking_comment`. Call them directly with object arguments. Candidate reviewers, issue runs, and runs with `ELEK_DISABLE_MCP=1` have no MCP tools; Elek delivers their structured final output from the host.
 
 ### `403` on inline comments for fork PRs
 

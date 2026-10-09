@@ -515,10 +515,11 @@ describe("review strategy", () => {
     expect(prompt).toContain("Do not surface claims that external packages");
     expect(prompt).toContain("temporary workflow-test scaffolding");
     expect(prompt).toContain("omitted or disabled review-cost budget");
-    expect(prompt).toContain("### Available tools (via the `mcp` proxy)");
-    expect(prompt).toContain('mcp({tool: "elek_review_create_inline_comment"');
+    expect(prompt).toContain("### Available review tools (Pi's built-in MCP)");
+    expect(prompt).toContain('mcp__elek_review__create_inline_comment({path:');
     expect(prompt).toContain("Optional fields: `side`, `startLine`, `confirmed`, and `commit_id`.");
-    expect(prompt).toContain("`args` is a JSON STRING");
+    expect(prompt).toContain("Pass arguments as an object");
+    expect(prompt).not.toContain("JSON STRING");
     expect(prompt).toContain("Elek can post host-side inline fallbacks if tool delivery fails.");
     expect(prompt).toContain("only this orchestrator run can publish final findings");
     expect(prompt).toContain("do not mention that failure in the public review");
@@ -531,6 +532,20 @@ describe("review strategy", () => {
     expect(prompt).toContain("<review_comments>");
     expect(prompt).toContain("focus on regressions");
     expect(prompt).toContain("comment_id: 123");
+  });
+
+  it("omits tool-call guidance when MCP is disabled for synthesis", () => {
+    const prompt = buildSynthesisPrompt({
+      data: dataFixture,
+      userRequest: "",
+      modelLabel: "deepseek/deepseek-v4-pro",
+      jobRunLink: "https://github.com/selimozten/elek/actions/runs/1",
+      reports: [],
+      useMcp: false,
+    });
+    expect(prompt).not.toContain("mcp__elek_review__");
+    expect(prompt).not.toContain("Available review tools");
+    expect(prompt).toContain("host-side delivery");
   });
 
   it("uses the public model label in final synthesis output instructions", () => {

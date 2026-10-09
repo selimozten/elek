@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade Pi from 0.79.9 to 1.0.4 and replace `pi-mcp-adapter` with Pi's
+  built-in MCP support. Review tools now use native names and object arguments.
+- Isolate the posting run's MCP configuration in a temporary Pi directory,
+  ignore project Pi configuration, and explicitly disable MCP for candidate
+  reviewers and agent runs.
+- Use provider-qualified model selection when the model input is empty,
+  and pass `max` thinking directly to Pi 1.0.
+- Map the existing Google API-key input and legacy environment variable to
+  Pi's `GEMINI_API_KEY` credential.
+- Refresh the MCP server SDK and runtime dependency lockfile; update the
+  Undici override to Pi's supported 8.10.2 version.
+
 ## [1.1.4] - 2026-06-21
 
 ### Changed

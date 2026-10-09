@@ -49,6 +49,7 @@ src/github/mode.ts                    review / review+edit / agent presets.
 src/github/git.ts                     git auth + branch ops.
 src/mcp/handlers.ts                   Pure handler logic (testable, deps-injected).
 src/mcp/github-review-server.ts       Thin McpServer shim around handlers.
+src/mcp/config.ts                     Native Pi MCP config and review tool names.
 test/*.test.ts                        Bun test, integration-style.
 docs/ARCHITECTURE.md                  Deeper system overview.
 ```
@@ -89,24 +90,24 @@ first.
 `stdio:["ignore","pipe","pipe"]`, never `["pipe","pipe","pipe"]`. Local repro
 in `/tmp/mcp-debug/repro-mcp.mjs` (in dev history, not committed).
 
-**`--tools <list>` filters the `mcp` proxy too.** When MCP is enabled, the
-allowlist must include `mcp` — otherwise pi-mcp-adapter's tool is hidden
-and the model literally cannot reach the MCP server. See
-`src/github/mode.ts`.
-
-**Tool names are server-prefixed.** pi-mcp-adapter exposes our
-`update_tracking_comment` as `elek_review_update_tracking_comment`. The
-prompt tells the model this; if you rename our server in `.mcp.json` (key
-"elek-review"), update the prompt too.
+**Native MCP tools use exact names and object arguments.** Pi 1.0 exposes
+`mcp__elek_review__create_inline_comment` and
+`mcp__elek_review__update_tracking_comment` directly. Keep the names in
+`src/mcp/config.ts`, mode allowlists, and prompt guidance aligned.
+`--no-extensions -e builtin:mcp` loads native MCP without extension discovery.
+Candidate reviewers and agent runs use `--no-mcp`.
 
 **Race between progress update and final review post.** `pi.ts`'s `close`
 handler `await`s `onProgress({type:"done"})` before resolving. Don't
 fire-and-forget there — the final progress update will overwrite the
 review body otherwise. (Bug from history; current code is correct.)
 
-**`.mcp.json` carries `GITHUB_TOKEN`.** Written to
-`$HOME/.config/mcp/mcp.json`, NOT the workspace, and `unlinkSync`'d in a
-finally block after pi exits. Don't move it back to `process.cwd()`.
+**Native MCP configuration is isolated per posting run.** Write `mcp.json`
+in a temporary `PI_CODING_AGENT_DIR` outside the workspace and remove the
+directory in `finally` after Pi exits. The config contains routing metadata;
+`GITHUB_TOKEN` is inherited from the posting child's filtered environment.
+Keep `--no-approve` on every run so PR-controlled `.pi` settings and servers
+cannot load.
 
 **`GITHUB_TOKEN` reviews don't satisfy required-approver counts** (GitHub
 treats it as a bot). Even if the model called `createReview({event:"APPROVE"})`
@@ -166,10 +167,10 @@ transient model failures.
   providers; staying model-agnostic is the value prop.
 - Don't write progressive narration / decision-tree comments / status
   documents inside the codebase. The PR body is for that.
-- Don't add a `.mcp.json` to the project workspace (cwd). Use `~/.config/mcp/`.
+- Keep generated MCP configuration outside the project workspace.
 - Don't widen the MCP server's tool surface beyond the two existing tools
   without explicit discussion.
 - Don't downgrade `permissions:` thinking it'll force-fix a bug. The token
   scope is the backstop, not the primary safety layer.
-- Don't commit `package-lock.json` (gitignored). Composite Action installs
-  fresh in CI.
+- Update the tracked `package-lock.json` with dependency changes; the
+  composite Action and runner image install with `npm ci`.

@@ -26,8 +26,8 @@ trigger phrase, actor filter, etc. Exposes the same surface for any pi-supported
 provider — the per-provider `*_api_key` inputs are just env-var pass-throughs
 (pi reads `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, etc. from process.env).
 
-Setup steps: `npm install --omit=dev --no-package-lock` in `$GITHUB_ACTION_PATH`, prepend
-`node_modules/.bin` to `$GITHUB_PATH`, optionally `pi install npm:pi-mcp-adapter`.
+Setup steps: `npm ci --omit=dev` in `$GITHUB_ACTION_PATH`, then prepend
+`node_modules/.bin` to `$GITHUB_PATH`. Pi 1.0 includes the MCP client.
 
 Run step: `tsx src/entrypoints/run.ts` with the inputs forwarded as `INPUT_*`
 env vars (read by `@actions/core`).
@@ -49,10 +49,12 @@ The single end-to-end runner. Phases:
    `crosscheck` runs two read-only candidate lenses first (risk + design).
    `council` runs four read-only candidate lenses first (risk + design +
    tests + operations). Candidate runs have no MCP access and cannot post.
-7. **MCP wiring** — immediately before the final posting-capable run, write
-   `~/.config/mcp/mcp.json` pointing pi-mcp-adapter at our review server, with
-   `GITHUB_TOKEN` and `ELEK_TRACKING_COMMENT_ID` in the server env. The file
-   is `unlinkSync`'d in a `finally` after pi exits.
+7. **Native MCP wiring** — immediately before the final posting-capable PR
+   run, write `mcp.json` in a temporary `PI_CODING_AGENT_DIR`, pointing Pi's
+   built-in MCP client at our review server with `exposure: "direct"`.
+   Routing metadata includes the pinned tracking-comment ID; `GITHUB_TOKEN`
+   is inherited from the child environment, never written to the file.
+   The directory is removed in `finally` after Pi exits.
 8. **Run final pi** — `runPi(prompt, inputs, onProgress, mcpEnabled)`. The
    onProgress callback updates the tracking comment with a checklist body
    (rate-limited to 3s, last update flushed on the `done` event).
@@ -62,7 +64,7 @@ The single end-to-end runner. Phases:
    server appended to during the run, posts each non-opted-out entry as a
    PR review comment after validating anchors against PR diff hunks when the
    GitHub file patches are available.
-11. **Optional code push** — if `mode: review+edit` or `agent` and the model
+11. **Optional code push** — if `mode: agent` and the model
     made local changes, commit and push to the elek/* branch.
 
 ### `src/review/strategy.ts` — cross-model review planning
@@ -76,7 +78,8 @@ council    → Risk + Design + Test Integrity + Operational Review, then final o
 ```
 
 Candidate reviewers run as independent `pi` processes with only
-`read,grep,find,ls`, no MCP proxy, and a filtered environment. Their output is
+`read,grep,find,ls`, `--no-mcp`, and a filtered environment without the posting
+token. Their output is
 internal evidence. The final orchestrator receives the candidate reports,
 rejects speculative or duplicate findings, and is the only run allowed to call
 elek's review MCP tools.
@@ -100,13 +103,16 @@ Returns a `PiRunResult` with conclusion, output, sessionId, turn count.
 ### `src/github/mode.ts` — tool/permission presets
 
 ```
-review (default)  → tools: read,grep,find,ls,mcp           | MCP on  | edit off
-review+edit       → tools: read,grep,find,ls,mcp           | MCP on  | edit off
+review (default)  → tools: read,grep,find,ls + review tools | MCP on  | edit off
+review+edit       → tools: read,grep,find,ls + review tools | MCP on  | edit off
 agent (legacy)    → tools: read,write,edit,bash,grep,find,ls | MCP off | edit on
 ```
 
-The `mcp` allowlist entry is critical — without it, pi-mcp-adapter's proxy
-tool is filtered and the model can't reach the MCP server.
+The posting allowlist names `mcp__elek_review__create_inline_comment` and
+`mcp__elek_review__update_tracking_comment` explicitly. Their arguments are
+objects matching the server schemas. Pi loads native MCP with
+`--no-extensions -e builtin:mcp`; all runs use `--no-approve` to ignore
+project-controlled Pi configuration. Issue runs have no MCP review tools.
 
 ### `src/mcp/handlers.ts` — review-only tool surface (PURE)
 
@@ -129,8 +135,9 @@ No code path here for `pulls.createReview`, `pulls.merge`, or
 Thin wrapper around handlers: wires them into `McpServer` from
 `@modelcontextprotocol/sdk`, registers `create_inline_comment` and
 `update_tracking_comment` with zod schemas, starts a stdio transport.
-pi-mcp-adapter spawns this as a child process and prefixes the tool
-names with `elek_review_*`.
+Pi's built-in MCP client spawns this as a child process and exposes the tools
+as `mcp__elek_review__create_inline_comment` and
+`mcp__elek_review__update_tracking_comment`.
 
 ### `src/entrypoints/post-buffered.ts` — post-step drain
 
@@ -158,40 +165,34 @@ sequenceDiagram
     Octo-->>Run: comment_id
     Run->>Octo: fetchGitHubData() — diff + all comments (incl. prior bot reviews)
     Run->>Run: buildPrompt() — XML-tagged context + MCP guidance
-    Run->>Run: write ~/.config/mcp/mcp.json — token + comment_id pinned in env
-    Run->>Pi: spawn pi --mode json --tools read,grep,find,ls,mcp
+    Run->>Run: write temporary Pi mcp.json — routing metadata only
+    Run->>Pi: spawn pi --mode json -e builtin:mcp with review allowlist
     Pi-->>Run: session header + agent_start + turn_start (JSONL)
 
     loop Per tool the model calls
         Pi-->>Run: tool_execution_start (flip checkbox)
         Run->>Octo: updateComment(progress body) [rate-limited 3s]
-        Pi->>MCP: mcp({tool: "elek_review_create_inline_comment", …})
+        Pi->>MCP: mcp__elek_review__create_inline_comment({path, line, body})
         MCP->>Buf: append entry (or post immediately if confirmed:true)
         Pi-->>Run: tool_execution_end
     end
 
     Pi-->>Run: agent_end with final assistant message
     Pi-->>Run: process exit code=0
+    Run->>Run: remove temporary Pi configuration [finally]
     Run->>Octo: updateComment(final review body, ≤60K chars)
     Run->>Buf: read all entries
     Run->>Octo: postBuffered() → pulls.createReviewComment per entry
-    Run->>Run: unlinkSync(.mcp.json) [finally]
     Note over Run,Octo: Top-level summary in tracking comment +<br/>inline threads on changed lines
 ```
 
 ## What the MCP layer adds vs. plain stdout review
 
-Without MCP (mode=agent): pi runs, prints final assistant text, elek puts
-that text in a single tracking comment. Like a long Slack message.
-
-With MCP (mode=review/review+edit): pi gets the `mcp` proxy tool. The model
-can post per-line review threads on specific files, AND maintain a live
-checklist in the tracking comment as it works. End result on GitHub looks
-like a human reviewer's submission — top-level summary + threads on the
-diff itself.
-
-The MCP path is the difference between a wall-of-text review and a real,
-navigable PR review.
+With native MCP in PR review modes, the model can buffer per-line findings
+and update its pinned tracking comment through two direct tools. Elek posts
+the final summary and drains buffered findings after Pi exits. If MCP is
+disabled or the model returns findings without tool calls, Elek can also
+deliver inline comments from the structured final output.
 
 ## Why pi (not the SDK)
 
@@ -204,6 +205,6 @@ elek to ~1500 lines of TS instead of pulling in pi's whole tree.
 ## Why not pi's bash tool
 
 `bash` would let the model `gh pr merge` or `curl https://api.github.com/...`
-directly. That defeats the structural safety guarantee. The `mcp` proxy
+directly. That defeats the structural safety guarantee. The two review tools
 plus read-only file tools (`read,grep,find,ls`) is enough for code review;
 broader access lives behind `mode: agent` for users who explicitly opt in.

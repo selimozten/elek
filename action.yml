@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "anthropic"
   model:
-    description: "Model identifier (e.g. claude-sonnet-4-6, claude-opus-4-8, gpt-5.5, moonshotai/kimi-k2.7-code). Leave empty for provider default."
+    description: "Model identifier (e.g. claude-sonnet-4-6, claude-opus-4-8, gpt-5.5, moonshotai/kimi-k2.7-code). Leave empty for Pi to select a model from the provider."
     required: false
     default: ""
   thinking:
@@ -244,9 +244,7 @@ runs:
       run: |
         cd "$GITHUB_ACTION_PATH"
         npm ci --omit=dev
-        # Make node_modules/.bin available on PATH (pi, tsx) so the local,
-        # lockfile-pinned pi-mcp-adapter extension can find tsx when pi loads it
-        # via `-e $GITHUB_ACTION_PATH/node_modules/pi-mcp-adapter`.
+        # Make the lockfile-pinned pi and tsx executables available on PATH.
         echo "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
 
     - name: Run pi Action
@@ -266,7 +264,7 @@ runs:
         # ── API Keys ──
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         OPENAI_API_KEY: ${{ inputs.openai_api_key }}
-        GOOGLE_API_KEY: ${{ inputs.google_api_key }}
+        GEMINI_API_KEY: ${{ inputs.google_api_key }}
         DEEPSEEK_API_KEY: ${{ inputs.deepseek_api_key }}
         GROQ_API_KEY: ${{ inputs.groq_api_key }}
         MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}

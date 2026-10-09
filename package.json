@@ -25,10 +25,9 @@
   "dependencies": {
     "@actions/core": "3.0.1",
     "@actions/github": "9.1.1",
-    "@earendil-works/pi-coding-agent": "0.79.9",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@octokit/rest": "22.0.1",
-    "pi-mcp-adapter": "2.10.0",
     "tsx": "4.22.4",
     "yaml": "2.9.0",
     "zod": "3.25.76"
@@ -38,7 +37,7 @@
     "typescript": "5.9.3"
   },
   "overrides": {
-    "undici": "8.5.0"
+    "undici": "8.10.2"
   },
   "keywords": [
     "github-actions",

@@ -116,6 +116,10 @@ describe("buildPrompt", () => {
     expect(withMcp).toContain("create_inline_comment");
     expect(withMcp).toContain("update_tracking_comment");
     expect(withMcp).toContain("```suggestion");
+    expect(withMcp).toContain('mcp__elek_review__create_inline_comment({path:');
+    expect(withMcp).toContain('mcp__elek_review__update_tracking_comment({body:');
+    expect(withMcp).not.toContain("mcp({tool:");
+    expect(withMcp).not.toContain("JSON STRING");
 
     const noMcp = buildPrompt(baseData, "", "m", "j");
     expect(noMcp).not.toContain("create_inline_comment");
@@ -126,7 +130,7 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: true,
       allowEdit: false,
-      tools: "read,grep,find,ls,mcp",
+      tools: "read,grep,find,ls,mcp__elek_review__create_inline_comment,mcp__elek_review__update_tracking_comment",
     });
 
     expect(out).toContain("Use the read, grep, find, and ls tools");
@@ -140,7 +144,7 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: true,
       allowEdit: true,
-      tools: "read,write,edit,grep,find,ls,mcp",
+      tools: "read,write,edit,grep,find,ls,mcp__elek_review__create_inline_comment,mcp__elek_review__update_tracking_comment",
     });
 
     expect(out).toContain("Make focused edits using write/edit tools");
@@ -163,7 +167,7 @@ describe("buildPrompt", () => {
     const out = buildPrompt(baseData, "", "m", "j", undefined, {
       useMcp: false,
       allowEdit: true,
-      tools: "read,write,edit,grep,find,ls,mcp",
+      tools: "read,write,edit,grep,find,ls,mcp__elek_review__create_inline_comment,mcp__elek_review__update_tracking_comment",
     });
 
     expect(out).toContain("Make focused edits using write/edit tools");

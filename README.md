@@ -156,13 +156,17 @@ The `mode` input controls the model's tool surface:
 
 | `mode` | Tools | MCP | Edits | Use case |
 |---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls,mcp` | ✓ | ✗ | Repo-scoped read-only code review. Recommended. |
-| `review+edit` | `read,grep,find,ls,mcp` | ✓ | ✗ | Review-only until sandboxed mutation tools are available. |
+| `review` (default) | `read,grep,find,ls` + review tools | ✓ | ✗ | Repo-scoped read-only code review. Recommended. |
+| `review+edit` | `read,grep,find,ls` + review tools | ✓ | ✗ | Review-only until sandboxed mutation tools are available. |
 | `agent` | `+ bash` | ✗ | ✓ | Legacy, full power. Trusted workflows only. |
 
 Use `mode` to choose the tool surface. The low-level `tools` input is kept
 for compatibility and debugging; review modes still resolve to the safe mode
 presets.
+
+Pi 1.0 exposes the review tools directly as
+`mcp__elek_review__create_inline_comment` and
+`mcp__elek_review__update_tracking_comment`, with object arguments.
 
 **The model can never approve, merge, or close** in any mode — those endpoints aren't plumbed in elek's MCP server. The `permissions:` block in your workflow is the backstop.
 
@@ -277,7 +281,7 @@ flowchart LR
     I --> J[(inline review<br/>threads)]
 ```
 
-A composite Action installs Node + pi + the MCP adapter, then `tsx` runs the orchestrator. Pi spawns the model, streams events back as JSONL, and elek converts those into a live checklist. The model calls our MCP server to buffer inline comments; a post-step drains the buffer to GitHub's PR review-comments API after pi exits.
+A composite Action installs Node + Pi 1.0, then `tsx` runs the orchestrator. Pi runs the model, streams events back as JSONL, and elek converts those into a live checklist. Pi's built-in MCP connects to Elek's review server to buffer inline comments; a post-step drains the buffer to GitHub's PR review-comments API after pi exits.
 
 Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -324,7 +328,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Input | Default | Examples |
 |---|---|---|
 | `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `together`, `xai` |
-| `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/Kimi-K2.7-Code`, `Qwen/Qwen3.7-Max`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
+| `model` | _(automatic within provider)_ | `deepseek-v4-pro`, `moonshotai/Kimi-K2.7-Code`, `Qwen/Qwen3.7-Max`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
 | `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
 | `max_turns` | `20` | Cap conversation turns |
@@ -586,7 +590,8 @@ validator while surfacing disagreements that a single pass misses.
 - The MCP server exposes exactly two tools: `create_inline_comment` and `update_tracking_comment`. There is no code path to `pulls.createReview({event: "APPROVE"})`, `pulls.merge`, or `issues.update({state: "closed"})`.
 - `update_tracking_comment` is pinned to the env-passed `comment_id`; arg-level overrides are structurally inaccessible.
 - Token sanitization redacts `ghp_`, `ghs_`, `gho_`, `ghu_`, `ghr_`, and `github_pat_` prefixes from any model output before it reaches GitHub.
-- `.mcp.json` (which carries `GITHUB_TOKEN`) is written to `~/.config/mcp/`, never the workspace, and unlinked when pi exits.
+- Native `mcp.json` is written to a temporary Pi config directory outside the workspace and removed when Pi exits. `GITHUB_TOKEN` is passed through the posting run's environment, never embedded in the config.
+- Candidate reviewers run with `--no-mcp`; every run ignores project Pi configuration with `--no-approve`.
 
 Threat model: a fully jailbroken model still cannot perform destructive operations because the plumbing doesn't exist. The `permissions:` scope is the backstop.
 
@@ -603,7 +608,7 @@ Threat model: a fully jailbroken model still cannot perform destructive operatio
 
 ## Credits
 
-Built on [pi coding agent](https://github.com/earendil-works/pi). MCP integration via [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter).
+Built on [pi coding agent](https://github.com/earendil-works/pi), including its built-in MCP support.
 
 ## License
 

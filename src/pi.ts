@@ -109,9 +109,9 @@ export async function runPi(
   prompt: string,
   inputs: ActionInputs,
   onProgress?: (event: ProgressEvent) => Promise<void>,
-  /** When true, pi loads extensions (needed for pi-mcp-adapter). */
-  loadExtensions?: boolean,
-  options: { promptName?: string } = {},
+  /** Enable Pi's built-in MCP support for the posting reviewer. */
+  enableMcp = false,
+  options: { promptName?: string; agentDir?: string } = {},
 ): Promise<PiRunResult> {
   const tmpDir = process.env.RUNNER_TEMP || "/tmp";
   const promptDir = join(tmpDir, "pi-prompts");
@@ -127,15 +127,12 @@ export async function runPi(
   writeFileSync(promptFile, prompt, "utf-8");
 
   const piBin = findPiBinary();
-  const args = buildPiArgs(inputs, promptFile, !!loadExtensions);
-  const env = buildPiEnv(inputs);
+  const args = buildPiArgs(inputs, promptFile, enableMcp);
+  const env = buildPiEnv(inputs, enableMcp, options.agentDir);
 
   console.log(`pi binary: ${piBin}`);
-  const cliThinking = piThinkingLevel(inputs.thinking);
   console.log(
-    `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${
-      cliThinking === inputs.thinking ? inputs.thinking : `${inputs.thinking} (pi ${cliThinking})`
-    }`,
+    `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`,
   );
   const runModelLabel = modelLabelFor(inputs);
 
@@ -457,32 +454,39 @@ function nonNegativeNumber(value: unknown): number | undefined {
 export function buildPiArgs(
   inputs: ActionInputs,
   promptFile: string,
-  loadExtensions: boolean,
+  enableMcp: boolean,
 ): string[] {
   const args: string[] = [
     "--no-session",
-    "--thinking", piThinkingLevel(inputs.thinking),
+    "--thinking", inputs.thinking,
     "--no-skills",
     "--no-context-files",
+    "--no-approve",
   ];
   // `pi --model provider/model` is legal, but pairing that with a separate
   // `--provider` can make multi-provider review strategies ambiguous. When
   // the model is provider-qualified, let the model spec route itself.
-  if (!inputs.model?.includes("/")) {
+  if (!inputs.model) {
+    // Pi 1.0 requires --model with --provider. An empty provider-qualified
+    // pattern selects within that provider; --models alone can fall back to
+    // another provider when no authenticated models match the scope.
+    args.push("--provider", inputs.provider, "--model", `${inputs.provider}/`);
+  } else if (!inputs.model.includes("/")) {
     args.push("--provider", inputs.provider);
   }
-  // Do not rely on user/global extension discovery or a runtime `pi install`
-  // (which would hit the npm registry during a review). Load exactly the
-  // already-installed, lockfile-pinned local adapter package when MCP is needed.
+  // Load only trusted local tools and Pi's native MCP extension. Project
+  // configuration is ignored so a PR cannot inject additional MCP servers.
   args.push("--no-extensions");
   if (usesReadonlyReviewTools(inputs)) {
     args.push("--no-builtin-tools", "-e", localPiReadonlyToolsPath());
   }
-  if (loadExtensions) {
-    args.push("-e", localPiMcpAdapterPath());
+  if (enableMcp) {
+    args.push("-e", "builtin:mcp");
+  } else {
+    args.push("--no-mcp");
   }
 
-  // Empty model string intentionally means "use this provider's default".
+  // An empty model leaves selection to the provider pattern above.
   if (inputs.model) {
     args.push("--model", inputs.model);
   }
@@ -498,11 +502,6 @@ export function buildPiArgs(
   args.push(`@${promptFile}`);
 
   return args;
-}
-
-function localPiMcpAdapterPath(): string {
-  const packageRoot = process.env.GITHUB_ACTION_PATH || resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  return join(packageRoot, "node_modules", "pi-mcp-adapter");
 }
 
 function localPiReadonlyToolsPath(): string {
@@ -527,10 +526,6 @@ function usesReadonlyReviewTools(inputs: ActionInputs): boolean {
   return hasReadonlyTool && !hasMutationTool;
 }
 
-function piThinkingLevel(value: string): string {
-  return value.trim().toLowerCase() === "max" ? "xhigh" : value;
-}
-
 /**
  * Build the environment variables for pi.
  *
@@ -541,7 +536,7 @@ function piThinkingLevel(value: string): string {
  * mode only gets a few extra GitHub/workflow vars beyond the review baseline
  * — enough for git auth + pushing — never the whole environment.
  */
-function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
+function buildPiEnv(inputs: ActionInputs, enableMcp = false, agentDir?: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
 
   // Baseline allowed in every mode: locale, temp dirs, and pi's own paths.
@@ -572,7 +567,7 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
     if (process.env[v] !== undefined) env[v] = process.env[v];
   }
 
-  if (inputs.mode !== "agent" && toolSet(inputs).has("mcp") && process.env.GITHUB_TOKEN !== undefined) {
+  if (inputs.mode !== "agent" && enableMcp && process.env.GITHUB_TOKEN !== undefined) {
     env.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   }
 
@@ -581,10 +576,11 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
     PI_OFFLINE: "1",
     PI_SKIP_VERSION_CHECK: "1",
   });
+  if (agentDir) env.PI_CODING_AGENT_DIR = agentDir;
 
   // Pass through all API key env vars that pi's AuthStorage checks
   const keyVars = [
-    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "DEEPSEEK_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY",
     "TOGETHER_API_KEY", "XAI_API_KEY", "OPENROUTER_API_KEY",
     "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
@@ -594,6 +590,9 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
 
   for (const v of keyVars) {
     if (process.env[v]) env[v] = process.env[v];
+  }
+  if (!env.GEMINI_API_KEY && env.GOOGLE_API_KEY) {
+    env.GEMINI_API_KEY = env.GOOGLE_API_KEY;
   }
 
   return env;

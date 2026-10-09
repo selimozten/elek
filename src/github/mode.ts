@@ -11,6 +11,8 @@
  *
  * Unknown values fall back to review — safest default.
  */
+import { REVIEW_MCP_TOOLS } from "../mcp/config.js";
+
 export type Mode = "review" | "review+edit" | "agent";
 
 export interface ResolvedMode {
@@ -33,7 +35,7 @@ export function resolveMode(raw: string | undefined): ResolvedMode {
       return {
         mode: "review+edit",
         // Keep mutation tools disabled until write/edit are sandboxed.
-        piTools: "read,grep,find,ls,mcp",
+        piTools: ["read", "grep", "find", "ls", ...REVIEW_MCP_TOOLS].join(","),
         useMcpServer: true,
         allowEdit: false,
       };
@@ -41,7 +43,7 @@ export function resolveMode(raw: string | undefined): ResolvedMode {
     default:
       return {
         mode: "review",
-        piTools: "read,grep,find,ls,mcp",
+        piTools: ["read", "grep", "find", "ls", ...REVIEW_MCP_TOOLS].join(","),
         useMcpServer: true,
         allowEdit: false,
       };
@@ -69,6 +71,6 @@ export function resolveEffectivePiTools(
   return tools
     .split(",")
     .map((tool) => tool.trim())
-    .filter((tool) => tool && tool !== "mcp")
+    .filter((tool) => tool && !tool.startsWith("mcp__"))
     .join(",");
 }
