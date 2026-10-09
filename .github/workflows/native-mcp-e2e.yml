@@ -1,0 +1,79 @@
+name: native MCP end-to-end verification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: native-mcp-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+      - name: Capture real Pi event streams
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/capture-pi" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          prompt_name=unknown
+          for arg in "$@"; do
+            if [[ "$arg" == @* ]]; then
+              prompt_name=$(basename "${arg#@}" .md)
+            fi
+          done
+          "$GITHUB_ACTION_PATH/node_modules/.bin/pi" "$@" | tee "$RUNNER_TEMP/native-mcp-$prompt_name.jsonl"
+          BASH
+          chmod +x "$RUNNER_TEMP/capture-pi"
+          echo "PI_EXECUTABLE=$RUNNER_TEMP/capture-pi" >> "$GITHUB_ENV"
+      - name: Review tenant regression with Pi 1.0.4
+        id: review
+        uses: selimozten/elek@0468e024df7d087c2b0fb4b341bedc4da577c462
+        env:
+          ELEK_PUBLIC_MODEL_LABEL: elek
+        with:
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: openrouter
+          model: openrouter/moonshotai/kimi-k2.7-code
+          thinking: off
+          review_strategy: crosscheck
+          run_timeout_seconds: 180
+          max_cost_usd: "0.10"
+          prompt: |
+            Verify the tenant boundary in fixtures/native-mcp/session.js as production auth code.
+            This PR intentionally introduces a review fixture regression. Report
+            its demonstrated security impact; focus exclusively on this fixture
+            and skip all other files and the temporary workflow scaffolding.
+            Candidate reviewers must return findings without posting them.
+            The posting reviewer must use the available native review tools:
+            buffer the validated fixtures/native-mcp/session.js finding with create_inline_comment,
+            omitting confirmed so the host posts it at the end; update the tracking
+            comment with a concise structured review summary using update_tracking_comment.
+            Return the same finding in the required structured final output.
+      - name: Verify native tools and live GitHub delivery
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_CONCLUSION: ${{ steps.review.outputs.conclusion }}
+          TRACKING_COMMENT_ID: ${{ steps.review.outputs.comment_id }}
+          REVIEW_COST_USD: ${{ steps.review.outputs.cost_usd }}
+        run: node .github/scripts/verify-native-mcp.mjs
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-mcp-verification
+          path: ${{ runner.temp }}/native-mcp-verification.json
+          if-no-files-found: error
