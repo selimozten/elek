@@ -111,7 +111,7 @@ Use current provider model IDs directly. Common review choices:
 | Anthropic | `claude-opus-4-8` | High-capability reviewer for critical PRs |
 
 `thinking` uses pi's portable levels: `off`, `minimal`, `low`, `medium`,
-`high`, and `xhigh`. Provider adapters map those to native effort controls
+`high`, `xhigh`, and `max`. Provider adapters map those to native effort controls
 where needed; for Claude models, the top effort maps to Claude's native `max`
 reasoning effort when supported.
 

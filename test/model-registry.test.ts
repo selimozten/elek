@@ -1,16 +1,27 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
+const runtimeDirs: string[] = [];
+afterEach(() => {
+  for (const dir of runtimeDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+function createRuntime(modelsPath: string | null) {
+  const dir = mkdtempSync(join(tmpdir(), "elek-model-registry-"));
+  runtimeDirs.push(dir);
+  return ModelRuntime.create({
+    authPath: join(dir, "auth.json"),
+    modelsPath,
+    modelsStorePath: join(dir, "models-store.json"),
+  });
+}
+
 describe("bundled pi model registry", () => {
   it("contains native Together metadata for the production review models", async () => {
-    const runtime = await ModelRuntime.create({
-      authPath: join(tmpdir(), `elek-model-registry-${randomUUID()}.json`),
-      modelsPath: null,
-    });
+    const runtime = await createRuntime(null);
 
     expect(runtime.getModel("together", "moonshotai/Kimi-K3")).toMatchObject({
       id: "moonshotai/Kimi-K3",
@@ -33,10 +44,7 @@ describe("bundled pi model registry", () => {
   });
 
   it("uses the native Together capabilities for DeepSeek V4 Pro", async () => {
-    const runtime = await ModelRuntime.create({
-      authPath: join(tmpdir(), `elek-model-registry-${randomUUID()}.json`),
-      modelsPath: resolve("pi-config/models.json"),
-    });
+    const runtime = await createRuntime(resolve("pi-config/models.json"));
 
     const model = runtime.getModel("together", "deepseek-ai/DeepSeek-V4-Pro-0813");
     expect(model).toMatchObject({

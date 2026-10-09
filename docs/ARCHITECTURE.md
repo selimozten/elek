@@ -53,6 +53,8 @@ The same model session verifies candidates and returns one final review.
 - `--no-session`
 - `--no-skills`
 - `--no-context-files`
+- `--no-approve`
+- `--no-mcp`
 - `--no-extensions`
 - `-e src/pi-workspace-guard.ts`
 - `--tools read,grep,find,ls`
@@ -60,6 +62,9 @@ The same model session verifies candidates and returns one final review.
 Pi uses its native tools and normal agent loop. A small tool-call hook blocks
 paths outside the workspace, `.git`, secret files, and symlink escapes. It does
 not replace native tool behavior. Elek closes standard input and reads JSONL.
+Pi includes an MCP client, but Elek disables discovery because the host
+owns review delivery. No MCP adapter, server, or generated MCP configuration
+is required.
 
 The runner records the final assistant message, stop reason, token use, cost,
 turn count, and provider retry count. It retries once only for a confirmed

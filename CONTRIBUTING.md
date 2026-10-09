@@ -48,9 +48,9 @@ dump.
 
 ## What we'll likely push back on
 
-- Widening the MCP server's tool surface beyond
-  `create_inline_comment` / `update_tracking_comment`. The structural
-  safety guarantee is load-bearing.
+- Giving review-mode models GitHub credentials or mutation tools. The host
+  owns GitHub delivery; approval, merge, and close endpoints are outside the
+  review surface.
 - Adding an `@anthropic-ai/sdk` (or any model-specific SDK) import. pi
   handles providers; staying model-agnostic is the value prop.
 - Refactors that don't fix a problem. If you want to restructure something,
@@ -63,7 +63,7 @@ or coding agents should describe the change:
 
 ```text
 feature/cross-model-review-strategies
-fix/mcp-token-cleanup
+fix/review-token-isolation
 docs/review-strategy-setup
 ci/self-review-workflow
 ```
@@ -78,7 +78,7 @@ outcome:
 
 ```text
 feat(review): add cross-model validation
-fix(mcp): delay token config until final review
+fix(review): keep GitHub credentials in the host
 docs: document review strategy setup
 ```
 
@@ -92,7 +92,7 @@ not explain what shipped.
 - [ ] New behavior has a test
 - [ ] Comments explain WHY, not WHAT (names already say what)
 - [ ] `package-lock.json` matches `package.json` when dependencies change
-- [ ] No new MCP tools, no new model SDK imports, no new bash escape hatches
+- [ ] Review tools stay read-only, with no GitHub credentials or model SDK imports
 
 ## Dependency updates
 

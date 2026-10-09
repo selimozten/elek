@@ -42,12 +42,12 @@ afterEach(() => {
 });
 
 describe("buildPiArgs", () => {
-  it("omits --model when the provider default model is requested", () => {
+  it("selects a default model within the requested provider", () => {
     const args = buildPiArgs({ ...baseInputs, model: "" }, "/tmp/prompt.md");
 
     expect(args).toContain("--provider");
     expect(args).toContain("deepseek");
-    expect(args).not.toContain("--model");
+    expect(args[args.indexOf("--model") + 1]).toBe("deepseek/");
     expect(args).toContain("--no-extensions");
     expect(args).toContain("-e");
     expect(args.join(" ")).toContain("src/pi-workspace-guard.ts");
@@ -56,14 +56,22 @@ describe("buildPiArgs", () => {
     expect(args).toContain("--tools");
   });
 
-  it("defensively omits --model when model is undefined", () => {
+  it("keeps an undefined model within the requested provider", () => {
     const args = buildPiArgs(
       { ...baseInputs, model: undefined as unknown as string },
       "/tmp/prompt.md",
     );
 
     expect(args).toContain("--provider");
-    expect(args).not.toContain("--model");
+    expect(args[args.indexOf("--model") + 1]).toBe("deepseek/");
+  });
+
+  it("disables native MCP discovery and project approval in every mode", () => {
+    for (const mode of ["review", "review+edit", "agent"]) {
+      const args = buildPiArgs({ ...baseInputs, mode }, "/tmp/prompt.md");
+      expect(args).toContain("--no-mcp");
+      expect(args).toContain("--no-approve");
+    }
   });
 
   it("lets provider-qualified model specs route themselves", () => {
@@ -151,6 +159,8 @@ describe("buildPiEnv", () => {
     for (const v of secretVars) delete process.env[v];
     delete process.env.GITHUB_TOKEN;
     delete process.env.TOGETHER_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
   });
 
   it("does not leak arbitrary parent secrets into agent-mode child env", () => {
@@ -201,6 +211,17 @@ describe("buildPiEnv", () => {
 
     expect(env.TOGETHER_API_KEY).toBe("together-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
+  });
+
+  it("maps the existing Google credential to Pi's Gemini environment variable", () => {
+    process.env.GOOGLE_API_KEY = "legacy-google-key";
+    expect(__buildPiEnv({ ...baseInputs, provider: "google" }).GEMINI_API_KEY).toBe("legacy-google-key");
+  });
+
+  it("preserves an explicitly configured Gemini credential", () => {
+    process.env.GOOGLE_API_KEY = "legacy-google-key";
+    process.env.GEMINI_API_KEY = "native-gemini-key";
+    expect(__buildPiEnv({ ...baseInputs, provider: "google" }).GEMINI_API_KEY).toBe("native-gemini-key");
   });
 });
 
