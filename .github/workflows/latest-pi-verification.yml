@@ -1,0 +1,83 @@
+name: latest Pi live verification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: latest-pi-verification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+      - name: Capture real Pi runtime evidence
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/capture-pi" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          "$GITHUB_ACTION_PATH/node_modules/.bin/pi" --version > "$RUNNER_TEMP/pi-version.txt"
+          printf '%s\n' "$@" > "$RUNNER_TEMP/pi-args.txt"
+          export TASK_MODEL_CONFIG="$PI_CODING_AGENT_DIR/models.json"
+          node --input-type=module <<'JS'
+          import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+          const path = process.env.TASK_MODEL_CONFIG;
+          const config = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+          config.providers ??= {};
+          config.providers.openrouter ??= {};
+          config.providers.openrouter.modelOverrides ??= {};
+          config.providers.openrouter.modelOverrides['deepseek/deepseek-v4-flash'] = { maxTokens: 2048 };
+          writeFileSync(path, JSON.stringify(config));
+          JS
+          "$GITHUB_ACTION_PATH/node_modules/.bin/pi" "$@" | tee "$RUNNER_TEMP/native-pi-prompt.jsonl"
+          BASH
+          chmod +x "$RUNNER_TEMP/capture-pi"
+          echo "PI_EXECUTABLE=$RUNNER_TEMP/capture-pi" >> "$GITHUB_ENV"
+      - name: Review tenant fixture with latest Pi
+        id: review
+        uses: selimozten/elek@3c23e0bddf0a498d5018240e0559387a8780e370
+        env:
+          ELEK_PUBLIC_MODEL_LABEL: elek
+        with:
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          provider: openrouter
+          model: openrouter/deepseek/deepseek-v4-flash
+          thinking: off
+          review_strategy: crosscheck
+          run_timeout_seconds: 180
+          prompt: |
+            Perform a bounded production auth review of fixtures/pi-release/session.js.
+            Treat getSessionForTenant as the exported tenant authorization boundary.
+            A session owned by tenant-a is returned unchanged to tenant-b when
+            called with the same session ID. The whole function is in the diff;
+            no repository inspection is required. Focus exclusively on this fixture
+            and skip the temporary test workflow and verification scaffolding.
+            Return one high-confidence finding with title, severity, confidence,
+            path, an exact single line, evidence, impact, and the smallest fix.
+            The host owns GitHub delivery. Finish with the final review only.
+      - name: Verify runtime and live GitHub delivery
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_CONCLUSION: ${{ steps.review.outputs.conclusion }}
+          TRACKING_COMMENT_ID: ${{ steps.review.outputs.comment_id }}
+          REVIEW_COST_USD: ${{ steps.review.outputs.cost_usd }}
+        run: node .github/scripts/verify-pi-release.mjs
+      - name: Upload safe verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-pi-verification
+          path: ${{ runner.temp }}/latest-pi-verification.json
