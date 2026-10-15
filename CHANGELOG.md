@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-16
+
 elek is now a self-hosted GitHub Action only. The hosted GitHub App and cloud
 are discontinued. This release narrows the Action to one job: a read-only
 review of each pull request. It stays on v1. GitHub only warns about the
