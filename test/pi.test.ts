@@ -159,6 +159,7 @@ describe("buildPiEnv", () => {
     for (const v of secretVars) delete process.env[v];
     delete process.env.GITHUB_TOKEN;
     delete process.env.TOGETHER_API_KEY;
+    delete process.env.OPENCODE_API_KEY;
     delete process.env.GOOGLE_API_KEY;
     delete process.env.GEMINI_API_KEY;
   });
@@ -210,6 +211,21 @@ describe("buildPiEnv", () => {
     const env = __buildPiEnv({ ...baseInputs, provider: "together", mode: "review" });
 
     expect(env.TOGETHER_API_KEY).toBe("together-fake-key");
+    expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
+  });
+
+  it("passes OpenCode credentials to the review child env for the opencode-go provider", () => {
+    process.env.OPENCODE_API_KEY = "opencode-fake-key";
+    process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
+
+    const env = __buildPiEnv({
+      ...baseInputs,
+      provider: "opencode-go",
+      model: "deepseek-v4.1-flash",
+      mode: "review",
+    });
+
+    expect(env.OPENCODE_API_KEY).toBe("opencode-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
   });
 

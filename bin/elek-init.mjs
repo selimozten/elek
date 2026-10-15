@@ -22,6 +22,12 @@ const PROVIDERS = {
     thinking: "max",
     keyInput: "together_api_key",
   },
+  "opencode-go": {
+    secret: "OPENCODE_API_KEY",
+    model: "deepseek-v4.1-flash",
+    thinking: "high",
+    keyInput: "opencode_api_key",
+  },
   anthropic: {
     secret: "ANTHROPIC_API_KEY",
     model: "claude-sonnet-4-6",
@@ -283,7 +289,8 @@ Usage:
   npx --package github:selimozten/elek elek-init [options]
 
 Options:
-  --provider <name>       deepseek, openrouter, together, anthropic, openai, google
+  --provider <name>       deepseek, openrouter, together, opencode-go, anthropic,
+                          openai, google
   --model <id>            provider model id
   --secret <name>         GitHub Actions secret name for the provider key
   --thinking <level>      off, minimal, low, medium, high, xhigh, or max

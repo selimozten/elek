@@ -53,6 +53,18 @@ npx --package github:selimozten/elek elek-init --no-config
 | Mistral | `MISTRAL_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | OpenRouter | `OPENROUTER_API_KEY` |
+| OpenCode Zen / Go | `OPENCODE_API_KEY` |
+
+For OpenCode Go, pass the key through `opencode_api_key` and select the
+`opencode-go` provider:
+
+```yaml
+- uses: selimozten/elek@v1
+  with:
+    opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+    provider: opencode-go
+    model: deepseek-v4.1-flash
+```
 
 For Bedrock: set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as job-level env. For Vertex: `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_VERTEX_PROJECT_ID`.
 
