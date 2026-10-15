@@ -1,9 +1,6 @@
 /**
  * Host-side inline finding delivery after the Pi run. The model cannot
  * observe or iterate on GitHub API failures.
- *
- * Pure orchestration logic lives in `postBuffered(deps)`; the file's bottom
- * runs it against real fs/octokit when invoked as a CLI.
  */
 import { buildReviewCommentParams } from "../review/host-output";
 import {
@@ -20,9 +17,9 @@ import {
 export { commentableLinesForPatch } from "../review/diff-context";
 
 /**
- * Narrow Octokit slice the post-step uses. `any` for params + responses to
- * accept either @actions/github (.rest) or @octokit/rest (.) variants;
- * Octokit's full generic types don't structurally fit a hand-rolled subset.
+ * Narrow slice of `octokit.rest` from @actions/github. `any` for params and
+ * responses: Octokit's full generic types don't structurally fit a
+ * hand-rolled subset.
  */
 export type PostBufferedOctokit = {
   pulls: {
