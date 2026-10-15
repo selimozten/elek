@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `pull_request` opened, synchronize, reopened, and ready_for_review events
+  now trigger a review without a `prompt:` input, as the README and
+  `elek-init` workflow promised. Previously these runs logged "No trigger
+  detected" and exited. Draft PRs are skipped until marked ready. An explicit
+  `prompt` or `@pi` phrase still takes precedence; `agent` mode still needs an
+  explicit trigger.
+- Fork PR runs, where GitHub withholds secrets, now exit with a notice and a
+  `skipped` conclusion instead of failing after a 403 and a Pi auth error.
+- A missing provider key on a same-repository run now fails before any GitHub
+  writes, naming the input and secret to set.
+
+### Added
+
+- `auto_review` input (default `true`). Set `false` to review only on an
+  explicit prompt, trigger phrase, or label.
+- `elek-init` workflows subscribe to `ready_for_review` and skip fork PRs with
+  a job-level `head.repo.full_name == github.repository` guard; comment and
+  issue events still run.
+
 ## [1.2.3] - 2026-10-15
 
 ### Added

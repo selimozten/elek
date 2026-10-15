@@ -9,6 +9,11 @@ export interface ActionInputs {
   thinking: string;
   // Behavior
   prompt: string;
+  /**
+   * Review pull_request opened/synchronize/reopened/ready_for_review events
+   * without an explicit prompt or trigger phrase. Review modes only.
+   */
+  autoReview: boolean;
   systemPrompt: string;
   /** Optional conversation-turn cap. Undefined leaves pi unbounded by turns. */
   maxTurns?: number;
@@ -79,6 +84,10 @@ export interface GitHubEntityContext {
     baseRef: string;
     headSha: string;
     baseSha: string;
+    /** Draft PRs are not auto-reviewed until marked ready. */
+    draft?: boolean;
+    /** Head branch lives in a different repository (or a deleted fork). */
+    isFork?: boolean;
   };
   /** Issue-specific fields */
   issue?: {

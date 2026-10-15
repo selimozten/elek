@@ -31,6 +31,7 @@ const ENV_KEYS = [
   "INPUT_MAX_COST_USD",
   "INPUT_MAX_TURNS",
   "INPUT_RUN_TIMEOUT_SECONDS",
+  "INPUT_AUTO_REVIEW",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -80,6 +81,43 @@ describe("parseEntityContext", () => {
     expect(ctx!.pr?.headRef).toBe("feat/x");
     expect(ctx!.pr?.baseRef).toBe("main");
     expect(ctx!.triggerText).toBe("fixes #1");
+    expect(ctx!.pr?.draft).toBe(false);
+    expect(ctx!.pr?.isFork).toBe(false);
+  });
+
+  it("marks draft and fork pull requests", () => {
+    process.env.GITHUB_EVENT_NAME = "pull_request";
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "synchronize",
+      pull_request: {
+        number: 43,
+        draft: true,
+        head: { ref: "patch-1", sha: "h", repo: { full_name: "mallory/repo" } },
+        base: { ref: "main", sha: "b", repo: { full_name: "octo/repo" } },
+      },
+    });
+    expect(parseEntityContext()!.pr).toMatchObject({ draft: true, isFork: true });
+
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "synchronize",
+      pull_request: {
+        number: 44,
+        head: { ref: "feature/x", sha: "h", repo: { full_name: "octo/repo" } },
+        base: { ref: "main", sha: "b", repo: { full_name: "octo/repo" } },
+      },
+    });
+    expect(parseEntityContext()!.pr).toMatchObject({ draft: false, isFork: false });
+
+    // GitHub sends head.repo = null after the fork is deleted.
+    process.env.GITHUB_EVENT_PATH = writeEvent({
+      action: "reopened",
+      pull_request: {
+        number: 45,
+        head: { ref: "patch-1", sha: "h", repo: null },
+        base: { ref: "main", sha: "b", repo: { full_name: "octo/repo" } },
+      },
+    });
+    expect(parseEntityContext()!.pr?.isFork).toBe(true);
   });
 
   it("parses an issues event and extracts labels/assignees", () => {
@@ -179,6 +217,13 @@ describe("parseEntityContext", () => {
 });
 
 describe("parseInputs", () => {
+  it("enables auto_review by default and accepts false", () => {
+    delete process.env.INPUT_AUTO_REVIEW;
+    expect(parseInputs().autoReview).toBe(true);
+    process.env.INPUT_AUTO_REVIEW = "false";
+    expect(parseInputs().autoReview).toBe(false);
+  });
+
   it("defaults generated branch names to elek branding", () => {
     delete process.env.INPUT_BRANCH_PREFIX;
     expect(parseInputs().branchPrefix).toBe("elek/");

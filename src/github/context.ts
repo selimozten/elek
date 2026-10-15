@@ -81,6 +81,7 @@ export function parseInputs(): ActionInputs {
     model: core.getInput("model") || "",
     thinking: core.getInput("thinking") || "medium",
     prompt: core.getInput("prompt") || "",
+    autoReview: parseBooleanInput(core.getInput("auto_review"), true),
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseMaxTurnsInput(core.getInput("max_turns")),
     runTimeoutSeconds: parseRunTimeoutInput(core.getInput("run_timeout_seconds")),
@@ -105,6 +106,17 @@ export function parseInputs(): ActionInputs {
     costRates: core.getInput("cost_rates") || "",
     maxCostUsd: parseMaxCostInput(core.getInput("max_cost_usd")),
   };
+}
+
+/**
+ * A null head repo means the fork was deleted; treat it as a fork because
+ * GitHub still runs the workflow without repository secrets.
+ */
+function isForkPullRequest(pr: any): boolean {
+  const head = pr.head?.repo?.full_name;
+  const base = pr.base?.repo?.full_name;
+  if (!base) return false;
+  return head !== base;
 }
 
 /**
@@ -157,6 +169,8 @@ export function parseEntityContext(): GitHubEntityContext | null {
           baseRef: pr.base?.ref || "",
           headSha: pr.head?.sha || "",
           baseSha: pr.base?.sha || "",
+          draft: pr.draft === true,
+          isFork: isForkPullRequest(pr),
         },
       };
     }
@@ -219,6 +233,8 @@ export function parseEntityContext(): GitHubEntityContext | null {
           baseRef: pr.base?.ref || "",
           headSha: pr.head?.sha || "",
           baseSha: pr.base?.sha || "",
+          draft: pr.draft === true,
+          isFork: isForkPullRequest(pr),
         },
       };
     }
@@ -242,6 +258,8 @@ export function parseEntityContext(): GitHubEntityContext | null {
           baseRef: pr.base?.ref || "",
           headSha: pr.head?.sha || "",
           baseSha: pr.base?.sha || "",
+          draft: pr.draft === true,
+          isFork: isForkPullRequest(pr),
         },
       };
     }

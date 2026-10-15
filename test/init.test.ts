@@ -57,7 +57,14 @@ describe("elek-init", () => {
       "owner/elek@v2",
     ]));
 
-    expect(workflow).toContain("pull_request: { types: [opened, synchronize, reopened] }");
+    expect(workflow).toContain("pull_request: { types: [opened, synchronize, reopened, ready_for_review] }");
+    expect(workflow).toContain(
+      "(github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)",
+    );
+    expect(workflow).toContain("(github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]'))");
+    // Auto-review is the action default, so the starter needs no prompt.
+    expect(workflow).not.toContain("prompt:");
+    expect(workflow).not.toContain("auto_review: false");
     expect(workflow).toContain("issues: { types: [opened] }");
     expect(workflow).toContain("issue_comment: { types: [created] }");
     expect(workflow).toContain("contents: read");

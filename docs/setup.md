@@ -76,7 +76,7 @@ For Bedrock: set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as j
 name: elek
 
 on:
-  pull_request: { types: [opened, synchronize, reopened] }
+  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
   issue_comment: { types: [created] }
   issues: { types: [opened] }
 
@@ -91,7 +91,8 @@ concurrency:
 
 jobs:
   review:
-    if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
+    # Fork PRs run without secrets; maintainers can comment @pi instead.
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.3
@@ -106,7 +107,7 @@ jobs:
 
 ## 3. Test it
 
-1. Open a PR or push a commit. The review should appear within ~3 minutes.
+1. Open a non-draft PR or push a commit. The review should appear within ~3 minutes.
 2. The final comment includes an estimated token/cost line.
 3. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
 
@@ -131,10 +132,16 @@ reasoning effort when supported.
 
 | Trigger | Behavior |
 |---|---|
-| `pull_request.opened` / `synchronize` | Auto-review every push |
+| `pull_request.opened` / `synchronize` / `reopened` / `ready_for_review` | Auto-review with the default request; drafts are skipped until ready. `auto_review: false` turns this off |
 | `issue_comment` containing `@pi …` | Acts on the comment after the trigger phrase |
 | `issues.opened` | Optional triage when paired with a `prompt:` |
 | Labels (configured separately) | `@pi` label on an issue triggers a run |
+
+Precedence: an explicit `prompt` input wins, then a trigger phrase in the
+comment or PR body, then the `pi` label, then auto-review. Auto-review applies
+to `review` and `review+edit` only; `agent` mode can push commits, so it still
+needs an explicit trigger. A workflow that subscribes only to `issue_comment`
+never receives `pull_request` events, so it keeps reviewing on request only.
 
 Customize the trigger phrase via `trigger_phrase: "@bot"`.
 
@@ -434,9 +441,22 @@ Check the `Command:` line and each turn duration in the run log.
 Review mode exposes only `read`, `grep`, `find`, and `ls`. Check custom prompts
 for requests to use shell, edit, or MCP tools.
 
-### `403` on inline comments for fork PRs
+### Fork PRs
 
-`pull_request` from a fork only gets a read-only `GITHUB_TOKEN`. Use `pull_request_target` cautiously (it has the base repo's secrets) or accept that reviews on fork PRs need the comment author to be a member.
+`pull_request` runs from a fork get no repository secrets and a read-only
+`GITHUB_TOKEN`. The generated workflow skips them with a job-level guard
+(`github.event.pull_request.head.repo.full_name == github.repository`). Without
+that guard, elek detects the empty provider key and exits with a notice and a
+`skipped` conclusion instead of failing. To review a fork PR, a maintainer can
+comment `@pi review` — `issue_comment` runs with the base repository's secrets.
+Use `pull_request_target` cautiously: it also has those secrets.
+
+### `No API key for provider …`
+
+The provider key input is empty on a same-repository run. Add the repository
+secret and pass it with the matching input, e.g.
+`deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}`. elek checks this before
+posting anything, so the run fails without a confusing tracking comment.
 
 ### Review never posts
 

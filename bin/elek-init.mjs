@@ -195,7 +195,7 @@ export function renderWorkflow(options) {
   return `name: elek
 
 on:
-  pull_request: { types: [opened, synchronize, reopened] }
+  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
   issues: { types: [opened] }
   issue_comment: { types: [created] }
 
@@ -210,7 +210,9 @@ concurrency:
 
 jobs:
   review:
-    if: \${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
+    # Fork PRs get no secrets and a read-only token; skip them here. Comment
+    # @pi on a fork PR to review it with the base repository's secrets.
+    if: \${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

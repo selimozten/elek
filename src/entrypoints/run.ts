@@ -5,7 +5,7 @@
  *
  * Orchestrates:
  *  1. Parse GitHub event context
- *  2. Detect trigger conditions (@pi mentions, explicit prompts)
+ *  2. Detect trigger conditions (explicit prompts, @pi mentions, PR auto-review)
  *  3. Fetch GitHub data (PR diff, issue body)
  *  4. Run pi with the built prompt
  *  5. Post results back to GitHub (comments, reviews)
@@ -30,6 +30,7 @@ import {
   mergeBasePolicyWithWorkspaceGuidance,
 } from "../config.js";
 import { detectTrigger, isActorAuthorized } from "../github/trigger.js";
+import { credentialPreflight } from "../credentials.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { resolveMode, resolvePiTools } from "../github/mode.js";
 import { postBuffered } from "./post-buffered.js";
@@ -135,6 +136,27 @@ async function run(): Promise<void> {
     );
     core.setOutput("conclusion", "skipped");
     core.setOutput("summary", `Actor @${context.actor} not authorized`);
+    return;
+  }
+
+  // Before any GitHub writes: a fork run has a read-only token and no
+  // secrets, so a tracking comment would 403 and Pi would fail on auth.
+  const credentials = credentialPreflight({
+    provider: parsedInputs.provider,
+    env: process.env,
+    rawEventName: process.env.GITHUB_EVENT_NAME,
+    isForkPR: context.pr?.isFork === true,
+  });
+  if (credentials.action === "skip") {
+    core.notice(credentials.message);
+    core.setOutput("conclusion", "skipped");
+    core.setOutput("summary", credentials.message);
+    return;
+  }
+  if (credentials.action === "fail") {
+    core.setOutput("conclusion", "failure");
+    core.setOutput("summary", credentials.message);
+    core.setFailed(credentials.message);
     return;
   }
 
