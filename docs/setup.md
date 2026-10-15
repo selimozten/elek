@@ -1,467 +1,150 @@
-# Self-hosted setup guide
+# Set up elek
 
-This guide covers the self-hosted GitHub Action runtime. The hosted GitHub App
-is the planned primary install path for normal product onboarding; the Action
-remains available for BYOK, auditable runs, and custom workflow control.
+This guide adds elek to a repository and covers the problems people hit
+first. The [README](../README.md) has the full input, config, and output
+reference.
 
 ## Requirements
 
-- A GitHub repository
-- One provider API key (DeepSeek, OpenRouter, OpenAI, Anthropic, ...)
-- Repo admin access (to add secrets)
+- A GitHub repository with Actions enabled.
+- An API key for a model provider that [Pi](https://github.com/earendil-works/pi)
+  supports.
 
-## Fast path
+## Generate the workflow
 
-From your repository root:
+From your repository root, run:
 
 ```bash
 npx --package github:selimozten/elek elek-init --provider deepseek
 ```
 
-This creates:
-
-- `.github/workflows/elek.yml`
-- `.elek.yml`
-
-Then add the `DEEPSEEK_API_KEY` repository secret and open a PR. This creates
-the same review engine behavior the hosted App will build on, but runs inside
-your own GitHub Actions workflow.
-
-Useful variants:
+`elek-init` writes `.github/workflows/elek.yml` and `.elek.yml`. It refuses to
+overwrite existing files unless you pass `--force`. These variants are common:
 
 ```bash
-npx --package github:selimozten/elek elek-init --provider openrouter --model moonshotai/kimi-k2.7-code
-npx --package github:selimozten/elek elek-init --strategy crosscheck
-npx --package github:selimozten/elek elek-init --provider anthropic \
-  --model claude-sonnet-4-6 --secret ANTHROPIC_API_KEY
+npx --package github:selimozten/elek elek-init --provider anthropic --model claude-sonnet-4-6
+npx --package github:selimozten/elek elek-init --provider openai --secret MY_OPENAI_KEY
 npx --package github:selimozten/elek elek-init --no-config
 ```
 
-`elek-init` refuses to overwrite existing files unless you pass `--force`.
+`--provider` accepts `deepseek`, `openrouter`, `together`, `opencode-go`,
+`anthropic`, `openai`, and `google`. For any other Pi provider, copy the
+manual workflow from the README and change `provider`, `model`, and the key
+input.
 
-## 1. Add the API key
+## Add the API key
 
-`Settings → Secrets and variables → Actions → New repository secret`. Use the secret name that matches the input on the action:
+In the repository, open **Settings**, then **Secrets and variables**, then
+**Actions**, and add a repository secret. Use the name the workflow passes to
+the key input:
 
-| Provider | Secret name |
-|---|---|
-| DeepSeek | `DEEPSEEK_API_KEY` |
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
-| xAI | `XAI_API_KEY` |
-| OpenRouter | `OPENROUTER_API_KEY` |
-| OpenCode Zen / Go | `OPENCODE_API_KEY` |
-
-For OpenCode Go, pass the key through `opencode_api_key` and select the
-`opencode-go` provider:
-
-```yaml
-- uses: selimozten/elek@v1
-  with:
-    opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
-    provider: opencode-go
-    model: deepseek-v4.1-flash
-```
-
-For Bedrock: set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as job-level env. For Vertex: `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_VERTEX_PROJECT_ID`.
-
-## 2. Add the workflow manually
-
-`.github/workflows/elek.yml`:
-
-```yaml
-name: elek
-
-on:
-  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
-  issue_comment: { types: [created] }
-  issues: { types: [opened] }
-
-permissions:
-  contents: read           # blocks merge entirely
-  pull-requests: write     # post review comments
-  issues: write            # post tracking comment
-
-concurrency:
-  group: elek-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  review:
-    # Fork PRs run without secrets; maintainers can comment @pi instead.
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]')) }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }   # required for accurate PR diffs
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
-          thinking: high
-```
-
-## 3. Test it
-
-1. Open a non-draft PR or push a commit. The review should appear within ~3 minutes.
-2. The final comment includes an estimated token/cost line.
-3. To trigger from a comment: write `@pi review the auth flow` on any PR or issue.
-
-## Model and reasoning levels
-
-Use current provider model IDs directly. Common review choices:
-
-| Provider | Model | Notes |
+| Provider | Secret | Input |
 |---|---|---|
-| DeepSeek | `deepseek-v4-pro` | Low-cost primary reviewer |
-| OpenRouter | `moonshotai/kimi-k2.7-code` | Independent second reviewer |
-| OpenAI | `gpt-5.5` | Strong reasoning reviewer |
-| Anthropic | `claude-sonnet-4-6` | Balanced premium reviewer |
-| Anthropic | `claude-opus-4-8` | High-capability reviewer for critical PRs |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek_api_key` |
+| Anthropic | `ANTHROPIC_API_KEY` | `anthropic_api_key` |
+| OpenAI | `OPENAI_API_KEY` | `openai_api_key` |
+| Google | `GOOGLE_API_KEY` | `google_api_key` |
+| Groq | `GROQ_API_KEY` | `groq_api_key` |
+| Mistral | `MISTRAL_API_KEY` | `mistral_api_key` |
+| Together | `TOGETHER_API_KEY` | `together_api_key` |
+| xAI | `XAI_API_KEY` | `xai_api_key` |
+| OpenRouter | `OPENROUTER_API_KEY` | `openrouter_api_key` |
+| OpenCode Zen or Go | `OPENCODE_API_KEY` | `opencode_api_key` |
 
-`thinking` uses pi's portable levels: `off`, `minimal`, `low`, `medium`,
-`high`, `xhigh`, and `max`. Provider adapters map those to native effort controls
-where needed; for Claude models, the top effort maps to Claude's native `max`
-reasoning effort when supported.
+For Amazon Bedrock, set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and
+`AWS_SECRET_ACCESS_KEY` as job-level `env`. For Vertex, set
+`GOOGLE_APPLICATION_CREDENTIALS` and `ANTHROPIC_VERTEX_PROJECT_ID`.
 
-## Triggers
+## Pick a model
 
-| Trigger | Behavior |
+Use the provider's model ID. These are common review choices:
+
+| Provider | Model |
 |---|---|
-| `pull_request.opened` / `synchronize` / `reopened` / `ready_for_review` | Auto-review with the default request; drafts are skipped until ready |
-| `issue_comment` containing `@pi …` | Acts on the comment after the trigger phrase |
-| `issues.opened` | Optional triage when paired with a `prompt:` |
-| Labels (configured separately) | `@pi` label on an issue triggers a run |
+| DeepSeek | `deepseek-v4-pro` |
+| OpenRouter | `moonshotai/kimi-k2.7-code` |
+| OpenAI | `gpt-5.5` |
+| Anthropic | `claude-sonnet-4-6` |
+| Anthropic | `claude-opus-4-8` |
 
-Precedence: an explicit `prompt` input wins, then a trigger phrase in the
-comment or PR body, then the `pi` label, then auto-review. Auto-review applies
-to `review` and `review+edit` only; `agent` mode can push commits, so it still
-needs an explicit trigger. A workflow that subscribes only to `issue_comment`
-never receives `pull_request` events, so it keeps reviewing on request only.
+`thinking` takes Pi's levels: `off`, `minimal`, `low`, `medium`, `high`,
+`xhigh`, and `max`. Pi maps each level to the provider's own reasoning
+setting.
 
-Customize the trigger phrase via `trigger_phrase: "@bot"`.
+## Test it
 
-## Modes
+Commit the workflow and open a non-draft pull request. On each run, elek:
 
-```yaml
-- uses: selimozten/elek@v1
-  with:
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    mode: review        # or review+edit, or agent
-```
+1. Posts a tracking comment with a progress checklist.
+2. Runs one read-only Pi session on the diff.
+3. Replaces the checklist with the review and a token usage line.
+4. Posts inline comments on the changed lines it found issues in.
 
-| `mode` | Tools | Inline comments | Edits | When to use |
-|---|---|---|---|---|
-| `review` (default) | `read,grep,find,ls` | Host-posted | ✗ | Repo-scoped read-only code review |
-| `review+edit` | `read,grep,find,ls` | Host-posted | ✗ | Read-only until sandboxed mutation tools are available |
-| `agent` | + `bash` | ✗ (legacy) | ✓ | Trusted automation, no MCP |
-
-`review+edit` is currently held to the same read-only tool surface as
-`review`: native repo-scoped read/search tools, with no write, edit, bash, or
-MCP tools. Use `agent` only in trusted workflows that intentionally
-allow file edits and Git pushes.
-
-## Review strategies
-
-`review_strategy` selects the perspectives that one Pi session applies:
-
-```yaml
-- uses: selimozten/elek@v1
-  with:
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    together_api_key: ${{ secrets.TOGETHER_API_KEY }}
-    provider: together
-    model: deepseek-ai/DeepSeek-V4-Pro-0813
-    thinking: max
-    review_strategy: crosscheck
-```
-
-| `review_strategy` | Behavior |
-|---|---|
-| `solo` | One model reviews and posts. |
-| `crosscheck` | One session applies risk and design lenses. |
-| `council` | One session applies risk, design, test, and operations lenses. |
-| `thermos` | One session applies the selected Thermos lenses and a Ponytail filter. |
-
-Review mode runs without MCP access. The host posts the sanitized final review.
-
-Non-solo strategies currently require `mode: review`. If one is configured
-with `review+edit` or `agent`, elek runs a solo review and logs a warning.
-
-## Repo config
-
-Use `.elek.yml` when every workflow in the repository should share the same
-review policy. This keeps workflow YAML small and lets teams tune review
-behavior alongside the code.
-
-```yaml
-review_strategy: thermos
-review_lenses: security-correctness,contract-drift,mobile-runtime
-cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00,deepseek/deepseek-v4-pro=0.25:1.00
-severity_threshold: important
-
-knowledge_paths:
-  - AGENTS.md
-  - CONTRIBUTING.md
-  - docs/ARCHITECTURE.md
-
-ignore_paths:
-  - docs/**
-  - "*.md"
-
-instructions:
-  - Treat auth and permission changes as security-sensitive.
-  - Require tests for parser and config changes.
-```
-
-Supported keys:
-
-| Key | Behavior |
-|---|---|
-| `review_strategy` | Default strategy when the workflow input is unset |
-| `review_lenses` | Ordered built-in lens IDs for a smaller domain-specific council |
-| `cost_rates` | Default price overrides as `model=inputPerMillion:outputPerMillion` |
-| `severity_threshold` | Prompt-level reviewer threshold: `critical`, `important`, or `minor` |
-| `knowledge_paths` | Repo-local docs or directories to include as bounded review context |
-| `ignore_paths` | Skip a finding only when all of its evidence lies inside these paths; still surface issues that leak impact outside them |
-| `instructions` | Extra repo-specific review policy inserted into every prompt |
-
-Workflow inputs override `.elek.yml` when explicitly set. To disable config
-loading, set `config_path: none`, `off`, or `false`. Severity thresholds and
-ignore paths are review instructions, not a server-side comment filter. If an
-existing config file has malformed YAML, elek fails the run instead of silently
-dropping repo policy.
-
-Security note: on pull requests, elek loads policy and guidance fields
-(`review_strategy`, `review_lenses`, `cost_rates`,
-`severity_threshold`, `knowledge_paths`, `ignore_paths`, and `instructions`)
-from the base branch when available. A pull request cannot weaken its own
-review policy or inject repository guidance. Each run logs the loaded config source plus effective
-strategy/model/severity choices.
-If `knowledge_paths` is unset, elek automatically tries `AGENTS.md`,
-`CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, and `docs/adr`. Files are loaded
-only from inside the workspace and are capped before they enter the prompt.
-If elek cannot resolve a PR comment trigger's actual base branch, it skips
-base-branch policy loading for that run instead of guessing from the default
-branch; policy fields from the checked-out workspace are not used as a
-fallback. For `issue_comment` triggers, "checked-out branch" is whatever the
-workflow checked out, usually the default branch unless the workflow explicitly
-checks out the PR head.
-
-## Cost visibility
-
-Cost reporting is on by default. elek estimates tokens from prompt/output text
-and applies known model price hints where available. The final review comment
-and action outputs include:
-
-- `cost_usd`
-- `input_tokens`
-- `output_tokens`
-- `review_summary_path`
-- `review_summary_json`
-
-`review_summary_path` points to `elek-review-summary.json` in the runner temp
-directory. The JSON includes total duration, requested/executed strategy,
-model labels, parsed findings, per-model token/cost estimates, pricing source,
-and inline comment counts. Upload that path as an artifact in your workflow
-when you want to compare model quality, speed, and cost across PRs.
-
-After the implementation agent or maintainer has handled the review, create a
-finding feedback file and merge it back into the saved summary:
-
-```bash
-npx --package github:selimozten/elek elek-feedback --template artifacts/pr-42/elek-review-summary.json > feedback.json
-npx --package github:selimozten/elek elek-feedback --apply feedback.json artifacts/pr-42/elek-review-summary.json > artifacts/pr-42/adjudicated-summary.json
-```
-
-Use `accepted`, `partial`, `rejected`, or `unreviewed` for each finding and a
-`0-5` integer point score. This is the agent-native quality signal: the agent
-doing the main code change can mark which findings were real, useful, or false
-positives, then analytics can compare models on accepted findings and average
-score. Applying feedback is a replacement step: findings omitted from the
-feedback file are reset to `unreviewed`.
-
-Aggregate saved summaries by strategy, model, or repository:
-
-```bash
-npx --package github:selimozten/elek elek-analytics --group-by strategy artifacts/*/adjudicated-summary.json
-```
-
-Compare a baseline artifact set against a current artifact set when you want
-to catch trend regressions before changing default models or strategies:
-
-```bash
-npx --package github:selimozten/elek elek-analytics --group-by model \
-  --baseline artifacts/before/*/adjudicated-summary.json \
-  --current artifacts/after/*/adjudicated-summary.json
-```
-
-Use `--json` when sending aggregate or comparison reports to dashboards,
-release notes, or scheduled quality checks.
-
-For models without built-in price hints, pass your provider's current USD price
-per 1M input/output tokens:
-
-```yaml
-- uses: selimozten/elek@v1
-  with:
-    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-    provider: openrouter
-    model: moonshotai/kimi-k2.7-code
-    show_cost: true
-    cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4.00
-```
-
-`cost_rates` changes reporting only. Elek does not reduce review coverage from
-a cost estimate.
-
-Diff context uses the selected model's available input window. The full diff
-is included whenever it fits; only context-window overflow falls back to a
-complete file overview plus large per-file slices.
-
-Disable the visible comment/log line while keeping outputs available:
-
-```yaml
-show_cost: false
-```
-
-## Model evaluation
-
-Save review summary artifacts from a fixed set of seeded PRs, then score them
-locally:
-
-```bash
-npx --package github:selimozten/elek elek-eval --suite review-benchmark.yml artifacts/*/elek-review-summary.json
-```
-
-To create the first editable case from a saved summary:
-
-```bash
-npx --package github:selimozten/elek elek-benchmark --id auth-regression artifacts/auth/elek-review-summary.json > review-benchmark.yml
-```
-
-Minimal benchmark suite:
-
-```yaml
-version: 1
-cases:
-  - id: auth-regression
-    repository: owner/repo
-    number: 42
-    expected_findings:
-      - id: tenant-bypass
-        min_severity: critical
-        keywords: [tenant, session, bypass]
-    max_false_positives: 0
-```
-
-Each summary is matched to a case by `repository` and PR/issue number, or you
-can pass `--case <id>` when scoring one case at a time. The evaluator reports
-recall, precision, false positives, duration, and cost; `--json` emits the
-same data for dashboards. Treat generated benchmark cases as drafts and edit
-their expected findings before using them as release gates.
-
-## Permissions
-
-```yaml
-permissions:
-  contents: read           # blocks merge — model can't push to base
-  pull-requests: write
-  issues: write
-```
-
-Keep `contents: read` for `review` and `review+edit`. Use `agent` only in
-trusted workflows that allow edits and Git pushes. Review-mode Pi does not
-receive the GitHub token.
+On later pushes, elek reuses its tracking comment and skips inline findings it
+already posted.
 
 ## Comment identity
 
-With the default `github_token`, GitHub displays elek comments as
-`github-actions[bot]`. Actions cannot override that avatar.
+With the default `github_token`, comments come from `github-actions[bot]`.
+GitHub does not let an Action change that name or avatar.
 
-To show an elek avatar in the PR timeline, pass `github_token` from a dedicated
-GitHub App or bot account token. The default `GITHUB_TOKEN` remains the safest
-zero-setup option; elek still renders its mark and name inside the tracking and
-final review comments.
-
-## Actor filtering
-
-By default, only repository owners, members, and collaborators trigger. Broaden
-access explicitly when you want outside contributors or bots to invoke paid
-reviews:
+To post as a GitHub App or bot account, pass its token as `github_token`. Then
+set `ELEK_TRACKING_COMMENT_AUTHORS` to that account's login in the job `env`.
+elek only reuses tracking comments written by these logins, so a PR author
+cannot plant a fake one.
 
 ```yaml
-allowed_bots: "renovate[bot],dependabot[bot]"   # specific bots
-allowed_bots: "*"                                 # all bots
-actor_filter: "alice,bob"                         # specific humans only
-```
-
-## Concurrency
-
-Cancel stale runs when a new push lands:
-
-```yaml
-concurrency:
-  group: elek-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-```
-
-## Path filters (skip docs-only churn)
-
-Use path filters on advisory workflows only. Required checks should run on
-every PR so branch protection never waits on a skipped status check.
-
-```yaml
-on:
-  pull_request:
-    types: [opened, synchronize]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
+jobs:
+  review:
+    env:
+      ELEK_TRACKING_COMMENT_AUTHORS: my-review-bot[bot]
 ```
 
 ## Troubleshooting
 
-### Comment stuck on "analyzing…" with no progress
+### The run was skipped
 
-Older revisions could keep Pi standard input open. Current Elek closes it.
-Check the `Command:` line and each turn duration in the run log.
+The `summary` output and the log say why. elek skips:
 
-### Empty PR diff
+- events other than `pull_request` opened, synchronize, reopened, or
+  ready_for_review;
+- draft pull requests;
+- runs triggered by bots or by users who are not repository owners, members,
+  or collaborators;
+- pull requests from forks, which get no secrets.
 
-`actions/checkout@v6.0.3` defaults to a shallow clone. Use `fetch-depth: 0`.
+### "Authoritative PR diff unavailable"
 
-### "Tool not found" errors in the review
+elek builds the diff from the checkout and falls back to the GitHub API. Check
+out with `fetch-depth: 0`.
 
-Review mode exposes only `read`, `grep`, `find`, and `ls`. Check custom prompts
-for requests to use shell, edit, or MCP tools.
+### "No API key for provider ..."
 
-### Fork PRs
+The key input is empty on a same-repository run. Add the repository secret and
+pass it with the matching input, for example
+`deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}`. elek checks the key
+before it posts anything.
 
-`pull_request` runs from a fork get no repository secrets and a read-only
-`GITHUB_TOKEN`. The generated workflow skips them with a job-level guard
-(`github.event.pull_request.head.repo.full_name == github.repository`). Without
-that guard, elek detects the empty provider key and exits with a notice and a
-`skipped` conclusion instead of failing. To review a fork PR, a maintainer can
-comment `@pi review` — `issue_comment` runs with the base repository's secrets.
-Use `pull_request_target` cautiously: it also has those secrets.
+### The review never posts
 
-### `No API key for provider …`
+Check the workflow `permissions`. elek needs `pull-requests: write` for the
+review and inline comments and `issues: write` for the tracking comment.
 
-The provider key input is empty on a same-repository run. Add the repository
-secret and pass it with the matching input, e.g.
-`deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}`. elek checks this before
-posting anything, so the run fails without a confusing tracking comment.
+### The comment stays on "analyzing"
 
-### Review never posts
+The model is still working, or the provider is slow. Open the run log. elek logs
+each Pi turn with its duration and token counts. To bound the run, set
+`run_timeout_seconds`.
 
-Check `permissions:` in your workflow. `pull-requests: write` is required for the inline comments and `issues: write` for the tracking comment. With both omitted, the action's API calls 403 silently.
+### A second tracking comment appeared
 
-### Multiple comments instead of one
+elek keeps one tracking comment per provider and model. Changing `provider` or
+`model` on an open PR starts a new comment. Two models in two jobs also get
+two comments.
 
-The dedup key is the model signature (`<!-- elek-bot:provider/model -->`). If you change `provider` or `model` mid-PR, the bot creates a new comment for the new identity. That's intentional — different models, different tracking.
+### Fork pull requests
+
+GitHub runs fork `pull_request` workflows without repository secrets and with
+a read-only token. elek cannot call the model or post, so the generated
+workflow skips forks. Do not use `pull_request_target` to work around this.
+That event exposes your secrets to a run that PR author code can influence.

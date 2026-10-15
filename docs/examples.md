@@ -1,315 +1,138 @@
-# Self-hosted workflow examples
+# Workflow examples
 
-These recipes are for the GitHub Action runtime. The hosted GitHub App is the
-planned primary install path; use these examples when you want BYOK execution,
-custom workflow wiring, or advanced self-hosted control.
+Each recipe changes the workflow from the [README](../README.md#manual-workflow).
+Only the changed parts are shown.
 
-## Generate starter files
+## Use a different provider
 
-```bash
-npx --package github:selimozten/elek elek-init --provider deepseek
-```
-
-Cost-aware multi-pass starter:
-
-```bash
-npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-usd 0.05
-```
-
-## Auto-review on every push (common self-hosted starting point)
+Set `provider`, `model`, and the matching key input:
 
 ```yaml
-# .github/workflows/elek.yml
-name: elek
-on:
-  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
-
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-
-concurrency:
-  group: elek-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-jobs:
-  review:
-    # Fork PRs run without secrets; skip them instead of failing.
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
-          thinking: high
+- uses: selimozten/elek@v1
+  with:
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    provider: openrouter
+    model: moonshotai/kimi-k2.7-code
 ```
 
-## Comment-triggered review
-
 ```yaml
-on:
-  issue_comment: { types: [created] }
-
-jobs:
-  review:
-    if: ${{ github.event.issue.pull_request && !endsWith(github.actor, '[bot]') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
+- uses: selimozten/elek@v1
+  with:
+    opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+    provider: opencode-go
+    model: deepseek-v4.1-flash
 ```
 
-Trigger by commenting `@pi review the auth flow` on a PR. The text after `@pi` becomes the prompt.
+## Review with two models
 
-## Dual-model review (cross-validation)
-
-Run two cheap models in parallel; each addresses the other's findings on the next push.
+Run one job per model. Each model keeps its own tracking comment, so the two
+reviews do not overwrite each other. Two models cost twice as much, so add the
+second one only when it finds issues the first one misses.
 
 ```yaml
-on:
-  pull_request: { types: [opened, synchronize, reopened] }
-
-permissions: { contents: read, pull-requests: write, issues: write }
-
-concurrency:
-  group: elek-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   deepseek:
-    name: deepseek-v4-pro
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: selimozten/elek@v1
         with:
           deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
           provider: deepseek
           model: deepseek-v4-pro
-          thinking: high
-          branch_prefix: elek/deepseek/
 
   kimi:
-    name: openrouter-kimi-k2.7-code
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: selimozten/elek@v1
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           provider: openrouter
           model: moonshotai/kimi-k2.7-code
-          thinking: high
-          branch_prefix: elek/kimi/
 ```
 
-## One-session council review
+## Focus the review request
 
-Apply the council lenses in one model session. The final comment shows the
-reported cost for that run.
-
-```yaml
-on:
-  pull_request: { types: [opened, synchronize, reopened] }
-
-permissions: { contents: read, pull-requests: write, issues: write }
-
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          together_api_key: ${{ secrets.TOGETHER_API_KEY }}
-          provider: together
-          model: deepseek-ai/DeepSeek-V4-Pro-0813
-          thinking: max
-          review_strategy: council
-          severity_threshold: important
-          show_cost: true
-```
-
-## Repo-local review policy
-
-`.elek.yml`:
-
-```yaml
-review_strategy: crosscheck
-severity_threshold: important
-
-ignore_paths:
-  - docs/**
-
-instructions:
-  - Treat auth and permission changes as security-sensitive.
-```
-
-Workflow:
+`prompt` replaces the default request. elek still applies its safety rules,
+review lenses, and response format.
 
 ```yaml
 - uses: selimozten/elek@v1
   with:
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
     provider: deepseek
     model: deepseek-v4-pro
+    prompt: |
+      Focus on src/auth/ and the database migrations. Flag any query that
+      does not filter by tenant.
 ```
 
-## Review + propose fixes
+For rules that apply to every PR, prefer `instructions` in `.elek.yml`. elek
+loads that file from the base branch, so a PR cannot change it.
 
-The model can push fixes to an `elek/*` branch when something is mechanical (rename, add missing test, simple refactor).
+## Keep the review advisory
+
+Let the job fail without blocking the PR when the provider is down or out of
+quota:
 
 ```yaml
-permissions: { contents: write, pull-requests: write, issues: write }
-
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          model: deepseek-v4-pro
-          mode: review+edit
-          prompt: |
-            Review this PR. For mechanical issues (typos, obvious bugs,
-            missing imports), make a focused file edit. elek will commit and
-            push the generated branch after the run succeeds. For design
-            questions, just review.
+    continue-on-error: true
 ```
 
-## Issue triage
+## Cap the run time
+
+Stop the model run after 10 minutes and post a failure note instead of waiting
+for the job timeout:
 
 ```yaml
-on:
-  issues: { types: [opened] }
-
-permissions: { issues: write }
-
-jobs:
-  triage:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6.0.3
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          provider: deepseek
-          prompt: |
-            Triage this issue:
-            - Bug, feature request, or question?
-            - Severity: critical / major / minor
-            - Affected component (if a bug)
-            - Repro steps clear? If not, ask.
-            - Suggested next step.
+- uses: selimozten/elek@v1
+  with:
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    provider: deepseek
+    run_timeout_seconds: 600
 ```
 
 ## Skip docs-only changes
 
-Use path filters on advisory workflows only. Required checks should run on
-every PR so branch protection never waits on a skipped status check.
+Use path filters only on advisory workflows. A required check that never runs
+blocks branch protection.
 
 ```yaml
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
-      - "LICENSE"
 ```
 
-## Restrict to specific reviewers
+## Post a PR review without a tracking comment
 
 ```yaml
 - uses: selimozten/elek@v1
   with:
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    actor_filter: "alice,bob,charlie"
+    provider: deepseek
+    sticky_comment: false
 ```
 
-Or allow specific bots:
+elek then posts one PR review per run and no live progress comment.
+
+## Pin the Action
+
+`selimozten/elek@v1` follows the latest v1 release. To pin an exact release,
+use its tag or commit SHA:
 
 ```yaml
-- uses: selimozten/elek@v1
-  with:
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    allowed_bots: "renovate[bot],dependabot[bot]"
+- uses: selimozten/elek@v1.3.0
 ```
-
-## Custom prompt
-
-```yaml
-- uses: selimozten/elek@v1
-  with:
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-    prompt: |
-      Review this PR with a focus on Postgres query performance:
-      1. Look for N+1 patterns
-      2. Check for missing indexes implied by new WHERE clauses
-      3. Flag transactions that hold locks across HTTP calls
-      4. Note any new SELECT * queries
-      Reference exact file paths and line numbers.
-```
-
-## Path-filtered review
-
-Use GitHub's workflow path filters when a repository needs different review
-prompts for different parts of the tree. For example, a TypeScript-focused
-workflow can run only when TypeScript-related files change:
-
-```yaml
-on:
-  pull_request:
-    types: [opened, synchronize]
-    paths:
-      - "**/*.ts"
-      - "**/*.tsx"
-      - "package.json"
-      - "tsconfig.json"
-
-jobs:
-  ts-review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.3
-        with: { fetch-depth: 0 }
-      - uses: selimozten/elek@v1
-        with:
-          deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          prompt: "TypeScript-focused review: types, null handling, async correctness, exhaustiveness."
-```
-
-## Pin the action
-
-For production, pin to a specific commit SHA rather than `@v1`:
-
-```yaml
-- uses: selimozten/elek@a1b2c3d4e5f6...   # specific SHA
-```
-
-Renovate / Dependabot can keep this updated.

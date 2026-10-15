@@ -4,23 +4,24 @@ Instructions for coding agents working in this repository.
 
 ## Runtime and boundaries
 
-Elek wraps the Pi CLI as a composite GitHub Action. Read
-`src/entrypoints/run.ts` before changing the review flow. One model session
-reviews the supplied diff with the selected lenses; the host sanitizes its
-final answer and posts GitHub comments through Octokit.
+Elek is a self-hosted composite GitHub Action that wraps the Pi CLI. Read
+`src/entrypoints/run.ts` before changing the review flow. On a non-draft
+`pull_request` event, one model session reviews the diff with the built-in
+risk and design lenses. The host sanitizes the final answer and posts GitHub
+comments through Octokit. There is no hosted service.
 
-Review mode exposes only Pi's native `read`, `grep`, `find`, and `ls` tools.
+Pi gets only its native `read`, `grep`, `find`, and `ls` tools.
 `src/pi-workspace-guard.ts` blocks paths outside the repository, `.git`,
-secret files, and symlink escapes. Pi receives no `GITHUB_TOKEN` in review
-mode. Keep these boundaries intact.
+secret files, and symlink escapes. Pi receives no `GITHUB_TOKEN`. Keep these
+boundaries intact.
 
 Pi has a built-in MCP client. Elek runs with `--no-mcp` because the host owns
 GitHub delivery. Keep MCP adapters, servers, and generated configuration out
 of the review flow. There must be no review code path to approving, merging,
 or closing a pull request. Discuss any expansion of that boundary first.
 
-Legacy `agent` mode can edit files and push commits in trusted workflows.
-`review+edit` stays read-only until mutation tools can be sandboxed.
+Keep the Action small. New inputs, triggers, or modes need a concrete user
+problem that the existing inputs and `.elek.yml` cannot solve.
 
 ## Implementation
 

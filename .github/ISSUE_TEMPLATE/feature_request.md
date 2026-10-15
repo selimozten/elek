@@ -26,8 +26,8 @@ labels: enhancement
 
 This proposal does NOT:
 
-- [ ] Add a new MCP tool that calls `pulls.merge`, `pulls.createReview({event:"APPROVE"})`, or `issues.update({state:"closed"})`
+- [ ] Add a code path that calls `pulls.merge`, `pulls.createReview({event:"APPROVE"})`, or `issues.update({state:"closed"})`
+- [ ] Give the model shell, write, MCP, or GitHub access
 - [ ] Import a model-specific SDK
-- [ ] Add `bash` to default modes
 
 If any of those are checked, expect significant pushback — see [AGENTS.md](../../AGENTS.md).

@@ -7,25 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+elek is now a self-hosted GitHub Action only. The hosted GitHub App and cloud
+are discontinued. This release narrows the Action to one job: a read-only
+review of each pull request. It stays on v1. GitHub only warns about the
+removed inputs below, so existing workflows keep running, but the inputs no
+longer do anything.
+
+### Added
+
+- Every review applies the risk and design lenses and the candidate
+  validation pass that `review_strategy: crosscheck` used to enable.
+- Coverage for secret redaction, config edge cases, and token estimation.
+
+### Changed
+
+- elek reviews `pull_request` events only: `opened`, `synchronize`,
+  `reopened`, and `ready_for_review`. Draft PRs wait until they are marked
+  ready. Other events end with a warning and a `skipped` conclusion.
+- `prompt` replaces only the default review request. The safety rules, review
+  lenses, and response format always apply.
+- The review footer shows token usage (`Token usage: 12,345 in / 678 out`)
+  instead of an estimated price, and it is always shown.
+- `elek-init` writes a `pull_request`-only workflow that skips fork PRs and
+  no longer accepts `--strategy`.
+- elek's own workflow reviews same-repository PRs with one advisory
+  DeepSeek V4 Pro job.
+- The docs describe the self-hosted Action only.
+
+### Removed
+
+- Inputs: `trigger_phrase`, `actor_filter`, `allowed_bots`, `mode`, `tools`,
+  `system_prompt`, `base_branch`, `branch_prefix`, `max_turns`,
+  `review_strategy`, `review_lenses`, `review_models`, `review_agent_count`,
+  `advisor_model`, `advisor_thinking`, `validator_model`,
+  `validator_thinking`, `show_cost`, `cost_rates`, and `max_cost_usd`.
+- Outputs: `branch_name`, `session_id`, `cost_usd`, `review_summary_path`,
+  and `review_summary_json`.
+- `.elek.yml` keys: `review_strategy`, `review_lenses`, `review_models`,
+  `review_agent_count`, `advisor_*`, `validator_*`, `cost_rates`, and
+  `max_cost_usd`. elek now logs them as unknown keys.
+- Comment, issue, and review-comment triggers: `@pi` mentions, the `pi` label,
+  and `issues`, `issue_comment`, `pull_request_review`, and
+  `pull_request_review_comment` handling.
+- The `agent` and `review+edit` modes and every branch-push path.
+- Review strategies (`solo`, `crosscheck`, `council`, `thermos`) and lens
+  selection.
+- The model price table and cost estimates.
+- The `elek-analytics`, `elek-benchmark`, `elek-eval`, and `elek-feedback`
+  CLIs and the review summary JSON they read.
+- Hosted-service code and hooks: telemetry schema, the `eleksh[bot]` and
+  `elek[bot]` trusted comment authors, `ELEK_PUBLIC_MODEL_LABEL`,
+  `ELEK_TRACKING_COMMENT_ID`, and `ELEK_HEAD_REMOTE_REF`.
+- The `ELEK_PI_TEXT_MODE` fallback to `pi -p`.
+- `docs/LAUNCH.md`, `docs/PRODUCT_RESEARCH.md`, `docs/BRAND.md`,
+  `docs/TELEMETRY.md`, `docs/example-prompt.md`, and the unused logo variants.
+
 ### Fixed
 
 - `pull_request` opened, synchronize, reopened, and ready_for_review events
   now trigger a review without a `prompt:` input, as the README and
   `elek-init` workflow promised. Previously these runs logged "No trigger
-  detected" and exited. Draft PRs are skipped until marked ready. An explicit
-  `prompt` or `@pi` phrase still takes precedence; `agent` mode still needs an
-  explicit trigger.
+  detected" and exited.
 - Fork `pull_request` runs without a provider key, where GitHub withholds
   secrets and grants a read-only token, now exit with a notice and a
   `skipped` conclusion instead of failing after a 403 and a Pi auth error.
 - A missing provider key on a same-repository run now fails before any GitHub
   writes, naming the input and secret to set.
-
-### Changed
-
-- `elek-init` workflows subscribe to `ready_for_review` and skip fork PRs with
-  a job-level `head.repo.full_name == github.repository` guard; comment and
-  issue events still run.
 
 ## [1.2.3] - 2026-10-15
 
