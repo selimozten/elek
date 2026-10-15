@@ -139,9 +139,10 @@ instructions:
 | `instructions` | Extra review rules for your repository. |
 
 On a pull request, elek reads `.elek.yml` and the knowledge files from the base
-branch. If the base branch has no config, or elek cannot fetch it, elek uses
-the checked-out file. Commit `.elek.yml` to your default branch so PRs cannot
-change their own review policy. elek
+branch. If elek cannot load `.elek.yml` from the base branch, for example
+because the base branch has none, it uses the checked-out `.elek.yml` and
+knowledge files instead. Commit `.elek.yml` to your default branch so PRs
+cannot change their own review policy. elek
 fails the run when the config file has malformed YAML, so a typo cannot drop
 your policy without notice. Unknown keys log a warning.
 
