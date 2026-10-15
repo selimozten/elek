@@ -19,18 +19,16 @@ describe("elek-init", () => {
     expect(options.model).toBe("deepseek-v4-pro");
     expect(options.secret).toBe("DEEPSEEK_API_KEY");
     expect(options.thinking).toBe("high");
-    expect(options.strategy).toBe("solo");
     expect(options.writeConfig).toBe(true);
   });
 
   it("uses Together defaults suitable for cheap max-thinking reviewers", () => {
-    const options = parseArgs(["--provider=together", "--strategy=thermos"]);
+    const options = parseArgs(["--provider=together"]);
 
     expect(options.provider).toBe("together");
     expect(options.model).toBe("moonshotai/Kimi-K2.7-Code");
     expect(options.secret).toBe("TOGETHER_API_KEY");
     expect(options.thinking).toBe("max");
-    expect(options.strategy).toBe("thermos");
   });
 
   it("uses OpenCode Go defaults with the shared OpenCode key", () => {
@@ -91,12 +89,9 @@ describe("elek-init", () => {
   });
 
   it("renders repo config for one-session review policy", () => {
-    const config = renderConfig(parseArgs([
-      "--strategy",
-      "crosscheck",
-    ]));
+    const config = renderConfig();
 
-    expect(config).toContain("review_strategy: crosscheck");
+    expect(config).not.toContain("review_strategy");
     expect(config).not.toContain("max_cost_usd");
     expect(config).toContain("severity_threshold: important");
     expect(config).toContain("knowledge_paths:");
@@ -125,8 +120,6 @@ describe("elek-init", () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-init-test-"));
     try {
       const options = parseArgs([
-        "--strategy",
-        "crosscheck",
         "--workflow",
         ".github/workflows/review.yml",
       ]);
@@ -134,7 +127,7 @@ describe("elek-init", () => {
 
       expect(written).toEqual([".github/workflows/review.yml", ".elek.yml"]);
       expect(existsSync(join(dir, ".github/workflows/review.yml"))).toBe(true);
-      expect(readFileSync(join(dir, ".elek.yml"), "utf8")).toContain("review_strategy: crosscheck");
+      expect(readFileSync(join(dir, ".elek.yml"), "utf8")).toContain("severity_threshold: important");
       expect(() => writePlannedFiles(options, dir)).toThrow("already exists");
       expect(writePlannedFiles({ ...options, force: true }, dir)).toEqual([
         ".github/workflows/review.yml",
@@ -147,7 +140,7 @@ describe("elek-init", () => {
 
   it("rejects unsupported choices before writing files", () => {
     expect(() => parseArgs(["--provider", "unknown"])).toThrow("Unsupported provider");
-    expect(() => parseArgs(["--strategy", "many"])).toThrow("Unsupported strategy");
+    expect(() => parseArgs(["--strategy", "crosscheck"])).toThrow("Unknown option");
     expect(() => parseArgs(["--max-cost-usd", "0.10"])).toThrow("Unknown option");
     expect(() => parseArgs(["--secret", "MY-SECRET"])).toThrow("valid GitHub Actions secret name");
     expect(() => parseArgs(["--secret", "GITHUB_TOKEN"])).toThrow("valid GitHub Actions secret name");

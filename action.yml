@@ -82,52 +82,6 @@ inputs:
     description: "Update a single tracking comment instead of new comments each turn"
     required: false
     default: "true"
-  review_strategy:
-    description: >
-      Review orchestration strategy:
-        solo (resolved when unset) — one model reviews and posts.
-        crosscheck — one session applies risk and design lenses.
-        council — one session applies risk, design, test, and operations lenses.
-        thermos — one session applies the selected Thermos lenses.
-    required: false
-    default: ""
-  review_models:
-    description: >
-      Deprecated compatibility input. One-session reviews always use model.
-    required: false
-    default: ""
-  review_lenses:
-    description: >
-      Optional comma-separated built-in lens IDs for one-session reviews.
-      This lets repositories select a small domain-specific set, for
-      example: security-correctness,contract-drift,mobile-runtime.
-    required: false
-    default: ""
-  review_agent_count:
-    description: >
-      Deprecated compatibility input. Elek runs one Pi session.
-    required: false
-    default: ""
-  advisor_model:
-    description: >
-      Deprecated compatibility input. Elek runs one Pi session.
-    required: false
-    default: ""
-  advisor_thinking:
-    description: >
-      Deprecated compatibility input. Elek uses thinking.
-    required: false
-    default: ""
-  validator_model:
-    description: >
-      Deprecated compatibility input. Elek uses model.
-    required: false
-    default: ""
-  validator_thinking:
-    description: >
-      Deprecated compatibility input. Elek uses thinking.
-    required: false
-    default: ""
   severity_threshold:
     description: "Prompt-level minimum finding severity to surface: critical, important, or minor. Empty uses .elek.yml or no threshold."
     required: false
@@ -218,14 +172,6 @@ runs:
         INPUT_RUN_TIMEOUT_SECONDS: ${{ inputs.run_timeout_seconds }}
         INPUT_CONFIG_PATH: ${{ inputs.config_path }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
-        INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
-        INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
-        INPUT_REVIEW_LENSES: ${{ inputs.review_lenses }}
-        INPUT_REVIEW_AGENT_COUNT: ${{ inputs.review_agent_count }}
-        INPUT_ADVISOR_MODEL: ${{ inputs.advisor_model }}
-        INPUT_ADVISOR_THINKING: ${{ inputs.advisor_thinking }}
-        INPUT_VALIDATOR_MODEL: ${{ inputs.validator_model }}
-        INPUT_VALIDATOR_THINKING: ${{ inputs.validator_thinking }}
         INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
         INPUT_SHOW_COST: ${{ inputs.show_cost }}
         INPUT_COST_RATES: ${{ inputs.cost_rates }}

@@ -38,11 +38,6 @@ import { runPi, type ProgressEvent } from "../pi.js";
 import { formatProgressComment, type ProgressState } from "../github/progress.js";
 import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
-import {
-  buildSingleSessionReviewRequest,
-  resolveReviewPlan,
-  resolveReviewPlanSupport,
-} from "../review/strategy.js";
 import { reviewPromptForAttempt, runPiWithTransientRecovery } from "../review/run-recovery.js";
 import {
   aggregateCosts,
@@ -153,18 +148,6 @@ async function run(): Promise<void> {
     )
     : loadRepoKnowledge(workspaceConfig, warnConfig);
   const inputs = applyConfigDefaults(parsedInputs, repoConfig);
-  const ignoredOneSessionSettings = [
-    inputs.reviewModels && "review_models",
-    inputs.reviewAgentCount !== undefined && "review_agent_count",
-    inputs.advisorModel && "advisor_model",
-    inputs.advisorThinking && "advisor_thinking",
-    inputs.validatorModel && "validator_model",
-    inputs.validatorThinking && "validator_thinking",
-    inputs.maxCostUsd !== undefined && "max_cost_usd",
-  ].filter(Boolean);
-  if (ignoredOneSessionSettings.length > 0) {
-    console.warn(`[config] Ignoring obsolete one-session settings: ${ignoredOneSessionSettings.join(", ")}`);
-  }
   const effectiveRepoConfig = {
     ...repoConfig,
     severityThreshold: inputs.severityThreshold || repoConfig.severityThreshold,
@@ -182,9 +165,6 @@ async function run(): Promise<void> {
   const modelLabel = modelLabelFor(inputs);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
-
-  const reviewPlan = resolveReviewPlan(inputs);
-  const reviewPlanSupport = resolveReviewPlanSupport(reviewPlan.strategy);
 
   const data = await fetchGitHubData(context, octokit);
   try {
@@ -253,9 +233,6 @@ async function run(): Promise<void> {
     }
   };
 
-  const useReviewPlan = reviewPlanSupport.enabled;
-  console.log(`[config] execution_strategy=${useReviewPlan ? reviewPlan.strategy : "solo"}-single-session`);
-
   if (inputs.stickyComment) {
     try {
       const comment = await createTrackingComment(octokit, context, modelLabel);
@@ -267,7 +244,7 @@ async function run(): Promise<void> {
 
   const prompt = buildPrompt(
     data,
-    useReviewPlan ? buildSingleSessionReviewRequest(userRequest, reviewPlan) : userRequest,
+    userRequest,
     modelLabel,
     commentId,
     { repoConfig: effectiveRepoConfig },
@@ -275,35 +252,6 @@ async function run(): Promise<void> {
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
   const runCosts: ReviewCost[] = [];
-
-  if (useReviewPlan) {
-    console.log(
-      `Review strategy: ${reviewPlan.strategy} | lenses: ${reviewPlan.jobs
-        .map((job) => job.lens.id)
-        .join(", ")} | model: ${modelLabel} | one pi session`,
-    );
-
-    if (commentId) {
-      try {
-        await updateTrackingComment(
-          octokit,
-          context,
-          commentId,
-          [
-            spinnerHeader(modelLabel, `running ${reviewPlan.strategy} review`),
-            "",
-            ...reviewPlan.jobs.map((j) => `- ${j.lens.title}`),
-            "",
-            "Single-session Ponytail validation and posting",
-            `[View run](${jobRunLink})`,
-          ].join("\n"),
-          modelLabel,
-        );
-      } catch (err) {
-        console.warn("Could not update strategy status:", err);
-      }
-    }
-  }
 
   let result: PiRunResult = {
     conclusion: "failure",

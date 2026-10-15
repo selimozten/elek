@@ -1,11 +1,18 @@
-export function reviewContractBullets(): string[] {
+/** The two review perspectives every run applies before answering. */
+export function reviewLensLines(): string[] {
   return [
-    "- Every finding must include severity, confidence, evidence, impact, and a concrete fix.",
-    "- Severity must be one of: critical, important, minor.",
-    "- Confidence must be high or medium. Do not surface low-confidence findings.",
-    "- Evidence must point to changed code, visible context, or a verified repo fact.",
-    "- Impact must describe the user, security, correctness, operations, or maintainability consequence.",
-    "- Fix must describe the smallest concrete change that would resolve the issue.",
+    "Apply both review lenses before the final response:",
+    "1. **Risk**: Audit changed code for concrete bugs, security vulnerabilities, breaking behavior, developer-workflow regressions, feature-gate leaks, and subtle cross-module side effects. Trace each risk end-to-end and report only verified medium-to-high impact.",
+    "2. **Design**: Audit changed code for structural regressions, missed simplifications, spaghetti branching, weak abstractions, file-size growth, unclear type boundaries, and logic outside its canonical layer. Prefer fewer concepts and direct, boring code.",
+    "",
+    "Then validate every candidate finding:",
+    "- Treat each candidate as a hypothesis and verify it against the changed code.",
+    "- Reject speculative, cosmetic, duplicate, stale, and pre-existing issues.",
+    "- Reject complexity concerns without a concrete correctness, maintenance, or operational risk.",
+    "- Prefer the smallest root-cause fix, existing code, the standard library, and native platform features.",
+    "- Do not simplify away security, validation, error handling, or tests that prevent real regressions.",
+    "- Start with the supplied diff. Use read and search tools only when they resolve a specific uncertainty.",
+    "- Return one final review only. Do not return pass notes, research narration, or unfinished work.",
   ];
 }
 
@@ -17,18 +24,5 @@ export function findingValidationBullets(): string[] {
     "- Reject findings whose fix would add unused abstraction, defensive bloat for impossible states, or comments that merely restate code.",
     "- If evidence is body-only, explain why the issue cannot be anchored to a changed line and why it is still caused by this change.",
     "- If a candidate finding cannot pass these gates, drop it instead of posting a caveat.",
-  ];
-}
-
-export function reviewFindingTemplate(): string[] {
-  return [
-    "### Short title",
-    "- Severity: critical|important|minor",
-    "- Confidence: high|medium",
-    "- Path: `path/to/file`",
-    '- Line: new-diff line number if known, otherwise "body-only"',
-    "- Evidence: quote or summarize the concrete code path",
-    "- Impact: what breaks or gets harder to maintain",
-    "- Fix: the smallest concrete change required",
   ];
 }

@@ -22,11 +22,6 @@ const ENV_KEYS = [
   "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
   "INPUT_COST_RATES",
-  "INPUT_REVIEW_LENSES",
-  "INPUT_REVIEW_AGENT_COUNT",
-  "INPUT_ADVISOR_MODEL",
-  "INPUT_ADVISOR_THINKING",
-  "INPUT_VALIDATOR_THINKING",
   "INPUT_MAX_COST_USD",
   "INPUT_MAX_TURNS",
   "INPUT_RUN_TIMEOUT_SECONDS",
@@ -176,11 +171,6 @@ describe("parseInputs", () => {
     expect(parseInputs().configPath).toBe(".elek.yml");
   });
 
-  it("leaves review_strategy unset so repo config can provide a default", () => {
-    delete process.env.INPUT_REVIEW_STRATEGY;
-    expect(parseInputs().reviewStrategy).toBe("");
-  });
-
   it("enables cost reporting by default", () => {
     delete process.env.INPUT_SHOW_COST;
     expect(parseInputs().showCost).toBe(true);
@@ -199,21 +189,11 @@ describe("parseInputs", () => {
   it("can disable cost reporting and parse rate overrides", () => {
     process.env.INPUT_SHOW_COST = "false";
     process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
-    process.env.INPUT_REVIEW_AGENT_COUNT = "6";
-    process.env.INPUT_REVIEW_LENSES = "security-correctness,contract-drift,mobile-runtime";
-    process.env.INPUT_ADVISOR_MODEL = "openai/gpt-5.6-sol";
-    process.env.INPUT_ADVISOR_THINKING = "medium";
-    process.env.INPUT_VALIDATOR_THINKING = "medium";
     process.env.INPUT_MAX_COST_USD = "0.25";
 
     const inputs = parseInputs();
     expect(inputs.showCost).toBe(false);
     expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
-    expect(inputs.reviewAgentCount).toBe(6);
-    expect(inputs.reviewLenses).toBe("security-correctness,contract-drift,mobile-runtime");
-    expect(inputs.advisorModel).toBe("openai/gpt-5.6-sol");
-    expect(inputs.advisorThinking).toBe("medium");
-    expect(inputs.validatorThinking).toBe("medium");
     expect(inputs.maxCostUsd).toBe(0.25);
   });
 
@@ -228,13 +208,6 @@ describe("parseInputs", () => {
     for (const value of ["-0.05", "abc", "Infinity", ""]) {
       process.env.INPUT_MAX_COST_USD = value;
       expect(parseInputs().maxCostUsd).toBeUndefined();
-    }
-  });
-
-  it("rejects invalid review_agent_count action inputs", () => {
-    for (const value of ["0", "-1", "1.5", "9", "abc", ""]) {
-      process.env.INPUT_REVIEW_AGENT_COUNT = value;
-      expect(parseInputs().reviewAgentCount).toBeUndefined();
     }
   });
 

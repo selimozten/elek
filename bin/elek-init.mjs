@@ -50,7 +50,6 @@ const PROVIDERS = {
 
 const DEFAULTS = {
   provider: "deepseek",
-  strategy: "solo",
   actionRef: "selimozten/elek@v1",
   workflowPath: ".github/workflows/elek.yml",
   configPath: ".elek.yml",
@@ -83,7 +82,6 @@ export function parseArgs(argv) {
       "--model",
       "--secret",
       "--thinking",
-      "--strategy",
       "--action-ref",
       "--workflow",
       "--config-path",
@@ -103,9 +101,6 @@ export function parseArgs(argv) {
           break;
         case "--thinking":
           options.thinking = value;
-          break;
-        case "--strategy":
-          options.strategy = value;
           break;
         case "--action-ref":
           options.actionRef = value;
@@ -132,9 +127,6 @@ export function finalizeOptions(options) {
   const providerDefaults = PROVIDERS[options.provider];
   if (!providerDefaults) {
     throw new Error(`Unsupported provider: ${options.provider}. Choose one of: ${Object.keys(PROVIDERS).join(", ")}`);
-  }
-  if (!["solo", "crosscheck", "council", "thermos"].includes(options.strategy)) {
-    throw new Error("Unsupported strategy. Choose one of: solo, crosscheck, council, thermos");
   }
   const secret = options.secret ?? providerDefaults.secret;
   const thinking = options.thinking ?? providerDefaults.thinking;
@@ -227,12 +219,8 @@ jobs:
 ${configLine}`;
 }
 
-export function renderConfig(options) {
-  const lines = [];
-  if (options.strategy !== "solo") {
-    lines.push(`review_strategy: ${options.strategy}`, "");
-  }
-  lines.push(
+export function renderConfig() {
+  const lines = [
     "severity_threshold: important",
     "",
     "knowledge_paths:",
@@ -247,7 +235,7 @@ export function renderConfig(options) {
     "instructions:",
     "  - Treat auth, permissions, data deletion, migrations, and billing changes as high-risk.",
     "  - Require tests for parser, config, and security-sensitive behavior changes.",
-  );
+  ];
   return `${lines.join("\n")}\n`;
 }
 
@@ -257,7 +245,7 @@ export function planFiles(options) {
     if (options.configPath === options.workflowPath) {
       throw new Error("--workflow and --config-path must be different files");
     }
-    files.push({ path: options.configPath, body: renderConfig(options) });
+    files.push({ path: options.configPath, body: renderConfig() });
   }
   return files;
 }
@@ -294,7 +282,6 @@ Options:
   --model <id>            provider model id
   --secret <name>         GitHub Actions secret name for the provider key
   --thinking <level>      off, minimal, low, medium, high, xhigh, or max
-  --strategy <name>       solo, crosscheck, council, or thermos
   --config                write .elek.yml, enabled by default
   --no-config             write only .github/workflows/elek.yml
   --force                 overwrite existing files

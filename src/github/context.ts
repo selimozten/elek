@@ -33,17 +33,6 @@ function parseMaxCostInput(value: string): number | null | undefined {
   return parsed;
 }
 
-function parseReviewAgentCountInput(value: string): number | undefined {
-  const normalized = value.trim();
-  if (!normalized) return undefined;
-  const parsed = Number(normalized);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
-    core.warning(`Ignoring invalid review_agent_count input: ${normalized}`);
-    return undefined;
-  }
-  return parsed;
-}
-
 function parseMaxTurnsInput(value: string): number | undefined {
   const normalized = value.trim();
   if (!normalized) return undefined;
@@ -83,14 +72,6 @@ export function parseInputs(): ActionInputs {
     runTimeoutSeconds: parseRunTimeoutInput(core.getInput("run_timeout_seconds")),
     configPath: core.getInput("config_path") || ".elek.yml",
     stickyComment: parseBooleanInput(core.getInput("sticky_comment"), true),
-    reviewStrategy: core.getInput("review_strategy") || "",
-    reviewModels: core.getInput("review_models") || "",
-    reviewLenses: core.getInput("review_lenses") || "",
-    reviewAgentCount: parseReviewAgentCountInput(core.getInput("review_agent_count")),
-    advisorModel: core.getInput("advisor_model") || "",
-    advisorThinking: core.getInput("advisor_thinking") || "",
-    validatorModel: core.getInput("validator_model") || "",
-    validatorThinking: core.getInput("validator_thinking") || "",
     severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
     showCost: parseBooleanInput(core.getInput("show_cost"), true),
     costRates: core.getInput("cost_rates") || "",

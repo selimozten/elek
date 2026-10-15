@@ -1,27 +1,14 @@
 import { describe, expect, it } from "bun:test";
-import { findingValidationBullets, reviewContractBullets, reviewFindingTemplate } from "../src/review/contract";
+import { findingValidationBullets, reviewLensLines } from "../src/review/contract";
 
 describe("review finding contract", () => {
-  it("requires the core finding fields and filters low-confidence output", () => {
-    const bullets = reviewContractBullets();
+  it("applies the risk and design lenses, then validates candidates", () => {
+    const lines = reviewLensLines().join("\n");
 
-    expect(bullets).toContain("- Every finding must include severity, confidence, evidence, impact, and a concrete fix.");
-    expect(bullets).toContain("- Severity must be one of: critical, important, minor.");
-    expect(bullets).toContain("- Confidence must be high or medium. Do not surface low-confidence findings.");
-    expect(bullets).toContain("- Fix must describe the smallest concrete change that would resolve the issue.");
-  });
-
-  it("provides a non-redundant finding template", () => {
-    expect(reviewFindingTemplate()).toEqual([
-      "### Short title",
-      "- Severity: critical|important|minor",
-      "- Confidence: high|medium",
-      "- Path: `path/to/file`",
-      '- Line: new-diff line number if known, otherwise "body-only"',
-      "- Evidence: quote or summarize the concrete code path",
-      "- Impact: what breaks or gets harder to maintain",
-      "- Fix: the smallest concrete change required",
-    ]);
+    expect(lines).toContain("1. **Risk**: Audit changed code for concrete bugs, security vulnerabilities");
+    expect(lines).toContain("2. **Design**: Audit changed code for structural regressions");
+    expect(lines).toContain("- Treat each candidate as a hypothesis and verify it against the changed code.");
+    expect(lines).toContain("Use read and search tools only when they resolve a specific uncertainty.");
   });
 
   it("defines validation gates that reject unverifiable findings", () => {

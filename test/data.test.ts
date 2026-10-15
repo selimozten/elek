@@ -248,6 +248,16 @@ describe("buildPrompt", () => {
     expect(out).not.toContain("git add");
   });
 
+  it("always applies the built-in risk and design lenses, even with a custom request", () => {
+    const out = buildPrompt(baseData, "focus on the auth migration", "m");
+
+    expect(out).toContain("focus on the auth migration");
+    expect(out).toContain("### Review lenses");
+    expect(out).toContain("1. **Risk**:");
+    expect(out).toContain("2. **Design**:");
+    expect(out.indexOf("### Review lenses")).toBeGreaterThan(out.indexOf("</user_request>"));
+  });
+
   it("requires concise findings in the response format", () => {
     const out = buildPrompt(baseData, "", "m");
 

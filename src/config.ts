@@ -5,14 +5,6 @@ import { parse as parseYaml } from "yaml";
 import type { ActionInputs } from "./types.js";
 
 export interface ElekConfig {
-  reviewStrategy?: string;
-  reviewModels?: string;
-  reviewLenses?: string;
-  reviewAgentCount?: number;
-  advisorModel?: string;
-  advisorThinking?: string;
-  validatorModel?: string;
-  validatorThinking?: string;
   costRates?: string;
   maxCostUsd?: number | null;
   severityThreshold?: "critical" | "important" | "minor";
@@ -36,14 +28,6 @@ export interface ElekConfigLoadResult {
 }
 
 type ElekConfigKey =
-  | "reviewStrategy"
-  | "reviewModels"
-  | "reviewLenses"
-  | "reviewAgentCount"
-  | "advisorModel"
-  | "advisorThinking"
-  | "validatorModel"
-  | "validatorThinking"
   | "costRates"
   | "maxCostUsd"
   | "severityThreshold"
@@ -59,14 +43,6 @@ export class ElekConfigParseError extends Error {
 }
 
 const KEY_MAP: Record<string, ElekConfigKey> = {
-  review_strategy: "reviewStrategy",
-  review_models: "reviewModels",
-  review_lenses: "reviewLenses",
-  review_agent_count: "reviewAgentCount",
-  advisor_model: "advisorModel",
-  advisor_thinking: "advisorThinking",
-  validator_model: "validatorModel",
-  validator_thinking: "validatorThinking",
   cost_rates: "costRates",
   max_cost_usd: "maxCostUsd",
   severity_threshold: "severityThreshold",
@@ -79,36 +55,12 @@ const SEVERITIES = new Set(["critical", "important", "minor"]);
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_PROMPT_LIST_ITEMS = 50;
 const MAX_PROMPT_ENTRY_CHARS = 500;
-const MAX_REVIEW_AGENT_COUNT = 8;
 const MAX_KNOWLEDGE_FILES = 16;
 const MAX_KNOWLEDGE_FILE_BYTES = 80_000;
 const MAX_KNOWLEDGE_TOTAL_BYTES = 240_000;
 const MAX_KNOWLEDGE_DEPTH = 4;
 const DEFAULT_KNOWLEDGE_PATHS = ["AGENTS.md", "CONTRIBUTING.md", "docs/ARCHITECTURE.md", "docs/adr"];
 const KNOWLEDGE_FILE_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".adoc", ".rst"]);
-const REVIEW_STRATEGY_ALIASES: Record<string, string> = {
-  solo: "solo",
-  crosscheck: "crosscheck",
-  "cross-check": "crosscheck",
-  dual: "crosscheck",
-  duo: "crosscheck",
-  council: "council",
-  swarm: "council",
-  panel: "council",
-  thermos: "thermos",
-  thermo: "thermos",
-  thermonuclear: "thermos",
-  "thermo-nuclear": "thermos",
-  nuclear: "thermos",
-  multiagent: "thermos",
-  "multi-agent": "thermos",
-};
-
-export function normalizeReviewStrategy(raw: string | undefined): string | undefined {
-  const strategy = raw?.trim().toLowerCase();
-  return strategy ? REVIEW_STRATEGY_ALIASES[strategy] : undefined;
-}
-
 function emptyConfig(): ElekConfig {
   return { ignorePaths: [], instructions: [] };
 }
@@ -206,21 +158,6 @@ function positiveNumberOrDisabled(
   return positiveNumber(value, key, warn);
 }
 
-function boundedReviewAgentCount(value: unknown, key: string, warn: (message: string) => void): number | undefined {
-  const scalar = stringValue(value);
-  if (!scalar && value != null && typeof value !== "string") {
-    warn(`Ignoring non-scalar ${key} value`);
-    return undefined;
-  }
-  if (!scalar) return undefined;
-  const parsed = Number(scalar);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_REVIEW_AGENT_COUNT) {
-    warn(`Ignoring invalid ${key}: ${scalar}`);
-    return undefined;
-  }
-  return parsed;
-}
-
 function promptText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -272,32 +209,12 @@ export function parseElekConfig(
       case "knowledgePaths":
         config.knowledgePaths = boundedPromptList(stringList(value, rawKey, warn), rawKey, warn);
         break;
-      case "reviewModels":
-        config.reviewModels = modelList(value, rawKey, warn);
-        break;
-      case "reviewLenses":
-        config.reviewLenses = modelList(value, rawKey, warn);
-        break;
-      case "reviewAgentCount":
-        config.reviewAgentCount = boundedReviewAgentCount(value, rawKey, warn);
-        break;
       case "costRates":
         config.costRates = modelList(value, rawKey, warn);
         break;
       case "maxCostUsd":
         config.maxCostUsd = positiveNumberOrDisabled(value, rawKey, warn);
         break;
-      case "reviewStrategy": {
-        const strategy = stringValue(value);
-        if (!strategy) break;
-        const canonical = normalizeReviewStrategy(strategy);
-        if (!canonical) {
-          warn(`Ignoring invalid review_strategy: ${strategy.toLowerCase()}`);
-          break;
-        }
-        config.reviewStrategy = canonical;
-        break;
-      }
       case "severityThreshold": {
         const severity = stringValue(value)?.toLowerCase();
         if (!severity) break;
@@ -306,26 +223,6 @@ export function parseElekConfig(
           break;
         }
         config.severityThreshold = severity as ElekConfig["severityThreshold"];
-        break;
-      }
-      case "advisorModel":
-      case "validatorModel": {
-        const scalar = stringValue(value);
-        if (scalar) {
-          config[key] = scalar;
-        } else if (value != null) {
-          warn(`Ignoring non-scalar ${rawKey} value`);
-        }
-        break;
-      }
-      case "advisorThinking":
-      case "validatorThinking": {
-        const scalar = stringValue(value);
-        if (scalar) {
-          config[key] = scalar;
-        } else if (value != null) {
-          warn(`Ignoring non-scalar ${rawKey} value`);
-        }
         break;
       }
       default: {
@@ -783,14 +680,6 @@ export function mergeBasePolicyWithWorkspaceGuidance(
   _workspaceGuidance: ElekConfig,
 ): ElekConfig {
   return {
-    reviewStrategy: basePolicy.reviewStrategy,
-    reviewModels: basePolicy.reviewModels,
-    reviewLenses: basePolicy.reviewLenses,
-    reviewAgentCount: basePolicy.reviewAgentCount,
-    advisorModel: basePolicy.advisorModel,
-    advisorThinking: basePolicy.advisorThinking,
-    validatorModel: basePolicy.validatorModel,
-    validatorThinking: basePolicy.validatorThinking,
     costRates: basePolicy.costRates,
     maxCostUsd: basePolicy.maxCostUsd,
     severityThreshold: basePolicy.severityThreshold,
@@ -804,24 +693,6 @@ export function mergeBasePolicyWithWorkspaceGuidance(
 export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): ActionInputs {
   return {
     ...inputs,
-    reviewStrategy:
-      !inputs.reviewStrategy && config.reviewStrategy ? config.reviewStrategy : inputs.reviewStrategy,
-    reviewModels:
-      !inputs.reviewModels && config.reviewModels ? config.reviewModels : inputs.reviewModels,
-    reviewLenses:
-      !inputs.reviewLenses && config.reviewLenses ? config.reviewLenses : inputs.reviewLenses,
-    reviewAgentCount:
-      inputs.reviewAgentCount === undefined && config.reviewAgentCount !== undefined
-        ? config.reviewAgentCount
-        : inputs.reviewAgentCount,
-    advisorModel:
-      !inputs.advisorModel && config.advisorModel ? config.advisorModel : inputs.advisorModel,
-    advisorThinking:
-      !inputs.advisorThinking && config.advisorThinking ? config.advisorThinking : inputs.advisorThinking,
-    validatorModel:
-      !inputs.validatorModel && config.validatorModel ? config.validatorModel : inputs.validatorModel,
-    validatorThinking:
-      !inputs.validatorThinking && config.validatorThinking ? config.validatorThinking : inputs.validatorThinking,
     severityThreshold:
       !inputs.severityThreshold && config.severityThreshold ? config.severityThreshold : inputs.severityThreshold,
     costRates: !inputs.costRates && config.costRates ? config.costRates : inputs.costRates,
@@ -850,8 +721,6 @@ export function formatConfigAuditLog(
     "[config] audit",
     `path=${disabled ? "(disabled)" : path}`,
     `source=${disabled ? "(disabled)" : source}`,
-    `review_strategy=${config.reviewStrategy ?? "(unset)"}`,
-    `review_lenses=${config.reviewLenses ?? "(unset)"}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
     `cost_rates=${config.costRates ?? "(unset)"}`,
     `knowledge_paths=${knowledgePaths}`,
@@ -860,8 +729,6 @@ export function formatConfigAuditLog(
     `instructions=${config.instructions.length}`,
   ];
   if (effective) {
-    fields.push(`effective_review_strategy=${effective.reviewStrategy || "solo"}`);
-    fields.push(`effective_review_lenses=${effective.reviewLenses || "(strategy defaults)"}`);
     fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
     fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
   }
