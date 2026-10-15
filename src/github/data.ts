@@ -3,7 +3,7 @@
  */
 import type { GitHubEntityContext } from "../types.js";
 import { getGitDiff } from "./git.js";
-import { findingValidationBullets } from "../review/contract.js";
+import { findingValidationBullets, reviewLensLines } from "../review/contract.js";
 import { formatConfigPromptBlock, type ElekConfig } from "../config.js";
 import {
   DEFAULT_REVIEW_PATCH_OMIT_PATTERNS,
@@ -231,6 +231,11 @@ export function buildPrompt(
   parts.push("   - Prioritize by severity: 🔴 Blocker → 🟡 Important → 🟢 Nit");
   parts.push("   - Report only high-confidence findings that pass every acceptance gate.");
   parts.push(`   ${commentId ? "ALL feedback goes into your comment. Your console output is NOT visible to anyone." : ""}`);
+  parts.push("");
+
+  parts.push("### Review lenses");
+  parts.push("");
+  parts.push(...reviewLensLines());
   parts.push("");
 
   parts.push("### Finding acceptance gates");

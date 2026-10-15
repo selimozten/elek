@@ -13,28 +13,6 @@ export interface ActionInputs {
   /** Repo-local config file path, e.g. .elek.yml. */
   configPath: string;
   stickyComment: boolean;
-  /**
-   * Review orchestration strategy:
-   * - solo: one reviewer, current behavior
-   * - crosscheck: one session with risk and design lenses
-   * - council: one session with risk, design, test, and operations lenses
-   * - thermos: one session with selected Thermos lenses
-   */
-  reviewStrategy: string;
-  /** Deprecated compatibility input. */
-  reviewModels: string;
-  /** Optional comma-separated built-in lens IDs for one-session reviews. */
-  reviewLenses?: string;
-  /** Deprecated compatibility input. */
-  reviewAgentCount?: number;
-  /** Deprecated compatibility input. */
-  advisorModel?: string;
-  /** Deprecated compatibility input. */
-  advisorThinking?: string;
-  /** Deprecated compatibility input. */
-  validatorModel: string;
-  /** Deprecated compatibility input. */
-  validatorThinking: string;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";
   /** Show estimated review cost in logs, outputs, and comments. */
