@@ -76,12 +76,12 @@ This paragraph has no review contract fields.
 
 ## Recommendations
 
-Mentioning unrelated benchmark words here should not enter the finding body.
+Mentioning unrelated trailing words here should not enter the finding body.
 `);
 
     expect(findings).toHaveLength(1);
     expect(findings[0].body).not.toContain("Recommendations");
-    expect(findings[0].body).not.toContain("benchmark words");
+    expect(findings[0].body).not.toContain("trailing words");
   });
 
   it("parses the concise verdict format used by the Claude reviewer", () => {
