@@ -79,6 +79,11 @@ describe("review cost estimates", () => {
       outputPerMillion: 3.75,
       source: "builtin",
     });
+    expect(resolveRates("opencode-go/deepseek-v4.1-flash", "")).toEqual({
+      inputPerMillion: 0.15,
+      outputPerMillion: 0.6,
+      source: "builtin",
+    });
     expect(resolveRates("openai/gpt-5.5", "")).toEqual({
       inputPerMillion: 5,
       outputPerMillion: 30,

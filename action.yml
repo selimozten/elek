@@ -17,7 +17,7 @@ inputs:
 
   # ── Model ──
   provider:
-    description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, together, xai, openrouter, etc.)"
+    description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, together, xai, openrouter, opencode-go, etc.)"
     required: false
     default: "anthropic"
   model:
@@ -56,6 +56,9 @@ inputs:
     required: false
   openrouter_api_key:
     description: "OpenRouter API key"
+    required: false
+  opencode_api_key:
+    description: "OpenCode API key (OpenCode Zen and Go, e.g. provider opencode-go)"
     required: false
 
   # ── GitHub Auth ──
@@ -259,6 +262,7 @@ runs:
         TOGETHER_API_KEY: ${{ inputs.together_api_key }}
         XAI_API_KEY: ${{ inputs.xai_api_key }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+        OPENCODE_API_KEY: ${{ inputs.opencode_api_key }}
 
         # ── GitHub / Behavior ──
         GITHUB_TOKEN: ${{ inputs.github_token }}

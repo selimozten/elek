@@ -33,6 +33,16 @@ describe("elek-init", () => {
     expect(options.strategy).toBe("thermos");
   });
 
+  it("uses OpenCode Go defaults with the shared OpenCode key", () => {
+    const options = parseArgs(["--provider=opencode-go"]);
+
+    expect(options.provider).toBe("opencode-go");
+    expect(options.model).toBe("deepseek-v4.1-flash");
+    expect(options.secret).toBe("OPENCODE_API_KEY");
+    expect(options.thinking).toBe("high");
+    expect(renderWorkflow(options)).toContain("opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}");
+  });
+
   it("renders a safe review-only workflow", () => {
     const workflow = renderWorkflow(parseArgs([
       "--provider",

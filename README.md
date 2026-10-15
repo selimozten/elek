@@ -314,7 +314,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Input | Default | Examples |
 |---|---|---|
-| `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `together`, `xai` |
+| `provider` | `anthropic` | `deepseek`, `openrouter`, `openai`, `anthropic`, `google`, `groq`, `mistral`, `together`, `xai`, `opencode-go` |
 | `model` | _(provider default)_ | `deepseek-v4-pro`, `moonshotai/Kimi-K2.7-Code`, `Qwen/Qwen3.7-Max`, `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.5`, `gemini-3.1-pro-preview` |
 | `thinking` | `medium` | Portable pi levels: `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
 | `system_prompt` | _(pi default)_ | Override pi's system prompt |
@@ -478,6 +478,7 @@ Each provider has its own input; only set the one you use. Pi reads the matching
 | `together_api_key` | `TOGETHER_API_KEY` |
 | `xai_api_key` | `XAI_API_KEY` |
 | `openrouter_api_key` | `OPENROUTER_API_KEY` |
+| `opencode_api_key` | `OPENCODE_API_KEY` (OpenCode Zen and Go) |
 
 For AWS Bedrock: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as job-level env. For Vertex: `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_VERTEX_PROJECT_ID`.
 
@@ -536,6 +537,7 @@ Built-in price hints cover the recommended low-cost defaults:
 | `together/moonshotai/Kimi-K2.7-Code` | built in | Fast low-cost reviewer through Together |
 | `together/deepseek-ai/DeepSeek-V4-Pro-0813` | bundled registration | DeepSeek reviewer through Together |
 | `together/Qwen/Qwen3.7-Max` | built in | Independent Qwen reviewer through Together |
+| `opencode-go/deepseek-v4.1-flash` | built in | Low-cost reviewer through OpenCode Go |
 | `openai/gpt-5.5` | built in | Frontier reviewer |
 
 For premium or newer models, pass your provider's current prices in USD per 1M

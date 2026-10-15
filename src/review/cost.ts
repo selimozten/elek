@@ -31,6 +31,7 @@ const BUILTIN_RATES: Record<string, Omit<ModelRates, "source">> = {
   "together/deepseek-ai/deepseek-v4-pro": { inputPerMillion: 2.1, outputPerMillion: 4.4 },
   "together/deepseek-ai/deepseek-v4-pro-0813": { inputPerMillion: 1.32, outputPerMillion: 3.96 },
   "together/qwen/qwen3.7-max": { inputPerMillion: 1.25, outputPerMillion: 3.75 },
+  "opencode-go/deepseek-v4.1-flash": { inputPerMillion: 0.15, outputPerMillion: 0.6 },
   "openai/gpt-5.5": { inputPerMillion: 5, outputPerMillion: 30 },
 };
 const overrideCache = new Map<string, Record<string, Omit<ModelRates, "source">>>();
