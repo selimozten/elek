@@ -9,14 +9,6 @@ export interface PublicReviewOutput {
   removedParagraphs: number;
 }
 
-export interface PublicReviewOutputOptions {
-  internalModelLabels?: string[];
-  publicModelLabel?: string;
-  requireVerdictFormat?: boolean;
-  severityThreshold?: "critical" | "important" | "minor" | "";
-  diff?: string;
-}
-
 export function reviewConclusion(
   modelConclusion: "success" | "failure",
   usable: boolean,
@@ -33,7 +25,6 @@ const GENERIC_INTERNAL_ONLY =
 export function preparePublicReviewOutput(
   output: string,
   conclusion: "success" | "failure",
-  options: PublicReviewOutputOptions = {},
 ): PublicReviewOutput {
   const safe = sanitize(output).trim();
   if (conclusion === "failure") {
@@ -81,11 +72,7 @@ export function preparePublicReviewOutput(
     removedParagraphs += footerStripped.removedParagraphs;
   }
 
-  const body = redactInternalModelLabels(
-    footerStripped.paragraphs.join("\n\n").trim(),
-    options.internalModelLabels ?? [],
-    options.publicModelLabel,
-  );
+  const body = footerStripped.paragraphs.join("\n\n").trim();
   if (!body || !hasReviewSignal(body) || hasMergeApprovalLanguage(body)) {
     return {
       body: GENERIC_INTERNAL_ONLY,
@@ -176,25 +163,4 @@ function isHostManagedFooterLine(line: string): boolean {
     /^_?\*?.+?\s+·\s+\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)\*?_?$/i.test(line) ||
     /^<!--\s*elek-bot(?::[^>]*)?\s*-->$/i.test(line)
   );
-}
-
-function redactInternalModelLabels(
-  text: string,
-  internalModelLabels: string[],
-  publicModelLabel: string | undefined,
-): string {
-  const replacement = publicModelLabel?.trim();
-  if (!text || !replacement) return text;
-  return internalModelLabels
-    .map((label) => label.trim())
-    .filter((label) => label && label !== replacement)
-    .sort((a, b) => b.length - a.length)
-    .reduce(
-      (current, label) => current.replace(new RegExp(escapeRegExp(label), "g"), replacement),
-      text,
-    );
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

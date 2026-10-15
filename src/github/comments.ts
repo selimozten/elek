@@ -42,11 +42,9 @@ type TrackingComment = {
   kind: TrackingCommentKind;
 };
 
-const defaultTrustedCommentAuthors = new Set([
-  "github-actions[bot]",
-  "elek[bot]",
-  "eleksh[bot]",
-]);
+// The default GITHUB_TOKEN posts as github-actions[bot]. Workflows that pass
+// a PAT or GitHub App token set ELEK_TRACKING_COMMENT_AUTHORS to that login.
+const defaultTrustedCommentAuthors = new Set(["github-actions[bot]"]);
 
 function jobRunLink(context: GitHubEntityContext): string {
   const runId = process.env.GITHUB_RUN_ID || "?";
