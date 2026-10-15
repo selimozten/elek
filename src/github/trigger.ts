@@ -3,6 +3,20 @@
  * Checks if the event should trigger pi based on mentions, labels, assignees, or explicit prompts.
  */
 import type { GitHubEntityContext, ActionInputs } from "../types";
+import { resolveMode } from "./mode";
+
+/** Pull request actions that change what a reviewer would see. */
+export const AUTO_REVIEW_ACTIONS: ReadonlySet<string> = new Set([
+  "opened",
+  "synchronize",
+  "reopened",
+  "ready_for_review",
+]);
+
+/** Request used when a pull_request event triggers a review by itself. */
+export const DEFAULT_REVIEW_REQUEST =
+  "Review this pull request for correctness, security, performance, and " +
+  "maintainability. Reference specific files and lines.";
 
 /**
  * Check if the current event context contains a trigger for pi to act.
@@ -42,7 +56,29 @@ export function detectTrigger(
     }
   }
 
+  if (shouldAutoReview(context, inputs)) {
+    return DEFAULT_REVIEW_REQUEST;
+  }
+
   return null;
+}
+
+/**
+ * A workflow subscribed to pull_request events is asking for reviews; the
+ * README and elek-init promise one on every push. Agent mode can push
+ * commits, so it still needs an explicit prompt, phrase, or label.
+ */
+export function shouldAutoReview(
+  context: GitHubEntityContext,
+  inputs: ActionInputs,
+): boolean {
+  return (
+    inputs.autoReview &&
+    context.eventName === "pull_request" &&
+    AUTO_REVIEW_ACTIONS.has(context.eventAction) &&
+    context.pr?.draft !== true &&
+    !resolveMode(inputs.mode).allowEdit
+  );
 }
 
 /**

@@ -3,7 +3,12 @@
  * Pure logic — no GitHub API calls, no env reads.
  */
 import { describe, it, expect } from "bun:test";
-import { detectTrigger, isActorAllowed, isActorAuthorized } from "../src/github/trigger";
+import {
+  DEFAULT_REVIEW_REQUEST,
+  detectTrigger,
+  isActorAllowed,
+  isActorAuthorized,
+} from "../src/github/trigger";
 import type { ActionInputs, GitHubEntityContext } from "../src/types";
 
 const baseInputs: ActionInputs = {
@@ -12,6 +17,7 @@ const baseInputs: ActionInputs = {
   model: "",
   thinking: "medium",
   prompt: "",
+  autoReview: true,
   systemPrompt: "",
   maxTurns: 20,
   runTimeoutSeconds: 600,
@@ -41,6 +47,12 @@ const baseCtx: GitHubEntityContext = {
   entityNumber: 1,
   isPR: true,
   triggerText: "",
+};
+
+const prCommentCtx: GitHubEntityContext = {
+  ...baseCtx,
+  eventName: "issue_comment",
+  eventAction: "created",
 };
 
 describe("detectTrigger", () => {
@@ -79,7 +91,7 @@ describe("detectTrigger", () => {
 
   it("returns null when neither prompt nor trigger phrase is present", () => {
     const result = detectTrigger(
-      { ...baseCtx, triggerText: "just a regular comment" },
+      { ...prCommentCtx, triggerText: "just a regular comment" },
       baseInputs,
     );
     expect(result).toBeNull();
@@ -87,11 +99,11 @@ describe("detectTrigger", () => {
 
   it("does not match trigger phrases inside longer words", () => {
     expect(detectTrigger(
-      { ...baseCtx, triggerText: "The @piano config changed" },
+      { ...prCommentCtx, triggerText: "The @piano config changed" },
       baseInputs,
     )).toBeNull();
     expect(detectTrigger(
-      { ...baseCtx, triggerText: "Please ping x@pi for details" },
+      { ...prCommentCtx, triggerText: "Please ping x@pi for details" },
       baseInputs,
     )).toBeNull();
   });
@@ -122,6 +134,85 @@ describe("detectTrigger", () => {
       baseInputs,
     );
     expect(result).toBeNull();
+  });
+});
+
+describe("detectTrigger auto-review", () => {
+  const prCtx = (eventAction: string, pr: Partial<NonNullable<GitHubEntityContext["pr"]>> = {}) => ({
+    ...baseCtx,
+    eventAction,
+    triggerText: "Adds a parser",
+    pr: {
+      title: "t",
+      body: "Adds a parser",
+      headRef: "feature/x",
+      baseRef: "main",
+      headSha: "h",
+      baseSha: "b",
+      draft: false,
+      ...pr,
+    },
+  });
+
+  for (const action of ["opened", "synchronize", "reopened", "ready_for_review"]) {
+    it(`reviews pull_request.${action} without a prompt or trigger phrase`, () => {
+      expect(detectTrigger(prCtx(action), baseInputs)).toBe(DEFAULT_REVIEW_REQUEST);
+    });
+  }
+
+  it("ignores pull_request actions that do not change the code under review", () => {
+    for (const action of ["closed", "edited", "labeled", "assigned", "converted_to_draft"]) {
+      expect(detectTrigger(prCtx(action), baseInputs)).toBeNull();
+    }
+  });
+
+  it("skips draft pull requests", () => {
+    expect(detectTrigger(prCtx("opened", { draft: true }), baseInputs)).toBeNull();
+    expect(detectTrigger(prCtx("synchronize", { draft: true }), baseInputs)).toBeNull();
+  });
+
+  it("keeps the explicit prompt input ahead of the default request", () => {
+    expect(detectTrigger(prCtx("synchronize"), { ...baseInputs, prompt: "focus on auth" })).toBe("focus on auth");
+  });
+
+  it("keeps the trigger phrase in the PR body ahead of the default request", () => {
+    expect(detectTrigger(
+      { ...prCtx("opened"), triggerText: "@pi check the migration" },
+      baseInputs,
+    )).toBe("check the migration");
+  });
+
+  it("can be disabled with auto_review: false", () => {
+    expect(detectTrigger(prCtx("opened"), { ...baseInputs, autoReview: false })).toBeNull();
+  });
+
+  it("does not auto-trigger agent mode, which can push commits", () => {
+    expect(detectTrigger(prCtx("opened"), { ...baseInputs, mode: "agent" })).toBeNull();
+    expect(detectTrigger(prCtx("opened"), { ...baseInputs, mode: "review+edit" })).toBe(DEFAULT_REVIEW_REQUEST);
+  });
+
+  it("leaves comment, review, and issue events on explicit triggers", () => {
+    for (const eventName of ["issue_comment", "pull_request_review", "pull_request_review_comment"] as const) {
+      expect(detectTrigger(
+        { ...prCtx("created"), eventName, triggerText: "looks good" },
+        baseInputs,
+      )).toBeNull();
+      expect(detectTrigger(
+        { ...prCtx("created"), eventName, triggerText: "@pi why?" },
+        baseInputs,
+      )).toBe("why?");
+    }
+    expect(detectTrigger(
+      {
+        ...baseCtx,
+        eventName: "issues",
+        eventAction: "opened",
+        isPR: false,
+        triggerText: "bug report",
+        issue: { title: "t", body: "bug report", labels: [], assignees: [] },
+      },
+      baseInputs,
+    )).toBeNull();
   });
 });
 

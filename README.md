@@ -99,7 +99,7 @@ Action runtime. If you prefer to wire it manually:
    ```yaml
    name: elek
    on:
-     pull_request: { types: [opened, synchronize, reopened] }
+     pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
      issue_comment: { types: [created] }
      issues: { types: [opened] }
 
@@ -114,7 +114,8 @@ Action runtime. If you prefer to wire it manually:
 
    jobs:
      review:
-       if: ${{ github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]') }}
+       # Fork PRs run without secrets; maintainers can comment @pi instead.
+       if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]')) }}
        runs-on: ubuntu-latest
        timeout-minutes: 15
        steps:
@@ -128,7 +129,7 @@ Action runtime. If you prefer to wire it manually:
              thinking: high
    ```
 
-3. Open a PR. Within ~3 minutes you'll see a tracking comment with a live progress checklist, then the final review (top-level summary + inline threads on changed lines).
+3. Open a PR (or push to one, or mark a draft ready). Within ~3 minutes you'll see a tracking comment with a live progress checklist, then the final review (top-level summary + inline threads on changed lines).
 
 Useful initializer variants:
 
@@ -146,6 +147,12 @@ Estimated review cost: $0.0012 (3,420 in / 810 out tokens)
 
 For models without built-in price hints, elek still reports token estimates and
 returns `$0.0000` until you provide `cost_rates`.
+
+Every non-draft `pull_request` opened, synchronize, reopened, or
+ready_for_review event gets a review with elek's default request; no `prompt:`
+is needed. An explicit `prompt` input or a `@pi …` phrase in the PR body takes
+precedence. Set `auto_review: false` to review only on request. Workflows that
+subscribe only to `issue_comment` are unaffected.
 
 To trigger from a comment, set `trigger_phrase` (default `@pi`) and write `@pi review the auth flow`.
 
@@ -299,6 +306,7 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 |---|---|---|
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
+| `auto_review` | `true` | Review non-draft `pull_request` opened/synchronize/reopened/ready_for_review events without a prompt or `@pi`. Review modes only; `agent` mode always needs an explicit trigger |
 | `mode` | `review` | `review` / `review+edit` / `agent`; `review+edit` is currently read-only |
 | `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |
@@ -510,7 +518,7 @@ Review-mode Pi does not receive the GitHub token.
 
 ## Supported events
 
-- `pull_request` — opened, synchronize, reopened
+- `pull_request` — opened, synchronize, reopened, ready_for_review (auto-review; drafts skipped)
 - `issues` — opened
 - `issue_comment` — created (on PRs or issues)
 - `pull_request_review` — submitted

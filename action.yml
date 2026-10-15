@@ -72,6 +72,13 @@ inputs:
     description: "Custom instructions for pi. If empty and triggered via @pi mention, uses the comment/issue body."
     required: false
     default: ""
+  auto_review:
+    description: >
+      Review pull_request opened, synchronize, reopened, and ready_for_review
+      events (non-draft) without a prompt or trigger phrase. Applies to review
+      modes only; set to false to review only on prompt, @pi, or label.
+    required: false
+    default: "true"
   system_prompt:
     description: "System prompt override for pi"
     required: false
@@ -267,6 +274,7 @@ runs:
         # ── GitHub / Behavior ──
         GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_AUTO_REVIEW: ${{ inputs.auto_review }}
         INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_RUN_TIMEOUT_SECONDS: ${{ inputs.run_timeout_seconds }}

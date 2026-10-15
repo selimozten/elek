@@ -22,7 +22,7 @@ npx --package github:selimozten/elek elek-init --strategy crosscheck --max-cost-
 # .github/workflows/elek.yml
 name: elek
 on:
-  pull_request: { types: [opened, synchronize, reopened] }
+  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
 
 permissions:
   contents: read
@@ -35,6 +35,8 @@ concurrency:
 
 jobs:
   review:
+    # Fork PRs run without secrets; skip them instead of failing.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
