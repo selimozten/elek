@@ -318,4 +318,39 @@ describe("public review output filtering", () => {
     expect(result.filtered).toBe(false);
     expect(result.body).toContain("src/missing.ts:99");
   });
+
+  it("drops a paragraph that only narrates research", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Findings",
+        "- `src/auth.ts:42` — the lookup omits tenant_id. Users can read another tenant's data.",
+        "",
+        "Let me check the session helper next.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.removedParagraphs).toBe(1);
+    expect(result.body).not.toContain("Let me check");
+  });
+
+  it("keeps the findings when narration shares their paragraph", () => {
+    const result = preparePublicReviewOutput(
+      [
+        "## Findings",
+        "I have read the diff and the session helper.",
+        "- `src/auth.ts:42` — the lookup omits tenant_id. Users can read another tenant's data.",
+      ].join("\n"),
+      "success",
+    );
+
+    expect(result.usable).toBe(true);
+    expect(result.filtered).toBe(true);
+    expect(result.body).toBe(
+      "## Findings\n- `src/auth.ts:42` — the lookup omits tenant_id. Users can read another tenant's data.",
+    );
+  });
 });
+

@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import {
   helpText,
+  main,
   parseArgs,
   planFiles,
   renderConfig,
@@ -164,4 +165,30 @@ describe("elek-init", () => {
     expect(parseArgs(["--help"]).help).toBe(true);
     expect(parseArgs(["-h"]).help).toBe(true);
   });
+
+  it("prints help and writes files from the CLI entry point", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-init-cli-test-"));
+    const writes: string[] = [];
+    const originalWrite = process.stdout.write;
+    process.stdout.write = ((chunk: string) => {
+      writes.push(chunk);
+      return true;
+    }) as typeof process.stdout.write;
+    try {
+      expect(main(["--help"], dir)).toBe(0);
+      expect(main(["--provider", "openai"], dir)).toBe(0);
+    } finally {
+      process.stdout.write = originalWrite;
+      rmSync(dir, { recursive: true, force: true });
+    }
+
+    expect(writes[0]).toContain("Create a starter elek GitHub Actions workflow.");
+    expect(writes.join("")).toContain("Created .github/workflows/elek.yml and .elek.yml.");
+    expect(writes.join("")).toContain("Add repository secret OPENAI_API_KEY");
+  });
+
+  it("rejects stray positional arguments", () => {
+    expect(() => parseArgs(["extra"])).toThrow("Unexpected argument: extra");
+  });
 });
+
