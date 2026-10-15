@@ -73,7 +73,6 @@ export function shouldAutoReview(
   inputs: ActionInputs,
 ): boolean {
   return (
-    inputs.autoReview &&
     context.eventName === "pull_request" &&
     AUTO_REVIEW_ACTIONS.has(context.eventAction) &&
     context.pr?.draft !== true &&

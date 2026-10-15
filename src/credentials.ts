@@ -60,22 +60,26 @@ export interface CredentialPreflightRequest {
 }
 
 export function credentialPreflight(request: CredentialPreflightRequest): CredentialPreflight {
-  const key = PROVIDER_KEYS[request.provider];
-  if (!key) return { action: "continue" };
-  if (key.envVars.some((name) => Boolean(request.env[name]?.trim()))) {
+  const key = Object.hasOwn(PROVIDER_KEYS, request.provider)
+    ? PROVIDER_KEYS[request.provider]
+    : undefined;
+  if (key?.envVars.some((name) => Boolean(request.env[name]?.trim()))) {
     return { action: "continue" };
   }
 
+  // Unmapped providers skip too: the read-only fork token cannot post a review.
   if (request.isForkPR && FORK_CONTEXT_EVENTS.has(request.rawEventName ?? "")) {
     return {
       action: "skip",
       message:
         `Skipping elek review: this pull request comes from a fork, and GitHub does not ` +
-        `pass repository secrets to fork workflows, so ${key.input} is empty. ` +
+        `pass repository secrets or a write token to fork workflows. ` +
         `A maintainer can review it from an issue_comment-triggered workflow, which runs ` +
         `with the base repository's secrets.`,
     };
   }
+
+  if (!key) return { action: "continue" };
 
   return {
     action: "fail",

@@ -132,7 +132,7 @@ reasoning effort when supported.
 
 | Trigger | Behavior |
 |---|---|
-| `pull_request.opened` / `synchronize` / `reopened` / `ready_for_review` | Auto-review with the default request; drafts are skipped until ready. `auto_review: false` turns this off |
+| `pull_request.opened` / `synchronize` / `reopened` / `ready_for_review` | Auto-review with the default request; drafts are skipped until ready |
 | `issue_comment` containing `@pi …` | Acts on the comment after the trigger phrase |
 | `issues.opened` | Optional triage when paired with a `prompt:` |
 | Labels (configured separately) | `@pi` label on an issue triggers a run |

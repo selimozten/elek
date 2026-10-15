@@ -151,8 +151,7 @@ returns `$0.0000` until you provide `cost_rates`.
 Every non-draft `pull_request` opened, synchronize, reopened, or
 ready_for_review event gets a review with elek's default request; no `prompt:`
 is needed. An explicit `prompt` input or a `@pi …` phrase in the PR body takes
-precedence. Set `auto_review: false` to review only on request. Workflows that
-subscribe only to `issue_comment` are unaffected.
+precedence. Workflows that subscribe only to `issue_comment` are unaffected.
 
 To trigger from a comment, set `trigger_phrase` (default `@pi`) and write `@pi review the auth flow`.
 
@@ -306,7 +305,6 @@ Full architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 |---|---|---|
 | `trigger_phrase` | `@pi` | Detected in comments, issue body, PR body |
 | `prompt` | _(comment text)_ | Explicit prompt; bypasses trigger detection |
-| `auto_review` | `true` | Review non-draft `pull_request` opened/synchronize/reopened/ready_for_review events without a prompt or `@pi`. Review modes only; `agent` mode always needs an explicit trigger |
 | `mode` | `review` | `review` / `review+edit` / `agent`; `review+edit` is currently read-only |
 | `config_path` | `.elek.yml` | Repo-local defaults and review policy; use `none`, `off`, or `false` to disable |
 | `review_strategy` | _(resolved)_ | `solo` / `crosscheck` / `council` / `thermos` |

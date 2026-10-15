@@ -35,7 +35,6 @@ describe("credentialPreflight", () => {
       expect(result.action).toBe("skip");
       if (result.action === "skip") {
         expect(result.message).toContain("fork");
-        expect(result.message).toContain("deepseek_api_key");
       }
     }
   });
@@ -65,12 +64,23 @@ describe("credentialPreflight", () => {
     }
   });
 
-  it("leaves providers Elek cannot inspect to Pi", () => {
+  it("leaves providers Elek cannot inspect to Pi on same-repo runs", () => {
+    for (const provider of ["amazon-bedrock", "constructor", "__proto__", "toString"]) {
+      expect(credentialPreflight({
+        provider,
+        env: {},
+        rawEventName: "pull_request",
+        isForkPR: false,
+      })).toEqual({ action: "continue" });
+    }
+  });
+
+  it("skips fork pull_request runs for providers it cannot inspect", () => {
     expect(credentialPreflight({
       provider: "amazon-bedrock",
       env: {},
       rawEventName: "pull_request",
-      isForkPR: false,
-    })).toEqual({ action: "continue" });
+      isForkPR: true,
+    }).action).toBe("skip");
   });
 });

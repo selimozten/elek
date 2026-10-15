@@ -17,7 +17,6 @@ const baseInputs: ActionInputs = {
   model: "",
   thinking: "medium",
   prompt: "",
-  autoReview: true,
   systemPrompt: "",
   maxTurns: 20,
   runTimeoutSeconds: 600,
@@ -180,10 +179,6 @@ describe("detectTrigger auto-review", () => {
       { ...prCtx("opened"), triggerText: "@pi check the migration" },
       baseInputs,
     )).toBe("check the migration");
-  });
-
-  it("can be disabled with auto_review: false", () => {
-    expect(detectTrigger(prCtx("opened"), { ...baseInputs, autoReview: false })).toBeNull();
   });
 
   it("does not auto-trigger agent mode, which can push commits", () => {
