@@ -25,8 +25,8 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { createInterface } from "readline";
-import type { ActionInputs, PiRunErrorKind, PiRunResult, PiTurnMetric } from "./types";
-import { estimateRunCost, modelLabelFor, resolveRates, type ReviewCost } from "./review/cost";
+import type { ActionInputs, PiRunErrorKind, PiRunResult } from "./types";
+import { estimateTokens } from "./review/usage";
 
 const REVIEW_SYSTEM_PROMPT = [
   "You are Elek, a noninteractive read-only CI pull-request reviewer.",
@@ -68,12 +68,6 @@ interface PiUsage {
   cacheWrite?: number;
   reasoning?: number;
   totalTokens?: number;
-  cost?: {
-    total?: number;
-    input?: number;
-    output?: number;
-    [k: string]: unknown;
-  };
   [k: string]: unknown;
 }
 
@@ -148,16 +142,13 @@ export async function runPi(
     `Provider: ${inputs.provider}, Model: ${inputs.model || "default"}, Thinking: ${inputs.thinking}`,
   );
   console.log(`Prompt: ${prompt.length.toLocaleString("en-US")} chars`);
-  const runModelLabel = modelLabelFor(inputs);
 
   const startTime = Date.now();
-  let sessionId: string | undefined;
   let toolCount = 0;
   let turnCount = 0;
   let turnStartedAt: number | undefined;
   let firstResponseAt: number | undefined;
   const completedTurnMessages: PiAssistantMessage[] = [];
-  const turnMetrics: PiTurnMetric[] = [];
   let providerRetries = 0;
   let finalAssistant: PiAssistantMessage | undefined;
   let lastErrorMessage: string | undefined;
@@ -216,18 +207,11 @@ export async function runPi(
       }
 
       switch (event.type) {
-        case "session":
-          sessionId = event.id;
-          break;
-
         case "turn_start":
           turnCount++;
           turnStartedAt = Date.now();
           firstResponseAt = undefined;
           streamingText = "";
-          if (inputs.maxTurns !== undefined && turnCount > inputs.maxTurns) {
-            terminatePi(`pi exceeded max turns (${inputs.maxTurns})`);
-          }
           break;
 
         case "auto_retry_start":
@@ -267,15 +251,13 @@ export async function runPi(
           const msg = event.message;
           if (msg?.role === "assistant") {
             completedTurnMessages.push(msg);
-            const metric = turnMetricFromPi(
+            console.log(formatTurnMetric(turnMetricFromPi(
               msg,
               turnCount,
               turnStartedAt,
               firstResponseAt,
               Date.now(),
-            );
-            turnMetrics.push(metric);
-            console.log(formatTurnMetric(metric));
+            )));
           }
           turnStartedAt = undefined;
           firstResponseAt = undefined;
@@ -325,49 +307,20 @@ export async function runPi(
       }
 
       const output = extractAssistantText(finalAssistant) || streamingText.trim();
-      const exactUsage = exactRunUsageFromPi(
+      const usage = runUsage(
         completedTurnMessages.length > 0
           ? completedTurnMessages
           : finalAssistant
             ? [finalAssistant]
             : [],
-        runModelLabel,
-        inputs.costRates,
-      );
-      const usage = exactUsage ?? estimateRunCost({
-        modelLabel: runModelLabel,
         prompt,
         output,
-        costRates: inputs.costRates,
-      });
+      );
       const stopReason = finalAssistant?.stopReason;
       const isErrorStop = stopReason === "error" || stopReason === "aborted";
 
       if (!terminationMessage && code === 0 && output && !isErrorStop) {
-        resolve({
-          conclusion: "success",
-          output,
-          sessionId,
-          turnsUsed: turnCount,
-          promptChars: prompt.length,
-          thinking: inputs.thinking,
-          toolCalls: toolCount,
-          turnMetrics,
-          stopReason,
-          providerRetries,
-          durationSeconds: elapsed,
-          costUsd: usage.costUsd,
-          usage: {
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            cacheReadTokens: exactUsage?.cacheReadTokens ?? 0,
-            cacheWriteTokens: exactUsage?.cacheWriteTokens ?? 0,
-            reasoningTokens: exactUsage?.reasoningTokens,
-            estimated: usage.estimated,
-            modelLabel: usage.modelLabel,
-            source: usage.source,
-          },
-        });
+        resolve({ conclusion: "success", output, usage });
       } else {
         const errMsg =
           terminationMessage ||
@@ -383,31 +336,7 @@ export async function runPi(
           terminationMessage,
         });
         console.error(`pi failed: ${errMsg.substring(0, 500)}`);
-        resolve({
-          conclusion: "failure",
-          output: errMsg,
-          sessionId,
-          turnsUsed: turnCount,
-          promptChars: prompt.length,
-          thinking: inputs.thinking,
-          toolCalls: toolCount,
-          turnMetrics,
-          stopReason,
-          errorKind,
-          providerRetries,
-          durationSeconds: elapsed,
-          costUsd: usage.costUsd,
-          usage: {
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            cacheReadTokens: exactUsage?.cacheReadTokens ?? 0,
-            cacheWriteTokens: exactUsage?.cacheWriteTokens ?? 0,
-            reasoningTokens: exactUsage?.reasoningTokens,
-            estimated: usage.estimated,
-            modelLabel: usage.modelLabel,
-            source: usage.source,
-          },
-        });
+        resolve({ conclusion: "failure", output: errMsg, errorKind, usage });
       }
     });
 
@@ -416,7 +345,6 @@ export async function runPi(
       settled = true;
       clearTimeout(timeoutTimer);
       if (forceKillTimer) clearTimeout(forceKillTimer);
-      const elapsed = (Date.now() - startTime) / 1000;
       console.error(`pi spawn error:`, err.message);
       try {
         await onProgress?.({ type: "done" });
@@ -426,24 +354,8 @@ export async function runPi(
       resolve({
         conclusion: "failure",
         output: err.message,
-        turnsUsed: 0,
-        promptChars: prompt.length,
-        thinking: inputs.thinking,
-        toolCalls: toolCount,
-        turnMetrics,
         errorKind: "process",
-        providerRetries,
-        durationSeconds: elapsed,
-        costUsd: 0,
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          estimated: false,
-          modelLabel: runModelLabel,
-          source: "unknown",
-        },
+        usage: { inputTokens: 0, outputTokens: 0, estimated: false },
       });
     });
   });
@@ -457,7 +369,6 @@ function classifyPiFailure(args: {
   terminationMessage?: string;
 }): PiRunErrorKind {
   if (args.terminationMessage?.startsWith("pi timed out")) return "timeout";
-  if (args.terminationMessage?.startsWith("pi exceeded max turns")) return "turn-limit";
   if (args.stopReason === "length") return "length";
   if (args.code === 0 && !args.output && !args.stopReason) return "empty";
   if (/\b429\b|too many requests|rate[ -]?limit/i.test(args.errorMessage)) return "rate-limit";
@@ -487,10 +398,11 @@ interface PiUsageBreakdown {
   totalTokens: number;
 }
 
-interface ExactRunUsage extends ReviewCost {
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  reasoningTokens?: number;
+interface PiTurnMetric extends PiUsageBreakdown {
+  turn: number;
+  durationSeconds: number;
+  firstResponseSeconds?: number;
+  stopReason?: string;
 }
 
 function turnMetricFromPi(
@@ -557,90 +469,26 @@ function piUsageBreakdown(msg: PiAssistantMessage): PiUsageBreakdown {
   };
 }
 
-function exactRunUsageFromPi(
+/**
+ * Sum provider-reported tokens across turns. Providers that report nothing
+ * get a character-count estimate so the token line is never blank.
+ */
+function runUsage(
   messages: PiAssistantMessage[],
-  modelLabel: string,
-  costRates: string,
-): ExactRunUsage | undefined {
-  const costs = messages
-    .map((message) => exactRunCostFromPi(message, modelLabel, costRates))
-    .filter((cost): cost is ReviewCost => cost !== undefined);
-  if (costs.length === 0) return undefined;
-
+  prompt: string,
+  output: string,
+): PiRunResult["usage"] {
   const usages = messages.map(piUsageBreakdown);
-  const reportedReasoning = usages.some((usage) => usage.reasoningTokens !== undefined);
-  const estimatedCosts = costs.filter((cost) => cost.source !== "provider");
+  const reported = usages.some((usage) =>
+    usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens > 0
+  );
+  if (!reported) {
+    return { inputTokens: estimateTokens(prompt), outputTokens: estimateTokens(output), estimated: true };
+  }
   return {
     inputTokens: usages.reduce((sum, usage) => sum + usage.inputTokens, 0),
     outputTokens: usages.reduce((sum, usage) => sum + usage.outputTokens, 0),
-    cacheReadTokens: usages.reduce((sum, usage) => sum + usage.cacheReadTokens, 0),
-    cacheWriteTokens: usages.reduce((sum, usage) => sum + usage.cacheWriteTokens, 0),
-    reasoningTokens: reportedReasoning
-      ? usages.reduce((sum, usage) => sum + (usage.reasoningTokens ?? 0), 0)
-      : undefined,
-    costUsd: costs.reduce((sum, cost) => sum + cost.costUsd, 0),
-    estimated: costs.some((cost) => cost.estimated),
-    modelLabel,
-    source: estimatedCosts[0]?.source ?? "provider",
-  };
-}
-
-function exactRunCostFromPi(
-  msg: PiAssistantMessage | undefined,
-  modelLabel: string,
-  costRates: string,
-): ReviewCost | undefined {
-  const usage = msg?.usage;
-  if (!usage) return undefined;
-  const inputTokens = firstNonNegativeInteger(
-    usage.input,
-    usage.inputTokens,
-    usage.promptTokens,
-  );
-  const outputTokens = firstNonNegativeInteger(
-    usage.output,
-    usage.outputTokens,
-    usage.completionTokens,
-  );
-  const cacheReadTokens = firstNonNegativeInteger(usage.cacheRead);
-  const cacheWriteTokens = firstNonNegativeInteger(usage.cacheWrite);
-  if (
-    inputTokens === undefined &&
-    outputTokens === undefined &&
-    cacheReadTokens === undefined &&
-    cacheWriteTokens === undefined
-  ) return undefined;
-  const safeInput = inputTokens ?? 0;
-  const safeOutput = outputTokens ?? 0;
-  const safeCacheRead = cacheReadTokens ?? 0;
-  const safeCacheWrite = cacheWriteTokens ?? 0;
-  if (safeInput === 0 && safeOutput === 0 && safeCacheRead === 0 && safeCacheWrite === 0) {
-    return undefined;
-  }
-
-  const providerCost = nonNegativeNumber(usage.cost?.total);
-  if (providerCost !== undefined) {
-    return {
-      inputTokens: safeInput,
-      outputTokens: safeOutput,
-      costUsd: providerCost,
-      estimated: false,
-      modelLabel,
-      source: "provider",
-    };
-  }
-
-  const rates = resolveRates(modelLabel, costRates);
-  const costUsd =
-    ((safeInput + safeCacheRead + safeCacheWrite) / 1_000_000) * rates.inputPerMillion +
-    (safeOutput / 1_000_000) * rates.outputPerMillion;
-  return {
-    inputTokens: safeInput,
-    outputTokens: safeOutput,
-    costUsd,
-    estimated: true,
-    modelLabel,
-    source: rates.source,
+    estimated: false,
   };
 }
 
@@ -650,11 +498,6 @@ function firstNonNegativeInteger(...values: unknown[]): number | undefined {
     return Math.floor(value);
   }
   return undefined;
-}
-
-function nonNegativeNumber(value: unknown): number | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
-  return value;
 }
 
 /**

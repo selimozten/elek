@@ -20,11 +20,8 @@ const ENV_KEYS = [
   "GITHUB_REPOSITORY_OWNER",
   "INPUT_CONFIG_PATH",
   "INPUT_STICKY_COMMENT",
-  "INPUT_SHOW_COST",
-  "INPUT_COST_RATES",
-  "INPUT_MAX_COST_USD",
-  "INPUT_MAX_TURNS",
   "INPUT_RUN_TIMEOUT_SECONDS",
+  "INPUT_SEVERITY_THRESHOLD",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -171,46 +168,6 @@ describe("parseInputs", () => {
     expect(parseInputs().configPath).toBe(".elek.yml");
   });
 
-  it("enables cost reporting by default", () => {
-    delete process.env.INPUT_SHOW_COST;
-    expect(parseInputs().showCost).toBe(true);
-  });
-
-  it("uses no turn cap unless one is explicit", () => {
-    delete process.env.INPUT_MAX_TURNS;
-    expect(parseInputs().maxTurns).toBeUndefined();
-
-    for (const value of ["0", "off", "none", "false", "disabled"]) {
-      process.env.INPUT_MAX_TURNS = value;
-      expect(parseInputs().maxTurns).toBeUndefined();
-    }
-  });
-
-  it("can disable cost reporting and parse rate overrides", () => {
-    process.env.INPUT_SHOW_COST = "false";
-    process.env.INPUT_COST_RATES = "openai/gpt-5.5=1:2";
-    process.env.INPUT_MAX_COST_USD = "0.25";
-
-    const inputs = parseInputs();
-    expect(inputs.showCost).toBe(false);
-    expect(inputs.costRates).toBe("openai/gpt-5.5=1:2");
-    expect(inputs.maxCostUsd).toBe(0.25);
-  });
-
-  it("can explicitly disable inherited max_cost_usd action inputs", () => {
-    for (const value of ["0", "off", "none", "false", "disabled"]) {
-      process.env.INPUT_MAX_COST_USD = value;
-      expect(parseInputs().maxCostUsd).toBeNull();
-    }
-  });
-
-  it("rejects invalid max_cost_usd action inputs", () => {
-    for (const value of ["-0.05", "abc", "Infinity", ""]) {
-      process.env.INPUT_MAX_COST_USD = value;
-      expect(parseInputs().maxCostUsd).toBeUndefined();
-    }
-  });
-
   it("uses no run timeout unless one is explicit", () => {
     delete process.env.INPUT_RUN_TIMEOUT_SECONDS;
     expect(parseInputs().runTimeoutSeconds).toBeUndefined();
@@ -236,11 +193,12 @@ describe("parseInputs", () => {
   });
 
   it("normalizes boolean-like action inputs", () => {
-    process.env.INPUT_SHOW_COST = "OFF";
-    process.env.INPUT_STICKY_COMMENT = "0";
+    delete process.env.INPUT_STICKY_COMMENT;
+    expect(parseInputs().stickyComment).toBe(true);
 
-    const inputs = parseInputs();
-    expect(inputs.showCost).toBe(false);
-    expect(inputs.stickyComment).toBe(false);
+    for (const value of ["0", "OFF", "false", "no"]) {
+      process.env.INPUT_STICKY_COMMENT = value;
+      expect(parseInputs().stickyComment).toBe(false);
+    }
   });
 });

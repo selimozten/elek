@@ -67,10 +67,9 @@ it("runs the real Pi CLI with guarded native tools and no MCP discovery", async 
     }));
     const inputs: ActionInputs = {
       provider: "smoke", model: "", thinking: "off",
-      prompt: "", maxTurns: 4, runTimeoutSeconds: 20,
+      prompt: "", runTimeoutSeconds: 20,
       configPath: ".elek.yml", stickyComment: true,
-      reviewStrategy: "solo", reviewModels: "", validatorModel: "", validatorThinking: "",
-      severityThreshold: "", showCost: true, costRates: "",
+      severityThreshold: "",
     };
     const progress: ProgressEvent[] = [];
     const result = await runPi("Review this change.", inputs, async (event) => { progress.push(event); });

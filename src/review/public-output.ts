@@ -158,7 +158,7 @@ function isHostManagedFooterParagraph(paragraph: string): boolean {
 
 function isHostManagedFooterLine(line: string): boolean {
   return (
-    /^_?(?:estimated\s+review\s+cost|review\s+cost):\s+.+_?$/i.test(line) ||
+    /^_?(?:estimated\s+)?token\s+usage:\s+.+_?$/i.test(line) ||
     /^\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)$/i.test(line) ||
     /^_?\*?.+?\s+·\s+\[view run\]\(https?:\/\/[^)]+\/actions\/runs\/[^)]+\)\*?_?$/i.test(line) ||
     /^<!--\s*elek-bot(?::[^>]*)?\s*-->$/i.test(line)

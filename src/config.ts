@@ -2,11 +2,8 @@ import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, re
 import { isAbsolute, relative, resolve, sep } from "path";
 import { execFileSync } from "child_process";
 import { parse as parseYaml } from "yaml";
-import type { ActionInputs } from "./types.js";
 
 export interface ElekConfig {
-  costRates?: string;
-  maxCostUsd?: number | null;
   severityThreshold?: "critical" | "important" | "minor";
   /** Repo-local docs to include in the review prompt. */
   knowledgePaths?: string[];
@@ -28,8 +25,6 @@ export interface ElekConfigLoadResult {
 }
 
 type ElekConfigKey =
-  | "costRates"
-  | "maxCostUsd"
   | "severityThreshold"
   | "knowledgePaths"
   | "ignorePaths"
@@ -43,8 +38,6 @@ export class ElekConfigParseError extends Error {
 }
 
 const KEY_MAP: Record<string, ElekConfigKey> = {
-  cost_rates: "costRates",
-  max_cost_usd: "maxCostUsd",
   severity_threshold: "severityThreshold",
   knowledge_paths: "knowledgePaths",
   ignore_paths: "ignorePaths",
@@ -107,57 +100,6 @@ function boundedPromptList(items: string[], key: string, warn: (message: string)
   return bounded;
 }
 
-function modelList(value: unknown, key: string, warn: (message: string) => void): string | undefined {
-  if (Array.isArray(value)) {
-    const items: string[] = [];
-    for (const item of value) {
-      const scalar = stringValue(item);
-      if (scalar) {
-        items.push(scalar);
-      } else {
-        warn(`Ignoring non-scalar ${key} item`);
-      }
-    }
-    return items.length > 0 ? items.join(",") : undefined;
-  }
-  const scalar = stringValue(value);
-  if (!scalar && value != null && typeof value !== "string") {
-    warn(`Ignoring non-scalar ${key} value`);
-  }
-  return scalar;
-}
-
-function positiveNumber(value: unknown, key: string, warn: (message: string) => void): number | undefined {
-  const scalar = stringValue(value);
-  if (!scalar && value != null && typeof value !== "string") {
-    warn(`Ignoring non-scalar ${key} value`);
-    return undefined;
-  }
-  if (!scalar) return undefined;
-  const parsed = Number(scalar);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    warn(`Ignoring invalid ${key}: ${scalar}`);
-    return undefined;
-  }
-  return parsed;
-}
-
-function positiveNumberOrDisabled(
-  value: unknown,
-  key: string,
-  warn: (message: string) => void,
-): number | null | undefined {
-  const scalar = stringValue(value);
-  if (!scalar && value != null && typeof value !== "string") {
-    warn(`Ignoring non-scalar ${key} value`);
-    return undefined;
-  }
-  if (!scalar) return undefined;
-  const normalized = scalar.toLowerCase();
-  if (["0", "off", "none", "false", "disabled"].includes(normalized)) return null;
-  return positiveNumber(value, key, warn);
-}
-
 function promptText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -208,12 +150,6 @@ export function parseElekConfig(
         break;
       case "knowledgePaths":
         config.knowledgePaths = boundedPromptList(stringList(value, rawKey, warn), rawKey, warn);
-        break;
-      case "costRates":
-        config.costRates = modelList(value, rawKey, warn);
-        break;
-      case "maxCostUsd":
-        config.maxCostUsd = positiveNumberOrDisabled(value, rawKey, warn);
         break;
       case "severityThreshold": {
         const severity = stringValue(value)?.toLowerCase();
@@ -675,43 +611,8 @@ export function loadBaseBranchElekConfig(
   }
 }
 
-export function mergeBasePolicyWithWorkspaceGuidance(
-  basePolicy: ElekConfig,
-  _workspaceGuidance: ElekConfig,
-): ElekConfig {
-  return {
-    costRates: basePolicy.costRates,
-    maxCostUsd: basePolicy.maxCostUsd,
-    severityThreshold: basePolicy.severityThreshold,
-    knowledgePaths: basePolicy.knowledgePaths,
-    knowledge: basePolicy.knowledge,
-    ignorePaths: basePolicy.ignorePaths,
-    instructions: basePolicy.instructions,
-  };
-}
-
-export function applyConfigDefaults(inputs: ActionInputs, config: ElekConfig): ActionInputs {
-  return {
-    ...inputs,
-    severityThreshold:
-      !inputs.severityThreshold && config.severityThreshold ? config.severityThreshold : inputs.severityThreshold,
-    costRates: !inputs.costRates && config.costRates ? config.costRates : inputs.costRates,
-    maxCostUsd: inputs.maxCostUsd === undefined && config.maxCostUsd !== undefined
-      ? config.maxCostUsd
-      : inputs.maxCostUsd,
-  };
-}
-
-export function formatConfigAuditLog(
-  path: string,
-  config: ElekConfig,
-  effective?: ActionInputs,
-  sourceOverride?: string,
-): string {
+export function formatConfigAuditLog(path: string, config: ElekConfig, source: string): string {
   const disabled = !path.trim() || ["none", "off", "false"].includes(path.trim().toLowerCase());
-  const source = sourceOverride || (process.env.GITHUB_EVENT_NAME === "pull_request"
-    ? "checked-out-pr-branch"
-    : "checked-out-workspace");
   const knowledgePaths = config.knowledgePaths === undefined
     ? "(default)"
     : config.knowledgePaths.length > 0
@@ -722,16 +623,11 @@ export function formatConfigAuditLog(
     `path=${disabled ? "(disabled)" : path}`,
     `source=${disabled ? "(disabled)" : source}`,
     `severity_threshold=${config.severityThreshold ?? "(unset)"}`,
-    `cost_rates=${config.costRates ?? "(unset)"}`,
     `knowledge_paths=${knowledgePaths}`,
     `knowledge_files=${(config.knowledge ?? []).length}`,
     `ignore_paths=${config.ignorePaths.length > 0 ? config.ignorePaths.join(",") : "(none)"}`,
     `instructions=${config.instructions.length}`,
   ];
-  if (effective) {
-    fields.push(`effective_severity_threshold=${effective.severityThreshold || "(unset)"}`);
-    fields.push(`effective_cost_rates=${effective.costRates || "(unset)"}`);
-  }
   return fields.join(" | ");
 }
 

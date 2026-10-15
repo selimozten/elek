@@ -6,21 +6,7 @@ function result(overrides: Partial<PiRunResult> = {}): PiRunResult {
   return {
     conclusion: "failure",
     output: "failed",
-    turnsUsed: 1,
-    toolCalls: 2,
-    providerRetries: 0,
-    durationSeconds: 3,
-    costUsd: 0.01,
-    usage: {
-      inputTokens: 100,
-      outputTokens: 20,
-      cacheReadTokens: 10,
-      cacheWriteTokens: 0,
-      reasoningTokens: 15,
-      estimated: false,
-      modelLabel: "together/deepseek-ai/DeepSeek-V4-Pro-0813",
-      source: "provider",
-    },
+    usage: { inputTokens: 100, outputTokens: 20, estimated: false },
     ...overrides,
   };
 }
@@ -43,10 +29,7 @@ describe("transient review recovery", () => {
       result({
         conclusion: "success",
         output: "Verdict: approve — no Blocker or Important findings",
-        turnsUsed: 2,
-        toolCalls: 1,
-        durationSeconds: 4,
-        costUsd: 0.02,
+        usage: { inputTokens: 50, outputTokens: 10, estimated: true },
       }),
     ];
     let calls = 0;
@@ -57,17 +40,7 @@ describe("transient review recovery", () => {
     expect(recovered).toMatchObject({
       conclusion: "success",
       output: "Verdict: approve — no Blocker or Important findings",
-      turnsUsed: 3,
-      toolCalls: 3,
-      providerRetries: 1,
-      durationSeconds: 7,
-      costUsd: 0.03,
-      usage: {
-        inputTokens: 200,
-        outputTokens: 40,
-        cacheReadTokens: 20,
-        reasoningTokens: 30,
-      },
+      usage: { inputTokens: 150, outputTokens: 30, estimated: true },
     });
   });
 
@@ -93,10 +66,9 @@ describe("transient review recovery", () => {
     expect(recovered.errorKind).toBe("empty");
   });
 
-  it("does not retry model, policy, timeout, or turn-limit failures", async () => {
+  it("does not retry model, policy, or timeout failures", async () => {
     for (const output of [
       "pi timed out after 600s",
-      "pi exceeded max turns (20)",
       "Required review lanes failed: design",
       "Unauthorized",
     ]) {

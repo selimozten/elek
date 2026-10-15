@@ -204,13 +204,13 @@ describe("public review output filtering", () => {
     expect(result.body).not.toContain("ghp_AbCd");
   });
 
-  it("strips model-generated cost and run footers from usable review output", () => {
+  it("strips model-generated token usage and run footers from usable review output", () => {
     const result = preparePublicReviewOutput(
       [
         "## Review Summary",
         "No new findings that meet the acceptance gates.",
         "",
-        "_Review cost: $0.0051 (1,553 in / 4,891 out tokens)_",
+        "_Token usage: 1,553 in / 4,891 out_",
         "",
         "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
       ].join("\n"),
@@ -233,7 +233,7 @@ describe("public review output filtering", () => {
         "## Findings",
         "No high-confidence findings.",
         "",
-        "_Estimated review cost: at least $0.0123 (20,845 in / 0 out tokens; missing price data for model)_",
+        "_Estimated token usage: 20,845 in / 0 out_",
         "[View run](https://github.com/selimozten/elek/actions/runs/27787137042)",
         "<!-- elek-bot:lane:aaaaaaaaaaaa -->",
       ].join("\n"),
