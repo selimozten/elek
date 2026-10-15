@@ -33,8 +33,8 @@ See it review a real tenant-isolation regression in
 - elek has no code path that approves, merges, closes, or pushes. Reviews post
   with the `COMMENT` event.
 - elek redacts token-shaped secrets from the review before it posts.
-- Review policy in `.elek.yml` loads from the base branch, so a PR cannot
-  weaken its own review.
+- When the base branch has a `.elek.yml`, elek loads policy from it, so a PR
+  cannot change the rules that review it.
 
 ## One-minute setup
 
@@ -139,7 +139,9 @@ instructions:
 | `instructions` | Extra review rules for your repository. |
 
 On a pull request, elek reads `.elek.yml` and the knowledge files from the base
-branch. If the base branch has no config, elek uses the checked-out one. elek
+branch. If the base branch has no config, or elek cannot fetch it, elek uses
+the checked-out file. Commit `.elek.yml` to your default branch so PRs cannot
+change their own review policy. elek
 fails the run when the config file has malformed YAML, so a typo cannot drop
 your policy without notice. Unknown keys log a warning.
 
