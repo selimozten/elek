@@ -1,5 +1,4 @@
 import { appendFindingMarker, stableInlineFindingId } from "./finding-markers.js";
-import { redactPublicationSecrets } from "../redaction.js";
 
 export interface ReviewCommentEntry {
   path: string;
@@ -33,6 +32,18 @@ export function buildReviewCommentParams(
   return params;
 }
 
+// High-confidence secret shapes only: review prose legitimately contains
+// commit SHAs, code blocks, and email-like examples, so broader patterns
+// would mangle real findings.
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /\b(?:gh[psour]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+  /\bsk-[A-Za-z0-9_-]{16,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{30,}\b/g,
+  /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
+];
+
+/** Redact secrets from text before it is posted to GitHub or logged. */
 export function sanitize(body: string): string {
-  return redactPublicationSecrets(body);
+  return SECRET_PATTERNS.reduce((text, pattern) => text.replace(pattern, "[REDACTED]"), body);
 }

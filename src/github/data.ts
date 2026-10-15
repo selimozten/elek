@@ -133,7 +133,6 @@ export function buildPrompt(
     allowEdit?: boolean;
     tools?: string;
     repoConfig?: ElekConfig;
-    publicModelLabel?: string;
   } = {},
 ): string {
   const isPR = data.type === "pr";

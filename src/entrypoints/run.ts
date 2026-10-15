@@ -65,14 +65,8 @@ import {
   modelLabelFor,
   type ReviewCost,
 } from "../review/cost.js";
-import {
-  buildReviewSummary,
-  metricFromPiRun,
-  type ReviewRunMetric,
-} from "../review/summary.js";
 import { parseReviewFindings } from "../review/findings.js";
 import { preparePublicReviewOutput, reviewConclusion } from "../review/public-output.js";
-import { modelLabelRedactionTerms, publicModelLabelFor } from "../review/public-label.js";
 import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
 import { sanitize } from "../review/host-output.js";
 import type { PostSummary } from "./post-buffered.js";
@@ -82,10 +76,6 @@ async function run(): Promise<void> {
   core.setOutput("cost_usd", "0.000000");
   core.setOutput("input_tokens", "0");
   core.setOutput("output_tokens", "0");
-  core.setOutput("review_summary_path", "");
-  core.setOutput("review_summary_json", "");
-
-  const actionStartedAt = new Date();
   const parsedInputs = parseInputs();
   const context = parseEntityContext();
 
@@ -243,7 +233,6 @@ async function run(): Promise<void> {
 
   // ── Phase 2: Setup ───────────────────────────────────────────────────
   const modelLabel = modelLabelFor(inputs);
-  const publicModelLabel = publicModelLabelFor(modelLabel);
   const runId = process.env.GITHUB_RUN_ID || "?";
   const jobRunLink = `https://github.com/${context.repo.fullName}/actions/runs/${runId}`;
 
@@ -384,13 +373,11 @@ async function run(): Promise<void> {
       allowEdit: resolvedMode.allowEdit,
       tools: piTools,
       repoConfig: effectiveRepoConfig,
-      publicModelLabel,
     },
   );
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
   const runCosts: ReviewCost[] = [];
-  const runMetrics: ReviewRunMetric[] = [];
 
   if (useReviewPlan) {
     console.log(
@@ -456,15 +443,7 @@ async function run(): Promise<void> {
 
   console.log(`── pi ${result.conclusion === "success" ? "completed" : "failed"} ──`);
   const safeOutput = sanitize(result.output);
-  const publicReview = preparePublicReviewOutput(result.output, result.conclusion, {
-    internalModelLabels: modelLabelRedactionTerms([
-      modelLabel,
-      inputs.model,
-      trackingModelLabel,
-      activeModelLabel,
-    ]),
-    publicModelLabel,
-  });
+  const publicReview = preparePublicReviewOutput(result.output, result.conclusion);
   const publicOutput = publicReview.body;
   const publicConclusion =
     result.conclusion === "success" && publicReview.usable ? "success" : "failure";
@@ -475,7 +454,6 @@ async function run(): Promise<void> {
     );
   }
   const parsedFindings = parseReviewFindings(publicOutput);
-  runMetrics.push(metricFromPiRun(result, "validator"));
   const costTotal = aggregateCosts(runCosts);
   const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
   if (result.output) {
@@ -547,7 +525,7 @@ async function run(): Promise<void> {
         pushBranch(workBranch);
 
         const changeNotice = [
-          `**${publicModelLabel}** also made code changes:`,
+          `**${modelLabel}** also made code changes:`,
           "",
           `Branch: \`${workBranch}\``,
           `[View changes](https://github.com/${context.repo.fullName}/compare/${baseBranch}...${workBranch})`,
@@ -657,37 +635,6 @@ async function run(): Promise<void> {
   core.setOutput("input_tokens", String(costTotal.inputTokens));
   core.setOutput("output_tokens", String(costTotal.outputTokens));
 
-  const reviewSummary = buildReviewSummary({
-    context,
-    runId,
-    jobRunLink,
-    conclusion: finalConclusion,
-    mode: resolvedMode.mode,
-    requestedStrategy: inputs.reviewStrategy,
-    executedStrategy: useReviewPlan ? reviewPlan.strategy : "solo",
-    primaryModelLabel: modelLabel,
-    finalModelLabel: activeModelLabel,
-    startedAt: actionStartedAt,
-    finishedAt: new Date(),
-    commentId,
-    branchName: workBranch,
-    inlineComments: inlineSummary,
-    costTotal,
-    runs: runMetrics,
-    findings: parsedFindings,
-  });
-  const reviewSummaryJson = JSON.stringify(reviewSummary);
-  const reviewSummaryFileJson = JSON.stringify(reviewSummary, null, 2);
-  const reviewSummaryPath = join(tmpDir, "elek-review-summary.json");
-  try {
-    writeFileSync(reviewSummaryPath, `${reviewSummaryFileJson}\n`, "utf-8");
-    core.setOutput("review_summary_path", reviewSummaryPath);
-    console.log(`Wrote review summary: ${reviewSummaryPath}`);
-  } catch (err) {
-    console.warn("Could not write review summary:", (err as Error).message);
-    core.setOutput("review_summary_path", "");
-  }
-  core.setOutput("review_summary_json", reviewSummaryJson);
 
   if (finalConclusion === "failure") {
     core.setFailed(

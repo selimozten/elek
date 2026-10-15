@@ -176,7 +176,6 @@ describe("buildPrompt", () => {
       "deepseek/deepseek-v4-pro",
       "https://github.com/acme/app/actions/runs/1",
       555,
-      { publicModelLabel: "elek" },
     );
 
     expect(out).toContain("model: deepseek/deepseek-v4-pro");

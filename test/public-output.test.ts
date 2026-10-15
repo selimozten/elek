@@ -274,25 +274,6 @@ describe("public review output filtering", () => {
     expect(result.filtered).toBe(true);
   });
 
-  it("redacts configured internal model labels from public review text", () => {
-    const result = preparePublicReviewOutput(
-      [
-        "## Review Summary",
-        "The deepseek/deepseek-v4-pro review found no high-confidence findings from deepseek-v4-pro.",
-      ].join("\n"),
-      "success",
-      {
-        internalModelLabels: ["deepseek/deepseek-v4-pro", "deepseek-v4-pro"],
-        publicModelLabel: "elek",
-      },
-    );
-
-    expect(result.usable).toBe(true);
-    expect(result.body).toContain("elek review");
-    expect(result.body).not.toContain("deepseek/deepseek-v4-pro");
-    expect(result.body).not.toContain("deepseek-v4-pro");
-  });
-
   it("keeps a useful review without requiring one exact Markdown contract", () => {
     const result = preparePublicReviewOutput(
       [

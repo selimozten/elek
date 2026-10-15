@@ -6,10 +6,6 @@ dist/
 # Local env / debug artifacts
 .env
 .env.local
-.elek-analytics-*/
-.elek-benchmark-*/
-.elek-eval-*/
-.elek-feedback-*/
 /tmp/
 *.log
 
