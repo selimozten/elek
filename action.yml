@@ -9,12 +9,6 @@ branding:
   color: "gray-dark"
 
 inputs:
-  # ── Trigger ──
-  trigger_phrase:
-    description: "Phrase in comments or issue body that triggers the action"
-    required: false
-    default: "@pi"
-
   # ── Model ──
   provider:
     description: "AI provider (anthropic, openai, google, bedrock, deepseek, groq, mistral, together, xai, openrouter, opencode-go, etc.)"
@@ -69,11 +63,7 @@ inputs:
 
   # ── Behavior ──
   prompt:
-    description: "Custom instructions for pi. If empty and triggered via @pi mention, uses the comment/issue body."
-    required: false
-    default: ""
-  system_prompt:
-    description: "System prompt override for pi"
+    description: "Replaces the built-in review request. Empty uses the default review request."
     required: false
     default: ""
   max_turns:
@@ -84,45 +74,14 @@ inputs:
     description: "Optional model-run timeout. The default has no Elek timeout."
     required: false
     default: "0"
-  tools:
-    description: "Legacy low-level pi tool allowlist. Review modes use mode presets; prefer mode unless debugging agent mode."
-    required: false
-    default: ""
   config_path:
     description: "Repo-local elek config file path. Set to 'none', 'off', or 'false' to disable. Default: .elek.yml"
     required: false
     default: ".elek.yml"
-  base_branch:
-    description: "Base branch for PRs (defaults to repository default branch)"
-    required: false
-  branch_prefix:
-    description: "Prefix for branches created by elek"
-    required: false
-    default: "elek/"
-  actor_filter:
-    description: "Comma-separated usernames allowed to trigger. Empty = repository owners, members, and collaborators."
-    required: false
-    default: ""
-  allowed_bots:
-    description: "Comma-separated bot usernames allowed to trigger, or '*' for all"
-    required: false
-    default: ""
   sticky_comment:
     description: "Update a single tracking comment instead of new comments each turn"
     required: false
     default: "true"
-  mode:
-    description: >
-      Tool surface preset:
-        review (default) — native pi read/search tools. No bash, write, edit,
-          or MCP tools. The host posts the final review.
-        review+edit — currently the same read-only review surface until
-          sandboxed mutation tools are available. Cannot approve/merge/close.
-        agent — legacy: full tool surface (read,write,edit,bash,grep,find,ls)
-          and no MCP injection. Use only for trusted workflows where the
-          model needs shell access.
-    required: false
-    default: "review"
   review_strategy:
     description: >
       Review orchestration strategy:
@@ -194,9 +153,6 @@ outputs:
   conclusion:
     description: "Execution conclusion: success or failure"
     value: ${{ steps.run.outputs.conclusion }}
-  branch_name:
-    description: "Branch created/used by pi"
-    value: ${{ steps.run.outputs.branch_name }}
   comment_id:
     description: "ID of the tracking comment"
     value: ${{ steps.run.outputs.comment_id }}
@@ -215,12 +171,6 @@ outputs:
   output_tokens:
     description: "Estimated output tokens used by the review"
     value: ${{ steps.run.outputs.output_tokens }}
-  review_summary_path:
-    description: "Path to the machine-readable elek review summary JSON file"
-    value: ${{ steps.run.outputs.review_summary_path }}
-  review_summary_json:
-    description: "Machine-readable elek review summary JSON"
-    value: ${{ steps.run.outputs.review_summary_json }}
 
 runs:
   using: "composite"
@@ -244,10 +194,7 @@ runs:
       run: |
         tsx "$GITHUB_ACTION_PATH/src/entrypoints/run.ts"
       env:
-        # ── Trigger ──
-        INPUT_TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
-
-        # ── Model ──
+              # ── Model ──
         INPUT_PROVIDER: ${{ inputs.provider }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_THINKING: ${{ inputs.thinking }}
@@ -267,17 +214,10 @@ runs:
         # ── GitHub / Behavior ──
         GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_PROMPT: ${{ inputs.prompt }}
-        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_RUN_TIMEOUT_SECONDS: ${{ inputs.run_timeout_seconds }}
-        INPUT_TOOLS: ${{ inputs.tools }}
         INPUT_CONFIG_PATH: ${{ inputs.config_path }}
-        INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
-        INPUT_BRANCH_PREFIX: ${{ inputs.branch_prefix }}
-        INPUT_ACTOR_FILTER: ${{ inputs.actor_filter }}
-        INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
-        INPUT_MODE: ${{ inputs.mode }}
         INPUT_REVIEW_STRATEGY: ${{ inputs.review_strategy }}
         INPUT_REVIEW_MODELS: ${{ inputs.review_models }}
         INPUT_REVIEW_LENSES: ${{ inputs.review_lenses }}

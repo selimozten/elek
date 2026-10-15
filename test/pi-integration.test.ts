@@ -66,10 +66,9 @@ it("runs the real Pi CLI with guarded native tools and no MCP discovery", async 
       },
     }));
     const inputs: ActionInputs = {
-      triggerPhrase: "@pi", provider: "smoke", model: "", thinking: "off",
-      prompt: "", systemPrompt: "", maxTurns: 4, runTimeoutSeconds: 20,
-      tools: "read,grep,find,ls", configPath: ".elek.yml", branchPrefix: "elek/",
-      actorFilter: "", allowedBots: "", stickyComment: true, mode: "review",
+      provider: "smoke", model: "", thinking: "off",
+      prompt: "", maxTurns: 4, runTimeoutSeconds: 20,
+      configPath: ".elek.yml", stickyComment: true,
       reviewStrategy: "solo", reviewModels: "", validatorModel: "", validatorThinking: "",
       severityThreshold: "", showCost: true, costRates: "",
     };

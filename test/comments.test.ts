@@ -4,7 +4,6 @@ import { createTrackingComment, fetchReviewComments, updateTrackingComment } fro
 import type { GitHubEntityContext } from "../src/types";
 
 const context: GitHubEntityContext = {
-  eventName: "pull_request",
   eventAction: "opened",
   actor: "alice",
   repo: {
@@ -14,8 +13,6 @@ const context: GitHubEntityContext = {
     defaultBranch: "main",
   },
   entityNumber: 22,
-  isPR: true,
-  triggerText: "",
   pr: {
     title: "Brand refresh",
     body: "",

@@ -135,24 +135,8 @@ export function resolveReviewPlan(inputs: ActionInputs): ReviewPlan {
   return { strategy, jobs: lenses.map((lens) => ({ lens })) };
 }
 
-export function resolveReviewPlanSupport(
-  strategy: ReviewStrategy,
-  context: { isPR: boolean; mode: string },
-): ReviewPlanSupport {
-  if (strategy === "solo") return { enabled: false };
-  if (!context.isPR) {
-    return {
-      enabled: false,
-      warning: `Review strategy ${strategy} requires a pull request; running solo review instead.`,
-    };
-  }
-  if (context.mode !== "review") {
-    return {
-      enabled: false,
-      warning: `Review strategy ${strategy} is only supported in mode=review; running solo review because mode=${context.mode}.`,
-    };
-  }
-  return { enabled: true };
+export function resolveReviewPlanSupport(strategy: ReviewStrategy): ReviewPlanSupport {
+  return { enabled: strategy !== "solo" };
 }
 
 export function buildSingleSessionReviewRequest(

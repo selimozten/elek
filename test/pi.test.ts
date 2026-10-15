@@ -6,21 +6,14 @@ import { __buildPiEnv, buildPiArgs, runPi } from "../src/pi";
 import type { ActionInputs } from "../src/types";
 
 const baseInputs: ActionInputs = {
-  triggerPhrase: "@pi",
   provider: "deepseek",
   model: "deepseek-v4-pro",
   thinking: "medium",
   prompt: "",
-  systemPrompt: "",
   maxTurns: 20,
   runTimeoutSeconds: 600,
-  tools: "read,grep,find,ls",
   configPath: ".elek.yml",
-  branchPrefix: "elek/",
-  actorFilter: "",
-  allowedBots: "",
   stickyComment: true,
-  mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
   reviewAgentCount: undefined,
@@ -66,12 +59,17 @@ describe("buildPiArgs", () => {
     expect(args[args.indexOf("--model") + 1]).toBe("deepseek/");
   });
 
-  it("disables native MCP discovery and project approval in every mode", () => {
-    for (const mode of ["review", "review+edit", "agent"]) {
-      const args = buildPiArgs({ ...baseInputs, mode }, "/tmp/prompt.md");
-      expect(args).toContain("--no-mcp");
-      expect(args).toContain("--no-approve");
-    }
+  it("disables native MCP discovery and project approval", () => {
+    const args = buildPiArgs(baseInputs, "/tmp/prompt.md");
+    expect(args).toContain("--no-mcp");
+    expect(args).toContain("--no-approve");
+  });
+
+  it("always runs the read-only tools behind the workspace guard", () => {
+    const args = buildPiArgs(baseInputs, "/tmp/prompt.md");
+    expect(args[args.indexOf("--tools") + 1]).toBe("read,grep,find,ls");
+    expect(args[args.indexOf("-e") + 1]).toEndWith("src/pi-workspace-guard.ts");
+    expect(args).not.toContain("--system-prompt");
   });
 
   it("lets provider-qualified model specs route themselves", () => {
@@ -126,30 +124,6 @@ describe("buildPiArgs", () => {
       "Use repository inspection tools only to resolve a specific uncertainty",
     );
   });
-
-  it("disables all tools for a review with no requested tools", () => {
-    const args = buildPiArgs(
-      { ...baseInputs, tools: "" },
-      "/tmp/prompt.md",
-    );
-
-    expect(args).toContain("--no-tools");
-    expect(args).not.toContain("--tools");
-    expect(args).not.toContain("-e");
-    const systemPrompt = args[args.indexOf("--append-system-prompt") + 1];
-    expect(systemPrompt).toContain("You have no repository tools");
-    expect(systemPrompt).toContain("Return the final review in this response");
-    expect(systemPrompt).not.toContain("Use repository inspection tools");
-  });
-
-  it("does not impose the reviewer contract on legacy agent mode", () => {
-    const args = buildPiArgs(
-      { ...baseInputs, mode: "agent" },
-      "/tmp/prompt.md",
-    );
-
-    expect(args).not.toContain("--append-system-prompt");
-  });
 });
 
 describe("buildPiEnv", () => {
@@ -164,51 +138,31 @@ describe("buildPiEnv", () => {
     delete process.env.GEMINI_API_KEY;
   });
 
-  it("does not leak arbitrary parent secrets into agent-mode child env", () => {
+  it("does not leak parent secrets or GITHUB_TOKEN into the child env", () => {
     for (const v of secretVars) process.env[v] = "leaked-value";
     process.env.GITHUB_TOKEN = "ghs_fake_token";
     process.env.ANTHROPIC_API_KEY = "sk-ant-fake";
 
-    const env = __buildPiEnv({ ...baseInputs, provider: "anthropic", mode: "agent" });
+    const env = __buildPiEnv();
 
     for (const v of secretVars) {
       expect(env[v]).toBeUndefined();
     }
-    // But the vars agent mode legitimately needs are still present.
+    // The host owns GitHub delivery.
+    expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH);
     expect(env.HOME).toBeDefined();
-    expect(env.GITHUB_TOKEN).toBe("ghs_fake_token");
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-fake");
     expect(env.PI_OFFLINE).toBe("1");
 
     delete process.env.ANTHROPIC_API_KEY;
   });
 
-  it("review mode does not leak secrets and omits GITHUB_TOKEN", () => {
-    process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
-    process.env.GITHUB_TOKEN = "ghs_fake_token";
-
-    const env = __buildPiEnv({ ...baseInputs, mode: "review" });
-
-    expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
-    // The host owns GitHub delivery.
-    expect(env.GITHUB_TOKEN).toBeUndefined();
-    expect(env.PATH).toBe(process.env.PATH);
-  });
-
-  it("review mode never passes GITHUB_TOKEN through an unsafe tool string", () => {
-    process.env.GITHUB_TOKEN = "ghs_fake_token";
-
-    const env = __buildPiEnv({ ...baseInputs, mode: "review", tools: "read,grep,find,ls,mcp" });
-
-    expect(env.GITHUB_TOKEN).toBeUndefined();
-  });
-
   it("passes Together credentials to the review child env without leaking unrelated secrets", () => {
     process.env.TOGETHER_API_KEY = "together-fake-key";
     process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
 
-    const env = __buildPiEnv({ ...baseInputs, provider: "together", mode: "review" });
+    const env = __buildPiEnv();
 
     expect(env.TOGETHER_API_KEY).toBe("together-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
@@ -218,12 +172,7 @@ describe("buildPiEnv", () => {
     process.env.OPENCODE_API_KEY = "opencode-fake-key";
     process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
 
-    const env = __buildPiEnv({
-      ...baseInputs,
-      provider: "opencode-go",
-      model: "deepseek-v4.1-flash",
-      mode: "review",
-    });
+    const env = __buildPiEnv();
 
     expect(env.OPENCODE_API_KEY).toBe("opencode-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
@@ -231,13 +180,13 @@ describe("buildPiEnv", () => {
 
   it("maps the existing Google credential to Pi's Gemini environment variable", () => {
     process.env.GOOGLE_API_KEY = "legacy-google-key";
-    expect(__buildPiEnv({ ...baseInputs, provider: "google" }).GEMINI_API_KEY).toBe("legacy-google-key");
+    expect(__buildPiEnv().GEMINI_API_KEY).toBe("legacy-google-key");
   });
 
   it("preserves an explicitly configured Gemini credential", () => {
     process.env.GOOGLE_API_KEY = "legacy-google-key";
     process.env.GEMINI_API_KEY = "native-gemini-key";
-    expect(__buildPiEnv({ ...baseInputs, provider: "google" }).GEMINI_API_KEY).toBe("native-gemini-key");
+    expect(__buildPiEnv().GEMINI_API_KEY).toBe("native-gemini-key");
   });
 });
 

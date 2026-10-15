@@ -22,21 +22,14 @@ function git(cwd: string, args: string[]): void {
 }
 
 const baseInputs: ActionInputs = {
-  triggerPhrase: "@pi",
   provider: "deepseek",
   model: "deepseek-v4-pro",
   thinking: "medium",
   prompt: "",
-  systemPrompt: "",
   maxTurns: 20,
   runTimeoutSeconds: 600,
-  tools: "",
   configPath: ".elek.yml",
-  branchPrefix: "elek/",
-  actorFilter: "",
-  allowedBots: "",
   stickyComment: true,
-  mode: "review",
   reviewStrategy: "solo",
   reviewModels: "",
   reviewLenses: "",

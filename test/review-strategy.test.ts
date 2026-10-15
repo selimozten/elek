@@ -98,15 +98,8 @@ describe("single-session review strategy", () => {
     expect(request).not.toContain("without repository tools");
   });
 
-  it("enables lens plans only for pull request review mode", () => {
-    expect(resolveReviewPlanSupport("thermos", { isPR: true, mode: "review" })).toEqual({
-      enabled: true,
-    });
-    expect(resolveReviewPlanSupport("thermos", { isPR: false, mode: "review" }).warning).toContain(
-      "requires a pull request",
-    );
-    expect(resolveReviewPlanSupport("thermos", { isPR: true, mode: "agent" }).warning).toContain(
-      "only supported in mode=review",
-    );
+  it("enables lens plans for every strategy except solo", () => {
+    expect(resolveReviewPlanSupport("thermos")).toEqual({ enabled: true });
+    expect(resolveReviewPlanSupport("solo")).toEqual({ enabled: false });
   });
 });

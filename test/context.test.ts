@@ -18,7 +18,6 @@ const ENV_KEYS = [
   "GITHUB_ACTOR",
   "GITHUB_REPOSITORY",
   "GITHUB_REPOSITORY_OWNER",
-  "INPUT_BRANCH_PREFIX",
   "INPUT_CONFIG_PATH",
   "INPUT_STICKY_COMMENT",
   "INPUT_SHOW_COST",
@@ -73,13 +72,12 @@ describe("parseEntityContext", () => {
 
     const ctx = parseEntityContext();
     expect(ctx).not.toBeNull();
-    expect(ctx!.eventName).toBe("pull_request");
-    expect(ctx!.isPR).toBe(true);
+    expect(ctx!.eventAction).toBe("opened");
     expect(ctx!.entityNumber).toBe(42);
     expect(ctx!.actor).toBe("alice");
     expect(ctx!.pr?.headRef).toBe("feat/x");
     expect(ctx!.pr?.baseRef).toBe("main");
-    expect(ctx!.triggerText).toBe("fixes #1");
+    expect(ctx!.pr.body).toBe("fixes #1");
     expect(ctx!.pr?.draft).toBe(false);
     expect(ctx!.pr?.isFork).toBe(false);
   });
@@ -119,68 +117,25 @@ describe("parseEntityContext", () => {
     expect(parseEntityContext()!.pr?.isFork).toBe(true);
   });
 
-  it("parses an issues event and extracts labels/assignees", () => {
-    process.env.GITHUB_EVENT_NAME = "issues";
-    process.env.GITHUB_EVENT_PATH = writeEvent({
-      action: "labeled",
-      issue: {
-        number: 7,
-        title: "Bug",
-        body: "broken",
-        labels: [{ name: "bug" }, "needs-triage"],
-        assignees: [{ login: "bob" }],
-      },
-    });
-
-    const ctx = parseEntityContext();
-    expect(ctx!.isPR).toBe(false);
-    expect(ctx!.entityNumber).toBe(7);
-    expect(ctx!.issue?.labels).toEqual(["bug", "needs-triage"]);
-    expect(ctx!.issue?.assignees).toEqual(["bob"]);
-  });
-
-  it("skips PR-as-issue payloads on issues event", () => {
-    process.env.GITHUB_EVENT_NAME = "issues";
-    process.env.GITHUB_EVENT_PATH = writeEvent({
-      action: "opened",
-      issue: { number: 5, pull_request: { url: "..." }, body: "" },
-    });
-    expect(parseEntityContext()).toBeNull();
-  });
-
-  it("parses an issue_comment event on a PR (sets isPR=true via issue.pull_request)", () => {
-    process.env.GITHUB_EVENT_NAME = "issue_comment";
+  it("returns null for every event other than pull requests", () => {
     process.env.GITHUB_EVENT_PATH = writeEvent({
       action: "created",
       comment: { body: "@pi review please" },
       issue: { number: 99, title: "PR title", body: "", pull_request: { url: "..." } },
     });
-
-    const ctx = parseEntityContext();
-    expect(ctx!.isPR).toBe(true);
-    expect(ctx!.eventName).toBe("issue_comment");
-    expect(ctx!.entityNumber).toBe(99);
-    expect(ctx!.triggerText).toBe("@pi review please");
-    expect(ctx!.pr).toBeDefined();
+    for (const event of ["push", "issues", "issue_comment", "pull_request_review", "pull_request_review_comment"]) {
+      process.env.GITHUB_EVENT_NAME = event;
+      expect(parseEntityContext()).toBeNull();
+    }
   });
 
-  it("parses an issue_comment event on a plain issue (isPR=false)", () => {
-    process.env.GITHUB_EVENT_NAME = "issue_comment";
+  it("treats pull_request_target like pull_request", () => {
+    process.env.GITHUB_EVENT_NAME = "pull_request_target";
     process.env.GITHUB_EVENT_PATH = writeEvent({
-      action: "created",
-      comment: { body: "@pi help" },
-      issue: { number: 12, title: "Q", body: "" },
+      action: "synchronize",
+      pull_request: { number: 8, head: { ref: "h", sha: "s" }, base: { ref: "main", sha: "b" } },
     });
-
-    const ctx = parseEntityContext();
-    expect(ctx!.isPR).toBe(false);
-    expect(ctx!.issue).toBeDefined();
-  });
-
-  it("returns null for unsupported events", () => {
-    process.env.GITHUB_EVENT_NAME = "push";
-    process.env.GITHUB_EVENT_PATH = writeEvent({ ref: "refs/heads/main" });
-    expect(parseEntityContext()).toBeNull();
+    expect(parseEntityContext()).toMatchObject({ eventAction: "synchronize", entityNumber: 8 });
   });
 
   it("falls back to payload data when env vars are missing", () => {
@@ -216,21 +171,6 @@ describe("parseEntityContext", () => {
 });
 
 describe("parseInputs", () => {
-  it("defaults generated branch names to elek branding", () => {
-    delete process.env.INPUT_BRANCH_PREFIX;
-    expect(parseInputs().branchPrefix).toBe("elek/");
-  });
-
-  it("respects an explicit branch_prefix input", () => {
-    process.env.INPUT_BRANCH_PREFIX = "feature/automated-fixes/";
-    expect(parseInputs().branchPrefix).toBe("feature/automated-fixes/");
-  });
-
-  it("does not default tools to the legacy full-power allowlist", () => {
-    delete process.env.INPUT_TOOLS;
-    expect(parseInputs().tools).toBe("");
-  });
-
   it("defaults to the repository config file path", () => {
     delete process.env.INPUT_CONFIG_PATH;
     expect(parseInputs().configPath).toBe(".elek.yml");

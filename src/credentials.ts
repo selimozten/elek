@@ -36,16 +36,6 @@ const PROVIDER_KEYS: Record<string, ProviderKey> = {
   "opencode-go": { envVars: ["OPENCODE_API_KEY"], input: "opencode_api_key", secret: "OPENCODE_API_KEY" },
 };
 
-/**
- * Events whose fork-PR runs execute in the fork's context, without secrets.
- * pull_request_target and issue_comment run in the base repository context.
- */
-const FORK_CONTEXT_EVENTS = new Set([
-  "pull_request",
-  "pull_request_review",
-  "pull_request_review_comment",
-]);
-
 export type CredentialPreflight =
   | { action: "continue" }
   | { action: "skip"; message: string }
@@ -54,7 +44,7 @@ export type CredentialPreflight =
 export interface CredentialPreflightRequest {
   provider: string;
   env: Record<string, string | undefined>;
-  /** Raw GITHUB_EVENT_NAME, before pull_request_target is normalized. */
+  /** Raw GITHUB_EVENT_NAME: pull_request_target runs with the base repository's secrets. */
   rawEventName: string | undefined;
   isForkPR: boolean;
 }
@@ -68,14 +58,12 @@ export function credentialPreflight(request: CredentialPreflightRequest): Creden
   }
 
   // Unmapped providers skip too: the read-only fork token cannot post a review.
-  if (request.isForkPR && FORK_CONTEXT_EVENTS.has(request.rawEventName ?? "")) {
+  if (request.isForkPR && request.rawEventName === "pull_request") {
     return {
       action: "skip",
       message:
         `Skipping elek review: this pull request comes from a fork, and GitHub does not ` +
-        `pass repository secrets or a write token to fork workflows. ` +
-        `A maintainer can review it from an issue_comment-triggered workflow, which runs ` +
-        `with the base repository's secrets.`,
+        `pass repository secrets or a write token to fork workflows.`,
     };
   }
 
