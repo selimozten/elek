@@ -6,8 +6,6 @@ export interface ActionInputs {
   thinking: string;
   /** Replaces the built-in review request when set. */
   prompt: string;
-  /** Optional conversation-turn cap. Undefined leaves pi unbounded by turns. */
-  maxTurns?: number;
   /** Optional wall-clock timeout for one pi invocation, in seconds. */
   runTimeoutSeconds?: number;
   /** Repo-local config file path, e.g. .elek.yml. */
@@ -15,17 +13,6 @@ export interface ActionInputs {
   stickyComment: boolean;
   /** Optional prompt-level severity threshold for reported findings. */
   severityThreshold: "" | "critical" | "important" | "minor";
-  /** Show estimated review cost in logs, outputs, and comments. */
-  showCost: boolean;
-  /**
-   * Optional pricing overrides:
-   * model=inputPerMillion:outputPerMillion,...
-   */
-  costRates: string;
-  /**
-   * Deprecated compatibility input.
-  */
-  maxCostUsd?: number | null;
 }
 
 export interface GitHubEntityContext {
@@ -48,19 +35,6 @@ export interface GitHubEntityContext {
   };
 }
 
-export interface PiTurnMetric {
-  turn: number;
-  durationSeconds: number;
-  firstResponseSeconds?: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  reasoningTokens?: number;
-  totalTokens: number;
-  stopReason?: string;
-}
-
 export type PiRunErrorKind =
   | "empty"
   | "length"
@@ -68,31 +42,16 @@ export type PiRunErrorKind =
   | "process"
   | "rate-limit"
   | "timeout"
-  | "transport"
-  | "turn-limit";
+  | "transport";
 
 export interface PiRunResult {
   conclusion: "success" | "failure";
   output: string;
-  sessionId?: string;
-  turnsUsed: number;
-  promptChars?: number;
-  thinking?: string;
-  toolCalls?: number;
-  turnMetrics?: PiTurnMetric[];
-  stopReason?: string;
   errorKind?: PiRunErrorKind;
-  providerRetries: number;
-  durationSeconds: number;
-  costUsd: number;
   usage: {
     inputTokens: number;
     outputTokens: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-    reasoningTokens?: number;
+    /** No provider usage was reported; counts come from prompt/output length. */
     estimated: boolean;
-    modelLabel: string;
-    source: "builtin" | "override" | "provider" | "unknown";
   };
 }

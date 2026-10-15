@@ -3,7 +3,6 @@ import { execFileSync } from "child_process";
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
-  applyConfigDefaults,
   ElekConfigParseError,
   formatConfigAuditLog,
   formatConfigPromptBlock,
@@ -11,38 +10,18 @@ import {
   loadBaseBranchRepoKnowledge,
   loadElekConfig,
   loadRepoKnowledge,
-  mergeBasePolicyWithWorkspaceGuidance,
   parseElekConfig,
-  type ElekConfig,
 } from "../src/config.js";
-import type { ActionInputs } from "../src/types.js";
 
 function git(cwd: string, args: string[]): void {
   execFileSync("git", args, { cwd, stdio: "ignore" });
 }
-
-const baseInputs: ActionInputs = {
-  provider: "deepseek",
-  model: "deepseek-v4-pro",
-  thinking: "medium",
-  prompt: "",
-  maxTurns: 20,
-  runTimeoutSeconds: 600,
-  configPath: ".elek.yml",
-  stickyComment: true,
-  severityThreshold: "",
-  showCost: true,
-  costRates: "",
-  maxCostUsd: undefined,
-};
 
 describe("elek config", () => {
   it("parses the supported .elek.yml keys", () => {
     const warnings: string[] = [];
     const config = parseElekConfig(
       `
-cost_rates: openrouter/moonshotai/kimi-k2.7-code=0.95:4
-max_cost_usd: 0.25
 severity_threshold: important
 knowledge_paths:
   - AGENTS.md
@@ -59,8 +38,6 @@ instructions:
 
     expect(warnings).toEqual([]);
     expect(config).toEqual({
-      costRates: "openrouter/moonshotai/kimi-k2.7-code=0.95:4",
-      maxCostUsd: 0.25,
       severityThreshold: "important",
       knowledgePaths: ["AGENTS.md", "docs/review.md"],
       ignorePaths: ["docs/**", "*.md"],
@@ -76,12 +53,10 @@ instructions:
     const config = parseElekConfig(
       `
 severity_threshold: advisory
-max_cost_usd: nope
 unknown_key: value
+review_strategy: crosscheck
+cost_rates: openrouter/model=1:2
 ignore_paths: [dist/**, coverage/**]
-cost_rates:
-  - openrouter/model=1:2
-  - nested: rate
 instructions:
   - supported item
   - nested: mapping
@@ -93,40 +68,17 @@ knowledge_paths:
     );
 
     expect(config.severityThreshold).toBeUndefined();
-    expect(config.maxCostUsd).toBeUndefined();
     expect(config.ignorePaths).toEqual(["dist/**", "coverage/**"]);
-    expect(config.costRates).toBe("openrouter/model=1:2");
     expect(config.knowledgePaths).toEqual(["AGENTS.md"]);
     expect(config.instructions).toEqual(["supported item"]);
     expect(warnings).toEqual([
       "Ignoring invalid severity_threshold: advisory",
-      "Ignoring invalid max_cost_usd: nope",
       "Ignoring unknown config key: unknown_key",
-      "Ignoring non-scalar cost_rates item",
+      "Ignoring unknown config key: review_strategy",
+      "Ignoring unknown config key: cost_rates",
       "Ignoring non-scalar instructions item",
       "Ignoring non-scalar knowledge_paths item",
     ]);
-  });
-
-  it("can explicitly disable max_cost_usd values", () => {
-    for (const value of ["0", "off", "none", "false", "disabled"]) {
-      const warnings: string[] = [];
-      const config = parseElekConfig(`max_cost_usd: ${value}\n`, (message) => warnings.push(message));
-
-      expect(config.maxCostUsd).toBeNull();
-      expect(warnings).toEqual([]);
-    }
-  });
-
-  it("warns and skips invalid max_cost_usd values", () => {
-    for (const value of ["-0.01", ".inf", ".nan"]) {
-      const warnings: string[] = [];
-      const config = parseElekConfig(`max_cost_usd: ${value}\n`, (message) => warnings.push(message));
-
-      expect(config.maxCostUsd).toBeUndefined();
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0]).toStartWith("Ignoring invalid max_cost_usd:");
-    }
   });
 
   it("warns and skips non-mapping yaml documents", () => {
@@ -139,83 +91,16 @@ knowledge_paths:
     expect(warnings).toEqual(["Ignoring config because the top-level YAML value is not a mapping"]);
   });
 
-  it("supports standard YAML block scalars and array model lists", () => {
+  it("supports standard YAML block scalars", () => {
     const config = parseElekConfig(`
-cost_rates:
-  - deepseek/deepseek-v4-pro=0.25:1
-  - openrouter/moonshotai/kimi-k2.7-code=0.95:4
 instructions:
   - |
     Require migration PRs to include rollback notes.
     Mention missing rollback notes as important.
 `);
-    expect(config.costRates).toBe(
-      "deepseek/deepseek-v4-pro=0.25:1,openrouter/moonshotai/kimi-k2.7-code=0.95:4",
-    );
     expect(config.instructions).toEqual([
       "Require migration PRs to include rollback notes.\nMention missing rollback notes as important.",
     ]);
-  });
-
-  it("applies config defaults without overriding explicit action inputs", () => {
-    const config: ElekConfig = {
-      costRates: "deepseek/model-b=1:2",
-      maxCostUsd: 0.2,
-      ignorePaths: [],
-      instructions: [],
-    };
-
-    expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "" }, config)).toMatchObject({
-      severityThreshold: "",
-      costRates: "deepseek/model-b=1:2",
-      maxCostUsd: 0.2,
-    });
-
-    expect(applyConfigDefaults({ ...baseInputs, reviewStrategy: "", severityThreshold: "" }, {
-      ...config,
-      severityThreshold: "important",
-    })).toMatchObject({
-      severityThreshold: "important",
-    });
-
-    expect(applyConfigDefaults({
-      ...baseInputs,
-      severityThreshold: "critical",
-      costRates: "explicit/model=3:4",
-      maxCostUsd: 1,
-    }, config)).toMatchObject({
-      severityThreshold: "critical",
-      costRates: "explicit/model=3:4",
-      maxCostUsd: 1,
-    });
-  });
-
-  it("does not merge checked-out guidance into base-branch policy for PRs", () => {
-    expect(mergeBasePolicyWithWorkspaceGuidance({
-      costRates: "openrouter/base-reviewer=1:2",
-      maxCostUsd: 0.5,
-      severityThreshold: "important",
-      knowledgePaths: ["base-only.md"],
-      knowledge: [{ path: "base-only.md", text: "Base knowledge.", truncated: false }],
-      ignorePaths: ["base-only/**"],
-      instructions: ["Base instruction."],
-    }, {
-      costRates: "openrouter/pr-reviewer=10:20",
-      maxCostUsd: 10,
-      severityThreshold: "critical",
-      knowledgePaths: ["docs/review.md"],
-      knowledge: [{ path: "docs/review.md", text: "PR knowledge.", truncated: false }],
-      ignorePaths: ["docs/**"],
-      instructions: ["PR guidance."],
-    })).toEqual({
-      costRates: "openrouter/base-reviewer=1:2",
-      maxCostUsd: 0.5,
-      severityThreshold: "important",
-      knowledgePaths: ["base-only.md"],
-      knowledge: [{ path: "base-only.md", text: "Base knowledge.", truncated: false }],
-      ignorePaths: ["base-only/**"],
-      instructions: ["Base instruction."],
-    });
   });
 
   it("formats prompt policy for repo-specific instructions", () => {
@@ -529,8 +414,6 @@ instructions:
       git(work, ["config", "user.email", "elek@example.com"]);
       git(work, ["config", "user.name", "elek tests"]);
       writeFileSync(join(work, ".elek.yml"), [
-        "cost_rates: openrouter/base-reviewer=1:2",
-        "max_cost_usd: 0.75",
         "severity_threshold: important",
         "knowledge_paths:",
         "  - AGENTS.md",
@@ -553,8 +436,6 @@ instructions:
       expect(loadBaseBranchElekConfig(".elek.yml", "refs/heads/main")).toEqual({
         loaded: true,
         config: {
-          costRates: "openrouter/base-reviewer=1:2",
-          maxCostUsd: 0.75,
           severityThreshold: "important",
           knowledgePaths: ["AGENTS.md"],
           ignorePaths: ["base-only/**"],
@@ -564,8 +445,6 @@ instructions:
       expect(loadBaseBranchElekConfig(join(work, ".elek.yml"), "refs/heads/main")).toEqual({
         loaded: true,
         config: {
-          costRates: "openrouter/base-reviewer=1:2",
-          maxCostUsd: 0.75,
           severityThreshold: "important",
           knowledgePaths: ["AGENTS.md"],
           ignorePaths: ["base-only/**"],
@@ -680,50 +559,24 @@ instructions:
   });
 
   it("formats an audit log for loaded config values", () => {
-    const previousEvent = process.env.GITHUB_EVENT_NAME;
-    delete process.env.GITHUB_EVENT_NAME;
-    try {
-      expect(formatConfigAuditLog(".elek.yml", {
-        severityThreshold: "important",
-        costRates: "deepseek/model-b=1:2",
-        maxCostUsd: 0.3,
-        ignorePaths: ["docs/**"],
-        instructions: ["Treat migrations as operational risk."],
-      })).toBe(
-        "[config] audit | path=.elek.yml | source=checked-out-workspace | " +
-          "severity_threshold=important | cost_rates=deepseek/model-b=1:2 | " +
-          "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
-      );
+    expect(formatConfigAuditLog(".elek.yml", {
+      severityThreshold: "important",
+      ignorePaths: ["docs/**"],
+      instructions: ["Treat migrations as operational risk."],
+    }, "base-branch-policy+base-branch-knowledge")).toBe(
+      "[config] audit | path=.elek.yml | source=base-branch-policy+base-branch-knowledge | " +
+        "severity_threshold=important | " +
+        "knowledge_paths=(default) | knowledge_files=0 | ignore_paths=docs/** | instructions=1",
+    );
 
-      process.env.GITHUB_EVENT_NAME = "pull_request";
-      expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] })).toContain(
-        "source=checked-out-pr-branch",
-      );
+    expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] }, "checked-out-guidance-only")).toContain(
+      "path=(disabled) | source=(disabled)",
+    );
 
-      expect(formatConfigAuditLog("off", { ignorePaths: [], instructions: [] })).toContain(
-        "path=(disabled)",
-      );
-
-      expect(formatConfigAuditLog(".elek.yml", {
-        knowledgePaths: [],
-        ignorePaths: [],
-        instructions: [],
-      })).toContain("knowledge_paths=(none)");
-
-      expect(formatConfigAuditLog(".elek.yml", { ignorePaths: [], instructions: [] }, {
-        ...baseInputs,
-        severityThreshold: "critical",
-        costRates: "deepseek/model-b=1:2",
-        maxCostUsd: 0.3,
-      })).toContain(
-        "effective_severity_threshold=critical | effective_cost_rates=deepseek/model-b=1:2",
-      );
-    } finally {
-      if (previousEvent === undefined) {
-        delete process.env.GITHUB_EVENT_NAME;
-      } else {
-        process.env.GITHUB_EVENT_NAME = previousEvent;
-      }
-    }
+    expect(formatConfigAuditLog(".elek.yml", {
+      knowledgePaths: [],
+      ignorePaths: [],
+      instructions: [],
+    }, "checked-out-guidance-only")).toContain("knowledge_paths=(none)");
   });
 });

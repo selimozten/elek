@@ -21,30 +21,6 @@ function parseSeverityInput(value: string): ActionInputs["severityThreshold"] {
   return "";
 }
 
-function parseMaxCostInput(value: string): number | null | undefined {
-  const normalized = value.trim();
-  if (!normalized) return undefined;
-  if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return null;
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    core.warning(`Ignoring invalid max_cost_usd input: ${normalized}`);
-    return undefined;
-  }
-  return parsed;
-}
-
-function parseMaxTurnsInput(value: string): number | undefined {
-  const normalized = value.trim();
-  if (!normalized) return undefined;
-  if (["0", "off", "none", "false", "disabled"].includes(normalized.toLowerCase())) return undefined;
-  const parsed = Number(normalized);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    core.warning(`Ignoring invalid max_turns input: ${normalized}`);
-    return undefined;
-  }
-  return parsed;
-}
-
 function parsePositiveIntegerInput(name: string, value: string): number | undefined {
   const normalized = value.trim();
   if (!normalized) return undefined;
@@ -68,14 +44,10 @@ export function parseInputs(): ActionInputs {
     model: core.getInput("model") || "",
     thinking: core.getInput("thinking") || "medium",
     prompt: core.getInput("prompt") || "",
-    maxTurns: parseMaxTurnsInput(core.getInput("max_turns")),
     runTimeoutSeconds: parseRunTimeoutInput(core.getInput("run_timeout_seconds")),
     configPath: core.getInput("config_path") || ".elek.yml",
     stickyComment: parseBooleanInput(core.getInput("sticky_comment"), true),
     severityThreshold: parseSeverityInput(core.getInput("severity_threshold")),
-    showCost: parseBooleanInput(core.getInput("show_cost"), true),
-    costRates: core.getInput("cost_rates") || "",
-    maxCostUsd: parseMaxCostInput(core.getInput("max_cost_usd")),
   };
 }
 

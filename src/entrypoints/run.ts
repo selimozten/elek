@@ -15,13 +15,11 @@ import { join } from "path";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
 import {
-  applyConfigDefaults,
   formatConfigAuditLog,
   loadBaseBranchElekConfig,
   loadBaseBranchRepoKnowledge,
   loadElekConfig,
   loadRepoKnowledge,
-  mergeBasePolicyWithWorkspaceGuidance,
 } from "../config.js";
 import { isActorAuthorized, shouldReview } from "../github/trigger.js";
 import { credentialPreflight } from "../credentials.js";
@@ -39,13 +37,7 @@ import { formatProgressComment, type ProgressState } from "../github/progress.js
 import { spinnerHeader } from "../github/spinner.js";
 import type { PiRunResult } from "../types.js";
 import { reviewPromptForAttempt, runPiWithTransientRecovery } from "../review/run-recovery.js";
-import {
-  aggregateCosts,
-  costFromPiResult,
-  formatCostLine,
-  modelLabelFor,
-  type ReviewCost,
-} from "../review/cost.js";
+import { formatTokenLine, modelLabelFor } from "../review/usage.js";
 import { parseReviewFindings } from "../review/findings.js";
 import { preparePublicReviewOutput, reviewConclusion } from "../review/public-output.js";
 import { inlineReviewBufferFromFindings } from "../review/inline-fallback.js";
@@ -64,11 +56,10 @@ function skip(message: string): void {
 
 async function run(): Promise<void> {
   // ── Phase 0: Parse inputs & context ──────────────────────────────────
-  core.setOutput("cost_usd", "0.000000");
   core.setOutput("input_tokens", "0");
   core.setOutput("output_tokens", "0");
 
-  const parsedInputs = parseInputs();
+  const inputs = parseInputs();
   const context = parseEntityContext();
 
   if (!context) {
@@ -117,7 +108,7 @@ async function run(): Promise<void> {
   // Before any GitHub writes: a fork run has a read-only token and no
   // secrets, so a tracking comment would 403 and Pi would fail on auth.
   const credentials = credentialPreflight({
-    provider: parsedInputs.provider,
+    provider: inputs.provider,
     env: process.env,
     rawEventName: process.env.GITHUB_EVENT_NAME,
     isForkPR: context.pr.isFork === true,
@@ -136,26 +127,19 @@ async function run(): Promise<void> {
 
   // ── Phase 2: Config ──────────────────────────────────────────────────
   // Policy and knowledge come from the base branch so a PR cannot weaken
-  // its own review.
+  // its own review. Without a base-branch config, the checkout's applies.
   const warnConfig = (message: string) => console.warn(`[config] ${message}`);
-  const workspaceConfig = loadElekConfig(parsedInputs.configPath, warnConfig);
-  const baseConfig = loadBaseBranchElekConfig(parsedInputs.configPath, context.pr.baseRef, warnConfig);
+  const baseConfig = loadBaseBranchElekConfig(inputs.configPath, context.pr.baseRef, warnConfig);
   const repoConfig = baseConfig.loaded
-    ? loadBaseBranchRepoKnowledge(
-      mergeBasePolicyWithWorkspaceGuidance(baseConfig.config, workspaceConfig),
-      context.pr.baseRef,
-      warnConfig,
-    )
-    : loadRepoKnowledge(workspaceConfig, warnConfig);
-  const inputs = applyConfigDefaults(parsedInputs, repoConfig);
+    ? loadBaseBranchRepoKnowledge(baseConfig.config, context.pr.baseRef, warnConfig)
+    : loadRepoKnowledge(loadElekConfig(inputs.configPath, warnConfig), warnConfig);
   const effectiveRepoConfig = {
     ...repoConfig,
     severityThreshold: inputs.severityThreshold || repoConfig.severityThreshold,
   };
   console.log(formatConfigAuditLog(
-    parsedInputs.configPath,
+    inputs.configPath,
     effectiveRepoConfig,
-    inputs,
     baseConfig.loaded ? "base-branch-policy+base-branch-knowledge" : "checked-out-guidance-only",
   ));
 
@@ -251,24 +235,7 @@ async function run(): Promise<void> {
   );
   writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
-  const runCosts: ReviewCost[] = [];
-
-  let result: PiRunResult = {
-    conclusion: "failure",
-    output: "Review execution failed",
-    turnsUsed: 0,
-    providerRetries: 0,
-    durationSeconds: 0,
-    costUsd: 0,
-    usage: {
-      inputTokens: 0,
-      outputTokens: 0,
-      estimated: true,
-      modelLabel,
-      source: "unknown",
-    },
-  };
-  const finalCostIndex = runCosts.push(costFromPiResult(result)) - 1;
+  let result: PiRunResult;
   try {
     result = await runPiWithTransientRecovery(
       (attempt) => runPi(
@@ -278,11 +245,11 @@ async function run(): Promise<void> {
         { promptName: "prompt" },
       ),
     );
-    runCosts[finalCostIndex] = costFromPiResult(result);
   } catch (err) {
     result = {
-      ...result,
+      conclusion: "failure",
       output: `Review execution failed: ${(err as Error).message}`,
+      usage: { inputTokens: 0, outputTokens: 0, estimated: false },
     };
   }
 
@@ -299,12 +266,11 @@ async function run(): Promise<void> {
     );
   }
   const parsedFindings = parseReviewFindings(publicOutput);
-  const costTotal = aggregateCosts(runCosts);
-  const costLine = inputs.showCost ? formatCostLine(costTotal) : "";
+  const tokenLine = formatTokenLine(result.usage);
   if (result.output) {
     console.log(safeOutput.substring(0, 500) + (safeOutput.length > 500 ? "..." : ""));
   }
-  if (inputs.showCost) console.log(costLine);
+  console.log(tokenLine);
 
   // ── Phase 5: Post the review ─────────────────────────────────────────
   // GitHub's hard limit on issue/PR comments is 65,536 chars; leave
@@ -324,7 +290,8 @@ async function run(): Promise<void> {
         : spinnerHeader(modelLabel, "encountered an issue"),
       "",
       truncate(publicOutput),
-      ...(inputs.showCost ? ["", `_${costLine}_`] : []),
+      "",
+      `_${tokenLine}_`,
       "",
       `[View run](${jobRunLink})`,
     ].join("\n");
@@ -343,10 +310,13 @@ async function run(): Promise<void> {
     }
   } else {
     try {
-      const reviewOutput = inputs.showCost
-        ? `${truncate(publicOutput)}\n\n_${costLine}_`
-        : truncate(publicOutput);
-      await createPRReview(octokit, context, reviewOutput, publicConclusion, modelLabel);
+      await createPRReview(
+        octokit,
+        context,
+        `${truncate(publicOutput)}\n\n_${tokenLine}_`,
+        publicConclusion,
+        modelLabel,
+      );
       reviewDelivered = true;
     } catch (err) {
       console.warn("Could not create PR review:", err);
@@ -397,11 +367,9 @@ async function run(): Promise<void> {
   const finalConclusion = reviewConclusion(result.conclusion, publicReview.usable, reviewDelivered);
   core.setOutput("conclusion", finalConclusion);
   core.setOutput("comment_id", commentId ? String(commentId) : "");
-  core.setOutput("session_id", result.sessionId || "");
   core.setOutput("summary", publicOutput.substring(0, 1000));
-  core.setOutput("cost_usd", costTotal.costUsd.toFixed(6));
-  core.setOutput("input_tokens", String(costTotal.inputTokens));
-  core.setOutput("output_tokens", String(costTotal.outputTokens));
+  core.setOutput("input_tokens", String(result.usage.inputTokens));
+  core.setOutput("output_tokens", String(result.usage.outputTokens));
 
   if (finalConclusion === "failure") {
     core.setFailed(

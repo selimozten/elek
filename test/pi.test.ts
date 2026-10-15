@@ -10,18 +10,10 @@ const baseInputs: ActionInputs = {
   model: "deepseek-v4-pro",
   thinking: "medium",
   prompt: "",
-  maxTurns: 20,
   runTimeoutSeconds: 600,
   configPath: ".elek.yml",
   stickyComment: true,
-  reviewStrategy: "solo",
-  reviewModels: "",
-  reviewAgentCount: undefined,
-  validatorModel: "",
-  validatorThinking: "",
   severityThreshold: "",
-  showCost: true,
-  costRates: "",
 };
 
 const originalPiExecutable = process.env.PI_EXECUTABLE;
@@ -191,7 +183,7 @@ describe("buildPiEnv", () => {
 });
 
 describe("runPi", () => {
-  it("uses provider-reported JSON usage when pi emits exact token and cost data", async () => {
+  it("uses provider-reported JSON usage when pi emits token counts", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-usage-"));
     const fakePi = join(dir, "pi");
     writeFileSync(fakePi, [
@@ -219,22 +211,13 @@ describe("runPi", () => {
 
       expect(result.conclusion).toBe("success");
       expect(result.output).toBe("done");
-      expect(result.usage).toMatchObject({
-        inputTokens: 1234,
-        outputTokens: 56,
-        estimated: false,
-        modelLabel: "together/moonshotai/Kimi-K2.7-Code",
-        source: "provider",
-      });
-      expect(result.providerRetries).toBe(1);
-      expect(result.stopReason).toBe("stop");
-      expect(result.costUsd).toBe(0.00789);
+      expect(result.usage).toEqual({ inputTokens: 1234, outputTokens: 56, estimated: false });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("records prompt settings and exact usage for every model turn", async () => {
+  it("sums provider-reported tokens across model turns", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-turn-metrics-"));
     const fakePi = join(dir, "pi");
     writeFileSync(fakePi, [
@@ -255,32 +238,10 @@ describe("runPi", () => {
     process.env.PI_EXECUTABLE = fakePi;
 
     try {
-      const prompt = "review this change";
-      const result = await runPi(prompt, baseInputs, undefined, { promptName: "turn-metrics-test" });
+      const result = await runPi("review this change", baseInputs, undefined, { promptName: "turn-metrics-test" });
 
       expect(result.conclusion).toBe("success");
-      expect(result.promptChars).toBe(prompt.length);
-      expect(result.thinking).toBe("medium");
-      expect(result.turnsUsed).toBe(2);
-      expect(result.turnMetrics).toHaveLength(2);
-      expect(result.turnMetrics[0]).toMatchObject({
-        turn: 1,
-        inputTokens: 100,
-        outputTokens: 10,
-        cacheReadTokens: 80,
-        cacheWriteTokens: 2,
-        reasoningTokens: 5,
-        totalTokens: 192,
-        stopReason: "toolUse",
-      });
-      expect(result.usage).toMatchObject({
-        inputTokens: 120,
-        outputTokens: 17,
-        cacheReadTokens: 240,
-        cacheWriteTokens: 2,
-        reasoningTokens: 8,
-      });
-      expect(result.costUsd).toBe(0.003);
+      expect(result.usage).toEqual({ inputTokens: 120, outputTokens: 17, estimated: false });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -306,42 +267,32 @@ describe("runPi", () => {
 
       expect(result.conclusion).toBe("failure");
       expect(result.output).toBe("pi timed out after 1s");
-      expect(result.durationSeconds).toBeGreaterThanOrEqual(1);
+      expect(result.errorKind).toBe("timeout");
       expect(progressEvents).toContain("done");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("terminates a run when pi starts more than maxTurns", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "elek-pi-turn-limit-"));
+  it("estimates tokens from prompt and output when pi reports no usage", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-estimate-"));
     const fakePi = join(dir, "pi");
     writeFileSync(fakePi, [
-      "#!/usr/bin/env node",
-      "process.on('SIGTERM', () => process.exit(0));",
-      "console.log(JSON.stringify({ type: 'session', id: 'session-turn-limit' }));",
-      "console.log(JSON.stringify({ type: 'turn_start' }));",
-      "console.log(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'premature output' }], stopReason: 'stop' } }));",
-      "console.log(JSON.stringify({ type: 'turn_start' }));",
-      "console.log(JSON.stringify({ type: 'turn_start' }));",
-      "setInterval(() => {}, 1000);",
+      "#!/usr/bin/env bash",
+      "cat <<'JSON'",
+      "{\"type\":\"turn_start\"}",
+      "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"12345678\"}],\"stopReason\":\"stop\"}]}",
+      "JSON",
       "",
     ].join("\n"), "utf-8");
     chmodSync(fakePi, 0o755);
     process.env.PI_EXECUTABLE = fakePi;
 
     try {
-      const result = await runPi(
-        "review this change",
-        { ...baseInputs, maxTurns: 2, runTimeoutSeconds: 10 },
-        undefined,
-        { promptName: "turn-limit-test" },
-      );
+      const result = await runPi("x".repeat(400), baseInputs, undefined, { promptName: "estimate-test" });
 
-      expect(result.conclusion).toBe("failure");
-      expect(result.output).toBe("pi exceeded max turns (2)");
-      expect(result.turnsUsed).toBe(3);
-      expect(result.durationSeconds).toBeLessThan(3);
+      expect(result.conclusion).toBe("success");
+      expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 2, estimated: true });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,9 +1,8 @@
 name: "elek — AI Code Review"
 description: >
-  Review-only AI for pull requests. Run one Pi review session with selected
-  review lenses and native read-only tools. Anthropic, OpenAI, Google,
-  Bedrock, DeepSeek, Groq, Mistral,
-  Together, xAI, OpenRouter — bring your own key.
+  Read-only AI code review for pull requests. One Pi session with read-only
+  tools reviews each PR and posts findings; it cannot approve, merge, or push.
+  Bring your own key for any Pi provider.
 branding:
   icon: "filter"
   color: "gray-dark"
@@ -66,12 +65,8 @@ inputs:
     description: "Replaces the built-in review request. Empty uses the default review request."
     required: false
     default: ""
-  max_turns:
-    description: "Optional conversation turn cap. The default has no Elek turn cap."
-    required: false
-    default: "0"
   run_timeout_seconds:
-    description: "Optional model-run timeout. The default has no Elek timeout."
+    description: "Stop the model run after this many seconds and report a failure. 0 means no timeout."
     required: false
     default: "0"
   config_path:
@@ -79,51 +74,29 @@ inputs:
     required: false
     default: ".elek.yml"
   sticky_comment:
-    description: "Update a single tracking comment instead of new comments each turn"
+    description: "Post live progress and the review in one tracking comment. Set to false to post a PR review only."
     required: false
     default: "true"
   severity_threshold:
     description: "Prompt-level minimum finding severity to surface: critical, important, or minor. Empty uses .elek.yml or no threshold."
     required: false
     default: ""
-  show_cost:
-    description: "Show estimated token usage and review cost in the final comment and console log. The cost_usd, input_tokens, and output_tokens action outputs are always populated."
-    required: false
-    default: "true"
-  cost_rates:
-    description: >
-      Optional pricing overrides as model=inputPerMillion:outputPerMillion,
-      e.g. openai/gpt-5.5=5:30,custom/provider-model=1.25:10.
-      Prices are USD per 1M tokens.
-    required: false
-    default: ""
-  max_cost_usd:
-    description: >
-      Deprecated compatibility input. Elek reports cost but does not reduce
-      review coverage or stop the Pi session.
-    required: false
-    default: ""
+
 outputs:
   conclusion:
-    description: "Execution conclusion: success or failure"
+    description: "success, failure, or skipped"
     value: ${{ steps.run.outputs.conclusion }}
   comment_id:
     description: "ID of the tracking comment"
     value: ${{ steps.run.outputs.comment_id }}
-  session_id:
-    description: "pi session ID for continuation"
-    value: ${{ steps.run.outputs.session_id }}
   summary:
-    description: "Execution summary text"
+    description: "First 1,000 characters of the posted review"
     value: ${{ steps.run.outputs.summary }}
-  cost_usd:
-    description: "Estimated review cost in USD"
-    value: ${{ steps.run.outputs.cost_usd }}
   input_tokens:
-    description: "Estimated input tokens used by the review"
+    description: "Input tokens used by the review"
     value: ${{ steps.run.outputs.input_tokens }}
   output_tokens:
-    description: "Estimated output tokens used by the review"
+    description: "Output tokens used by the review"
     value: ${{ steps.run.outputs.output_tokens }}
 
 runs:
@@ -168,14 +141,10 @@ runs:
         # ── GitHub / Behavior ──
         GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_PROMPT: ${{ inputs.prompt }}
-        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_RUN_TIMEOUT_SECONDS: ${{ inputs.run_timeout_seconds }}
         INPUT_CONFIG_PATH: ${{ inputs.config_path }}
         INPUT_STICKY_COMMENT: ${{ inputs.sticky_comment }}
         INPUT_SEVERITY_THRESHOLD: ${{ inputs.severity_threshold }}
-        INPUT_SHOW_COST: ${{ inputs.show_cost }}
-        INPUT_COST_RATES: ${{ inputs.cost_rates }}
-        INPUT_MAX_COST_USD: ${{ inputs.max_cost_usd }}
 
         # ── Runtime ──
         PI_CODING_AGENT_DIR: ${{ github.action_path }}/pi-config
