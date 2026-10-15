@@ -36,14 +36,8 @@ const REVIEW_SYSTEM_PROMPT = [
   "Return the requested review format immediately when the review is complete, including when there are no findings.",
 ].join(" ");
 
-const NO_TOOL_REVIEW_SYSTEM_PROMPT = [
-  "You are Elek, a noninteractive read-only CI pull-request reviewer.",
-  "Find only concrete, consequential issues rooted in changed code.",
-  "You have no repository tools; the prompt contains the complete relevant diff and policy.",
-  "Review the supplied context now and do not defer work or say that you will inspect files.",
-  "Do not edit files, ask questions, or narrate research.",
-  "Return the final review in this response, including the required no-findings format when applicable.",
-].join(" ");
+/** Native read-only tools; the workspace guard confines them to the repository. */
+export const REVIEW_TOOLS = "read,grep,find,ls";
 
 export interface ProgressEvent {
   type: "thinking" | "tool_start" | "tool_end" | "text" | "done";
@@ -147,7 +141,7 @@ export async function runPi(
 
   const piBin = findPiBinary();
   const args = buildPiArgs(inputs, promptFile);
-  const env = buildPiEnv(inputs);
+  const env = buildPiEnv();
 
   console.log(`pi binary: ${piBin}`);
   console.log(
@@ -173,18 +167,8 @@ export async function runPi(
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
 
-  // pi --mode json hangs forever when spawned with stdio:["pipe",…] from
-  // Node — pi keeps the stdin pipe open waiting for input that never
-  // arrives. Reproduced locally (see /tmp/elek-debug/repro.mjs in dev
-  // history): hang with stdio:["pipe",…], works perfectly with
-  // stdio:["ignore",…] (stdin closed). The fix is in the spawn call below.
-  // Set ELEK_PI_TEXT_MODE=1 to fall back to `pi -p` if JSON mode regresses.
-  const useJsonMode = process.env.ELEK_PI_TEXT_MODE !== "1";
-
   return new Promise((resolve) => {
-    const finalArgs = useJsonMode
-      ? [...args.filter((a) => a !== "-p"), "--mode", "json"]
-      : ["-p", ...args];
+    const finalArgs = [...args, "--mode", "json"];
 
     console.log(
       `Command: ${piBin} ${finalArgs.map((a) => (a.startsWith("@") ? "@<prompt>" : a)).join(" ")}`,
@@ -192,7 +176,8 @@ export async function runPi(
 
     const child = spawn(piBin, finalArgs, {
       env,
-      stdio: ["ignore", "pipe", "pipe"], // close stdin (pi -p doesn't read it)
+      // pi --mode json waits forever on an open stdin pipe; close it.
+      stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32",
     });
     let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
@@ -215,24 +200,14 @@ export async function runPi(
         );
 
     let stderr = "";
-    let stdoutRaw = "";
 
     child.stderr!.on("data", (data) => {
       stderr += data.toString();
     });
 
-    if (!useJsonMode) {
-      // Text mode: just collect stdout as the assistant's review text.
-      child.stdout!.on("data", (chunk) => {
-        stdoutRaw += chunk.toString();
-      });
-    }
+    const rl = createInterface({ input: child.stdout! });
 
-    const rl = useJsonMode
-      ? createInterface({ input: child.stdout! })
-      : null;
-
-    rl?.on("line", (line: string) => {
+    rl.on("line", (line: string) => {
       let event: any;
       try {
         event = JSON.parse(line);
@@ -263,14 +238,8 @@ export async function runPi(
           break;
 
         case "tool_execution_start": {
-          const toolName: string = event.toolName || "unknown";
           toolCount++;
-          // Render bash commands as `bash(<cmd>)` for nicer progress lines.
-          const detail =
-            toolName === "bash" && event.args?.command
-              ? `bash(${String(event.args.command).split("\n")[0].slice(0, 60)})`
-              : toolName;
-          onProgress?.({ type: "tool_start", detail });
+          onProgress?.({ type: "tool_start", detail: event.toolName || "unknown" });
           break;
         }
 
@@ -355,9 +324,7 @@ export async function runPi(
         // already logged inside onProgress
       }
 
-      const output = useJsonMode
-        ? (extractAssistantText(finalAssistant) || streamingText.trim())
-        : stdoutRaw.trim();
+      const output = extractAssistantText(finalAssistant) || streamingText.trim();
       const exactUsage = exactRunUsageFromPi(
         completedTurnMessages.length > 0
           ? completedTurnMessages
@@ -710,31 +677,13 @@ export function buildPiArgs(
   if (!inputs.model?.startsWith(`${inputs.provider}/`)) {
     args.push("--provider", inputs.provider);
   }
-  args.push("--no-extensions");
-  if (inputs.mode !== "agent" && inputs.tools) {
-    args.push("-e", localWorkspaceGuardPath());
-  }
-  if (inputs.mode !== "agent" && !inputs.tools) {
-    args.push("--no-tools");
-  }
+  args.push("--no-extensions", "-e", localWorkspaceGuardPath());
 
   // Pi 1.0 requires a model with --provider. An empty provider-qualified
   // pattern selects an available model from that provider without switching.
   args.push("--model", inputs.model || `${inputs.provider}/`);
-
-  if (inputs.systemPrompt) {
-    args.push("--system-prompt", inputs.systemPrompt);
-  }
-  if (inputs.mode !== "agent") {
-    args.push(
-      "--append-system-prompt",
-      inputs.tools ? REVIEW_SYSTEM_PROMPT : NO_TOOL_REVIEW_SYSTEM_PROMPT,
-    );
-  }
-
-  if (inputs.tools) {
-    args.push("--tools", inputs.tools);
-  }
+  args.push("--append-system-prompt", REVIEW_SYSTEM_PROMPT);
+  args.push("--tools", REVIEW_TOOLS);
 
   args.push(`@${promptFile}`);
 
@@ -747,42 +696,16 @@ function localWorkspaceGuardPath(): string {
 }
 
 /**
- * Build the environment variables for pi.
- *
- * Both review and agent modes use a strict allowlist instead of leaking
- * `{ ...process.env }`. Agent mode runs a child that may execute shell (git
- * commit/push), so blindly passing the parent env would expose every secret
- * the workflow ever set to a process that can run arbitrary commands. Agent
- * mode only gets a few extra GitHub/workflow vars beyond the review baseline
- * — enough for git auth + pushing — never the whole environment.
+ * Build the environment variables for pi from a strict allowlist: locale,
+ * temp dirs, pi's own paths, and provider credentials. Never GITHUB_TOKEN.
  */
-function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
+function buildPiEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
 
-  // Baseline allowed in every mode: locale, temp dirs, and pi's own paths.
-  const baseAllowedVars = [
+  const allowedVars = [
     "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "RUNNER_TEMP",
     "GITHUB_ACTION_PATH", "GITHUB_WORKSPACE", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR",
   ];
-
-  // Agent mode runs shell and pushes commits, so it additionally needs the
-  // standard GitHub Actions context vars and the token git auth relies on.
-  // This is deliberately narrow — NOT the full parent environment.
-  const agentExtraVars = [
-    "GITHUB_TOKEN", "GH_TOKEN",
-    "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER",
-    "GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_GRAPHQL_URL",
-    "GITHUB_RUN_ID", "GITHUB_RUN_NUMBER", "GITHUB_SHA", "GITHUB_REF",
-    "GITHUB_REF_NAME", "GITHUB_HEAD_REF", "GITHUB_BASE_REF",
-    "GITHUB_WORKSPACE", "GITHUB_EVENT_NAME", "GITHUB_ACTOR",
-    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
-    "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
-  ];
-
-  const allowedVars = inputs.mode === "agent"
-    ? [...baseAllowedVars, ...agentExtraVars]
-    : baseAllowedVars;
-
   for (const v of allowedVars) {
     if (process.env[v] !== undefined) env[v] = process.env[v];
   }
@@ -814,8 +737,5 @@ function buildPiEnv(inputs: ActionInputs): NodeJS.ProcessEnv {
   return env;
 }
 
-/**
- * Test seam: the env builder is internal, but tests need to assert the
- * agent-mode allowlist doesn't leak arbitrary parent secrets.
- */
+/** Test seam: assert the env allowlist doesn't leak parent secrets. */
 export const __buildPiEnv = buildPiEnv;

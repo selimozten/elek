@@ -25,17 +25,15 @@ describe("credentialPreflight", () => {
   });
 
   it("skips fork pull_request runs where GitHub withheld secrets", () => {
-    for (const rawEventName of ["pull_request", "pull_request_review", "pull_request_review_comment"]) {
-      const result = credentialPreflight({
-        provider: "deepseek",
-        env: { DEEPSEEK_API_KEY: "" },
-        rawEventName,
-        isForkPR: true,
-      });
-      expect(result.action).toBe("skip");
-      if (result.action === "skip") {
-        expect(result.message).toContain("fork");
-      }
+    const result = credentialPreflight({
+      provider: "deepseek",
+      env: { DEEPSEEK_API_KEY: "" },
+      rawEventName: "pull_request",
+      isForkPR: true,
+    });
+    expect(result.action).toBe("skip");
+    if (result.action === "skip") {
+      expect(result.message).toContain("fork");
     }
   });
 
@@ -53,15 +51,13 @@ describe("credentialPreflight", () => {
     }
   });
 
-  it("fails rather than skips for fork events that run with base-repo secrets", () => {
-    for (const rawEventName of ["pull_request_target", "issue_comment"]) {
-      expect(credentialPreflight({
-        provider: "anthropic",
-        env: {},
-        rawEventName,
-        isForkPR: true,
-      }).action).toBe("fail");
-    }
+  it("fails rather than skips for pull_request_target, which runs with base-repo secrets", () => {
+    expect(credentialPreflight({
+      provider: "anthropic",
+      env: {},
+      rawEventName: "pull_request_target",
+      isForkPR: true,
+    }).action).toBe("fail");
   });
 
   it("leaves providers Elek cannot inspect to Pi on same-repo runs", () => {

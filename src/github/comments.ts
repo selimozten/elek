@@ -1,5 +1,5 @@
 /**
- * GitHub comment management — create/update comments on PRs and issues.
+ * GitHub comment management — create/update elek comments on a pull request.
  * Deduplicates by signature so the same comment is reused across pushes.
  */
 import type { GitHubEntityContext } from "../types.js";
@@ -187,7 +187,7 @@ export async function createTrackingComment(
   const body = [
     `${spinnerHeader(modelLabel)} ${sig}`,
     "",
-    `Reviewing this ${context.isPR ? "pull request" : "issue"}, this may take a minute.`,
+    "Reviewing this pull request, this may take a minute.",
     "",
     runLink,
   ].join("\n");
@@ -353,8 +353,6 @@ export async function fetchReviewComments(
   octokit: GitHubApi,
   context: GitHubEntityContext,
 ): Promise<string[]> {
-  if (!context.isPR) return [];
-
   try {
     const { data: reviews } = await withGitHubRetry(
       () =>

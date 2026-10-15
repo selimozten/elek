@@ -6,14 +6,11 @@ import { describe, it, expect } from "bun:test";
 import { buildPrompt, fetchGitHubData, type GitHubData } from "../src/github/data";
 
 const baseData: GitHubData = {
-  type: "pr",
   title: "Add login flow",
   body: "Implements basic auth",
   author: "alice",
   comments: [],
   reviewComments: [],
-  labels: ["enhancement"],
-  assignees: [],
   entityNumber: 17,
   pr: { headRef: "feat/auth", baseRef: "main" },
   diff: "@@ -1,2 +1,3 @@\n+console.log('hi')",
@@ -23,14 +20,11 @@ describe("fetchGitHubData", () => {
   it("excludes stale Elek tracking comments from review context", async () => {
     const data = await fetchGitHubData(
       {
-        eventName: "pull_request",
         eventAction: "synchronize",
         actor: "alice",
         actorAssociation: "MEMBER",
         repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
         entityNumber: 17,
-        isPR: true,
-        triggerText: "",
         pr: {
           title: "Update review workflow",
           body: "",
@@ -66,16 +60,13 @@ describe("fetchGitHubData", () => {
   it("falls back to the GitHub diff response when checkout refs cannot identify the PR head", async () => {
     const data = await fetchGitHubData(
       {
-        eventName: "issue_comment",
-        eventAction: "created",
+        eventAction: "synchronize",
         actor: "alice",
         actorAssociation: "MEMBER",
         repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
         entityNumber: 17,
-        isPR: true,
-        triggerText: "@pi review",
         pr: {
-          title: "Review from a comment",
+          title: "Checkout without PR refs",
           body: "",
           headRef: "",
           baseRef: "",
@@ -100,16 +91,13 @@ describe("fetchGitHubData", () => {
 
   it("fails closed when neither the checkout nor GitHub can provide a PR diff", async () => {
     const context = {
-      eventName: "issue_comment",
-      eventAction: "created",
+      eventAction: "synchronize",
       actor: "alice",
       actorAssociation: "MEMBER",
       repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
       entityNumber: 17,
-      isPR: true,
-      triggerText: "@pi review",
       pr: {
-        title: "Review from a comment",
+        title: "Checkout without PR refs",
         body: "",
         headRef: "",
         baseRef: "",
@@ -137,7 +125,7 @@ describe("fetchGitHubData", () => {
 
 describe("buildPrompt", () => {
   it("includes the structured context block with title, author, branch", () => {
-    const out = buildPrompt(baseData, "review pls", "deepseek/v4", "https://job/1");
+    const out = buildPrompt(baseData, "review pls", "deepseek/v4");
     expect(out).toContain("<context>");
     expect(out).toContain("PR Title: Add login flow");
     expect(out).toContain("Author: alice");
@@ -146,7 +134,7 @@ describe("buildPrompt", () => {
   });
 
   it("wraps the diff in a fenced diff block inside <changed_files>", () => {
-    const out = buildPrompt(baseData, "", "m", "j");
+    const out = buildPrompt(baseData, "", "m");
     expect(out).toContain("<changed_files>");
     expect(out).toContain("```diff");
     expect(out).toContain("+console.log('hi')");
@@ -155,12 +143,12 @@ describe("buildPrompt", () => {
 
   it("truncates a giant unstructured diff with a prompt-budget marker", () => {
     const big = Array.from({ length: 50_000 }, (_, i) => `+ line ${i}`).join("\n");
-    const out = buildPrompt({ ...baseData, diff: big }, "", "m", "j");
+    const out = buildPrompt({ ...baseData, diff: big }, "", "m");
     expect(out).toContain("... diff truncated for prompt budget");
   });
 
   it("includes user_request and metadata blocks", () => {
-    const out = buildPrompt(baseData, "find bugs", "deepseek/v4", "https://j", 555);
+    const out = buildPrompt(baseData, "find bugs", "deepseek/v4", 555);
     expect(out).toContain("<user_request>");
     expect(out).toContain("find bugs");
     expect(out).toContain("</user_request>");
@@ -174,7 +162,6 @@ describe("buildPrompt", () => {
       baseData,
       "find bugs",
       "deepseek/deepseek-v4-pro",
-      "https://github.com/acme/app/actions/runs/1",
       555,
     );
 
@@ -184,12 +171,12 @@ describe("buildPrompt", () => {
   });
 
   it("falls back to default review prompt when userRequest is empty", () => {
-    const out = buildPrompt(baseData, "", "m", "j");
+    const out = buildPrompt(baseData, "", "m");
     expect(out).toContain("Please review this pull request");
   });
 
   it("requests a concise GitHub review without a parser-specific verdict", () => {
-    const out = buildPrompt(baseData, "review pls", "deepseek/v4", "https://job/1", undefined, {
+    const out = buildPrompt(baseData, "review pls", "deepseek/v4", undefined, {
       repoConfig: {
         severityThreshold: "important",
         ignorePaths: [],
@@ -219,7 +206,6 @@ describe("buildPrompt", () => {
       },
       "review pls",
       "deepseek/v4",
-      "https://job/1",
       undefined,
       {
         repoConfig: {
@@ -234,94 +220,36 @@ describe("buildPrompt", () => {
     expect(out).toContain("docs/guide.md");
   });
 
-  it("uses issue_body tag and omits diff for issue context", () => {
-    const issueData: GitHubData = {
-      type: "issue",
-      title: "Crash on login",
-      body: "Steps: ...",
-      author: "alice",
-      comments: [],
-      reviewComments: [],
-      labels: [],
-      assignees: [],
-      entityNumber: 42,
-    };
-    const out = buildPrompt(issueData, "", "m", "j");
-    expect(out).toContain("<issue_body>");
-    expect(out).toContain("Steps: ...");
-    expect(out).not.toContain("<changed_files>");
-    expect(out).toContain("Please review this issue");
-  });
-
   it("includes review comments only when present", () => {
     const out = buildPrompt(
       { ...baseData, reviewComments: ["[src/a.ts:10]: nit: rename foo"] },
       "",
       "m",
-      "j",
     );
     expect(out).toContain("<review_comments>");
     expect(out).toContain("nit: rename foo");
 
-    const out2 = buildPrompt(baseData, "", "m", "j");
+    const out2 = buildPrompt(baseData, "", "m");
     expect(out2).not.toContain("<review_comments>");
   });
 
   it("renders 'no description' when body is empty", () => {
-    const out = buildPrompt({ ...baseData, body: "" }, "", "m", "j");
+    const out = buildPrompt({ ...baseData, body: "" }, "", "m");
     expect(out).toContain("(no description)");
   });
 
-  it("does not tell review-only models to run commands or make edits", () => {
-    const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      allowEdit: false,
-      tools: "read,grep,find,ls",
-    });
+  it("does not tell the read-only reviewer to run commands or make edits", () => {
+    const out = buildPrompt(baseData, "", "m");
 
     expect(out).toContain("Use the read, grep, find, and ls tools");
     expect(out).toContain("Do not claim tests passed unless");
+    expect(out).toContain("Do not modify files, run commands, stage, commit, or push.");
     expect(out).not.toContain("Run relevant tests");
-    expect(out).not.toContain("Make changes using");
     expect(out).not.toContain("git add");
-  });
-
-  it("can describe host-managed edits when sandboxed write/edit tools are allowed", () => {
-    const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      allowEdit: true,
-      tools: "read,write,edit,grep,find,ls",
-    });
-
-    expect(out).toContain("Make focused edits using write/edit tools");
-    expect(out).toContain("elek will stage, commit, and push");
-    expect(out).not.toContain("git add");
-  });
-
-  it("keeps shell workflow guidance for legacy agent mode", () => {
-    const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      useMcp: false,
-      allowEdit: true,
-      tools: "read,write,edit,bash,grep,find,ls",
-    });
-
-    expect(out).toContain("Run relevant tests when the tool surface allows it");
-    expect(out).toContain("Stage changes: `git add <files>`");
-  });
-
-  it("does not infer shell access from a tool name alone", () => {
-    const out = buildPrompt(baseData, "", "m", "j", undefined, {
-      useMcp: false,
-      allowEdit: true,
-      tools: "read,write,edit,grep,find,ls,mcp",
-    });
-
-    expect(out).toContain("Make focused edits using write/edit tools");
-    expect(out).toContain("elek will stage, commit, and push");
-    expect(out).not.toContain("git add");
-    expect(out).not.toContain("Run relevant tests");
   });
 
   it("requires concise findings in the response format", () => {
-    const out = buildPrompt(baseData, "", "m", "j");
+    const out = buildPrompt(baseData, "", "m");
 
     expect(out).toContain("### Finding acceptance gates");
     expect(out).toContain("A finding must identify a concrete failure path from changed code");
@@ -335,7 +263,7 @@ describe("buildPrompt", () => {
   });
 
   it("includes repo config policy when supplied", () => {
-    const out = buildPrompt(baseData, "", "m", "j", undefined, {
+    const out = buildPrompt(baseData, "", "m", undefined, {
       repoConfig: {
         severityThreshold: "important",
         ignorePaths: ["docs/**"],
