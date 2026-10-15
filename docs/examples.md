@@ -74,8 +74,9 @@ review lenses, and response format.
       does not filter by tenant.
 ```
 
-For rules that apply to every PR, prefer `instructions` in `.elek.yml`. elek
-loads that file from the base branch, so a PR cannot change it.
+For rules that apply to every PR, prefer `instructions` in `.elek.yml`. Once
+the file is on the base branch, elek loads it from there, so a PR cannot change
+it.
 
 ## Keep the review advisory
 

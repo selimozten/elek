@@ -281,7 +281,6 @@ describe("public review output filtering", () => {
         "- Important: `src/auth.ts:42` omits the tenant predicate and can expose another tenant's data.",
       ].join("\n"),
       "success",
-      { requireVerdictFormat: true },
     );
 
     expect(result.usable).toBe(true);
@@ -298,18 +297,7 @@ describe("public review output filtering", () => {
       "### 🟢 Nit",
       "- `src/auth.ts:2` — the local name is unclear. Maintenance is slightly harder.",
     ].join("\n");
-    const diff = [
-      "diff --git a/src/auth.ts b/src/auth.ts",
-      "@@ -1 +1,2 @@",
-      " old",
-      "+new",
-    ].join("\n");
-
-    const result = preparePublicReviewOutput(output, "success", {
-      requireVerdictFormat: true,
-      severityThreshold: "important",
-      diff,
-    });
+    const result = preparePublicReviewOutput(output, "success");
 
     expect(result.usable).toBe(true);
     expect(result.body).toContain("Verdict: approve-with-amendments");
@@ -324,13 +312,7 @@ describe("public review output filtering", () => {
       "### 🔴 Blocker",
       "- `src/missing.ts:99` — an invented path is unsafe. The change can fail.",
     ].join("\n");
-    const diff = "diff --git a/src/auth.ts b/src/auth.ts\n@@ -1 +1 @@\n-old\n+new";
-
-    const result = preparePublicReviewOutput(output, "success", {
-      requireVerdictFormat: true,
-      severityThreshold: "important",
-      diff,
-    });
+    const result = preparePublicReviewOutput(output, "success");
 
     expect(result.usable).toBe(true);
     expect(result.filtered).toBe(false);
