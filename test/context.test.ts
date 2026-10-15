@@ -31,7 +31,6 @@ const ENV_KEYS = [
   "INPUT_MAX_COST_USD",
   "INPUT_MAX_TURNS",
   "INPUT_RUN_TIMEOUT_SECONDS",
-  "INPUT_AUTO_REVIEW",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -217,13 +216,6 @@ describe("parseEntityContext", () => {
 });
 
 describe("parseInputs", () => {
-  it("enables auto_review by default and accepts false", () => {
-    delete process.env.INPUT_AUTO_REVIEW;
-    expect(parseInputs().autoReview).toBe(true);
-    process.env.INPUT_AUTO_REVIEW = "false";
-    expect(parseInputs().autoReview).toBe(false);
-  });
-
   it("defaults generated branch names to elek branding", () => {
     delete process.env.INPUT_BRANCH_PREFIX;
     expect(parseInputs().branchPrefix).toBe("elek/");

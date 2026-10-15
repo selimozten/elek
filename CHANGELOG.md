@@ -15,15 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   detected" and exited. Draft PRs are skipped until marked ready. An explicit
   `prompt` or `@pi` phrase still takes precedence; `agent` mode still needs an
   explicit trigger.
-- Fork PR runs, where GitHub withholds secrets, now exit with a notice and a
+- Fork `pull_request` runs without a provider key, where GitHub withholds
+  secrets and grants a read-only token, now exit with a notice and a
   `skipped` conclusion instead of failing after a 403 and a Pi auth error.
 - A missing provider key on a same-repository run now fails before any GitHub
   writes, naming the input and secret to set.
 
-### Added
+### Changed
 
-- `auto_review` input (default `true`). Set `false` to review only on an
-  explicit prompt, trigger phrase, or label.
 - `elek-init` workflows subscribe to `ready_for_review` and skip fork PRs with
   a job-level `head.repo.full_name == github.repository` guard; comment and
   issue events still run.

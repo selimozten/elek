@@ -81,7 +81,6 @@ export function parseInputs(): ActionInputs {
     model: core.getInput("model") || "",
     thinking: core.getInput("thinking") || "medium",
     prompt: core.getInput("prompt") || "",
-    autoReview: parseBooleanInput(core.getInput("auto_review"), true),
     systemPrompt: core.getInput("system_prompt") || "",
     maxTurns: parseMaxTurnsInput(core.getInput("max_turns")),
     runTimeoutSeconds: parseRunTimeoutInput(core.getInput("run_timeout_seconds")),

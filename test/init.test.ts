@@ -62,9 +62,8 @@ describe("elek-init", () => {
       "(github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)",
     );
     expect(workflow).toContain("(github.event_name != 'issue_comment' || !endsWith(github.actor, '[bot]'))");
-    // Auto-review is the action default, so the starter needs no prompt.
+    // PR events review by default, so the starter needs no prompt.
     expect(workflow).not.toContain("prompt:");
-    expect(workflow).not.toContain("auto_review: false");
     expect(workflow).toContain("issues: { types: [opened] }");
     expect(workflow).toContain("issue_comment: { types: [created] }");
     expect(workflow).toContain("contents: read");
