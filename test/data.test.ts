@@ -89,6 +89,31 @@ describe("fetchGitHubData", () => {
     expect(data.diff).toContain("+fixed");
   });
 
+  it("still reviews when the PR conversation cannot be fetched", async () => {
+    const data = await fetchGitHubData(
+      {
+        eventAction: "synchronize",
+        actor: "alice",
+        repo: { owner: "acme", repo: "app", fullName: "acme/app", defaultBranch: "main" },
+        entityNumber: 17,
+        pr: { title: "t", body: "", headRef: "", baseRef: "", headSha: "", baseSha: "" },
+      },
+      {
+        rest: {
+          issues: {
+            listComments: async () => {
+              throw new Error("comments unavailable");
+            },
+          },
+          pulls: { get: async () => ({ data: "diff --git a/a.ts b/a.ts\n+fixed\n" }) },
+        },
+      } as any,
+    );
+
+    expect(data.diff).toContain("+fixed");
+    expect(data.comments).toEqual([]);
+  });
+
   it("fails closed when neither the checkout nor GitHub can provide a PR diff", async () => {
     const context = {
       eventAction: "synchronize",
@@ -231,6 +256,12 @@ describe("buildPrompt", () => {
 
     const out2 = buildPrompt(baseData, "", "m");
     expect(out2).not.toContain("<review_comments>");
+  });
+
+  it("includes PR conversation comments only when present", () => {
+    const out = buildPrompt({ ...baseData, comments: ["[bob]: is the retry bounded?"] }, "", "m");
+    expect(out).toContain("<comments>\n- [bob]: is the retry bounded?\n</comments>");
+    expect(buildPrompt(baseData, "", "m")).not.toContain("<comments>");
   });
 
   it("renders 'no description' when body is empty", () => {

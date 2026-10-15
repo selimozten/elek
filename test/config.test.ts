@@ -176,6 +176,39 @@ instructions:
     }
   });
 
+  it("warns on non-scalar list values and stops at the knowledge depth limit", () => {
+    const warnings: string[] = [];
+    expect(parseElekConfig("instructions:\n  nested: mapping\n", (message) => warnings.push(message)).instructions)
+      .toEqual([]);
+    expect(warnings).toEqual(["Ignoring non-scalar instructions value"]);
+
+    const dir = mkdtempSync(join(process.cwd(), ".elek-knowledge-depth-test-"));
+    const previousWorkspace = process.env.GITHUB_WORKSPACE;
+    try {
+      process.env.GITHUB_WORKSPACE = dir;
+      const deep = join(dir, "docs", "a", "b", "c", "d", "e");
+      mkdirSync(deep, { recursive: true });
+      writeFileSync(join(dir, "docs", "a", "shallow.md"), "Shallow.");
+      writeFileSync(join(deep, "deep.md"), "Too deep.");
+
+      const depthWarnings: string[] = [];
+      const config = loadRepoKnowledge(
+        { knowledgePaths: ["docs"], ignorePaths: [], instructions: [] },
+        (message) => depthWarnings.push(message),
+      );
+
+      expect(config.knowledge?.map((file) => file.path)).toEqual(["docs/a/shallow.md"]);
+      expect(depthWarnings).toEqual(["Skipping knowledge directory deeper than 4: docs/a/b/c/d/e"]);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.GITHUB_WORKSPACE;
+      } else {
+        process.env.GITHUB_WORKSPACE = previousWorkspace;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects base-branch config paths containing git ref separators", () => {
     const dir = mkdtempSync(join(process.cwd(), ".elek-config-colon-test-"));
     const previousWorkspace = process.env.GITHUB_WORKSPACE;
@@ -460,6 +493,21 @@ instructions:
         text: "Trusted base instructions.\n",
         truncated: false,
       }]);
+
+      const warnings: string[] = [];
+      expect(loadBaseBranchRepoKnowledge({
+        knowledgePaths: ["../escape.md", "/etc/passwd", "a:b.md"],
+        ignorePaths: [],
+        instructions: [],
+      }, "refs/heads/main", (message) => warnings.push(message)).knowledge).toBeUndefined();
+      expect(loadBaseBranchElekConfig(".elek.yml", "missing-branch", (message) => warnings.push(message)))
+        .toEqual({ config: { ignorePaths: [], instructions: [] }, loaded: false });
+      expect(warnings.slice(0, 3)).toEqual([
+        "Ignoring unsafe knowledge path: ../escape.md",
+        "Ignoring unsafe knowledge path: /etc/passwd",
+        "Ignoring unsafe knowledge path: a:b.md",
+      ]);
+      expect(warnings[3]).toStartWith("Could not fetch base branch config source missing-branch:");
     } finally {
       process.chdir(previousCwd);
       if (previousWorkspace === undefined) {

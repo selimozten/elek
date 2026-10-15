@@ -112,7 +112,7 @@ describe("parseEntityContext", () => {
   it("returns null for every event other than pull requests", () => {
     process.env.GITHUB_EVENT_PATH = writeEvent({
       action: "created",
-      comment: { body: "@pi review please" },
+      comment: { body: "please review" },
       issue: { number: 99, title: "PR title", body: "", pull_request: { url: "..." } },
     });
     for (const event of ["push", "issues", "issue_comment", "pull_request_review", "pull_request_review_comment"]) {

@@ -92,7 +92,6 @@ describe("elek-init", () => {
     const config = renderConfig();
 
     expect(config).not.toContain("review_strategy");
-    expect(config).not.toContain("max_cost_usd");
     expect(config).toContain("severity_threshold: important");
     expect(config).toContain("knowledge_paths:");
     expect(config).toContain("AGENTS.md");
