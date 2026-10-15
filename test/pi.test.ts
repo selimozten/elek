@@ -274,6 +274,28 @@ describe("runPi", () => {
     }
   });
 
+  it("reports a process failure when pi cannot start", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-spawn-"));
+    const notExecutable = join(dir, "pi");
+    writeFileSync(notExecutable, "not a program", "utf-8");
+    chmodSync(notExecutable, 0o644);
+    process.env.PI_EXECUTABLE = notExecutable;
+
+    try {
+      const progressEvents: string[] = [];
+      const result = await runPi("review this change", baseInputs, async (event) => {
+        progressEvents.push(event.type);
+      }, { promptName: "spawn-error-test" });
+
+      expect(result.conclusion).toBe("failure");
+      expect(result.errorKind).toBe("process");
+      expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0, estimated: false });
+      expect(progressEvents).toEqual(["done"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("estimates tokens from prompt and output when pi reports no usage", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-estimate-"));
     const fakePi = join(dir, "pi");

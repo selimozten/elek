@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { createHash } from "crypto";
-import { createTrackingComment, fetchReviewComments, updateTrackingComment } from "../src/github/comments";
+import {
+  createPRReview,
+  createTrackingComment,
+  fetchReviewComments,
+  postComment,
+  updateTrackingComment,
+} from "../src/github/comments";
 import type { GitHubEntityContext } from "../src/types";
 
 const context: GitHubEntityContext = {
@@ -339,5 +345,32 @@ describe("review comment context", () => {
       "[Review: COMMENTED]: Claude found a current issue",
       "[src/b.ts:9]: human inline comment",
     ]);
+  });
+});
+
+describe("review delivery without a tracking comment", () => {
+  it("posts a COMMENT review and never approves", async () => {
+    const reviews: any[] = [];
+    const octokit = { rest: { pulls: { createReview: async (params: any) => reviews.push(params) } } } as any;
+
+    await createPRReview(octokit, context, "## Findings\nNo high-confidence findings.", "success", "deepseek/v4");
+    await createPRReview(octokit, context, "Elek could not complete this review run.", "failure", "deepseek/v4");
+
+    expect(reviews.map((review) => review.event)).toEqual(["COMMENT", "COMMENT"]);
+    expect(reviews[0]).toMatchObject({ owner: "selimozten", repo: "elek", pull_number: 22 });
+    expect(reviews[0].body).toContain("analysis complete");
+    expect(reviews[0].body).toContain("No high-confidence findings.");
+    expect(reviews[1].body).toContain("encountered an issue");
+  });
+
+  it("signs fallback comments with the model lane", async () => {
+    const comments: any[] = [];
+    const octokit = { rest: { issues: { createComment: async (params: any) => comments.push(params) } } } as any;
+
+    await postComment(octokit, context, "review body", "deepseek/v4");
+
+    const lane = createHash("sha256").update("deepseek/v4").digest("hex").slice(0, 12);
+    expect(comments[0]).toMatchObject({ issue_number: 22 });
+    expect(comments[0].body).toBe(`review body\n\n<!-- elek-bot:lane:${lane} -->`);
   });
 });
