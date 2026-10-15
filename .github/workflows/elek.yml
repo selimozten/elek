@@ -1,28 +1,26 @@
 name: elek
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
-# When the same branch gets multiple pushes in quick succession, cancel
-# the in-flight review and only run on the latest commit. Saves API spend.
+# A newer push to the same PR cancels the in-flight review.
 concurrency:
-  group: elek-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  group: elek-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-# Self-review is advisory because provider quota and transient model failures
-# should not block test-verified code. The action itself still posts a visible
-# tracking comment when a provider fails.
 permissions:
   contents: read
   pull-requests: write
   issues: write
 
 jobs:
-  # ── DeepSeek v4 Pro ───────────────────────────────────────────────────
-  deepseek:
+  # Dogfoods the Action from this checkout. Advisory: provider quota and
+  # transient model failures should not block test-verified code.
+  review:
     name: "deepseek-v4-pro"
-    if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
+    # Fork PRs get no secrets and a read-only token.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -39,46 +37,7 @@ jobs:
           provider: deepseek
           model: deepseek-v4-pro
           thinking: high
-          branch_prefix: elek/deepseek/
-          prompt: |
-            Review this PR for correctness, security, performance, and style.
-            Be specific — reference files and line numbers. Think step by step.
-            Do not claim external GitHub Action versions are unpublished unless
-            this run failed while resolving them; by the time this prompt runs,
-            checkout and this composite action have already resolved.
 
       - name: Report advisory review failure
         if: steps.review.outcome == 'failure'
-        run: echo "::warning::Advisory DeepSeek review failed; inspect the tracking comment and run logs."
-
-  # ── OpenRouter Kimi K2.7 Code ────────────────────────────────────────
-  kimi:
-    name: "openrouter-kimi-k2.7-code"
-    if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && !endsWith(github.actor, '[bot]') }}
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-        with:
-          fetch-depth: 0
-
-      - name: Advisory elek review
-        id: review
-        uses: ./
-        continue-on-error: true
-        with:
-          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-          provider: openrouter
-          model: moonshotai/kimi-k2.7-code
-          thinking: medium
-          branch_prefix: elek/kimi/
-          prompt: |
-            Review this PR for correctness, security, performance, and style.
-            Be specific — reference files and line numbers. Think step by step.
-            Do not claim external GitHub Action versions are unpublished unless
-            this run failed while resolving them; by the time this prompt runs,
-            checkout and this composite action have already resolved.
-
-      - name: Report advisory review failure
-        if: steps.review.outcome == 'failure'
-        run: echo "::warning::Advisory OpenRouter Kimi review failed; inspect the tracking comment and run logs."
+        run: echo "::warning::Advisory elek review failed; inspect the tracking comment and run logs."
