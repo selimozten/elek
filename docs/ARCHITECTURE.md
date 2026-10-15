@@ -30,8 +30,9 @@ flowchart LR
 4. Check the provider key before any GitHub write. A fork PR without secrets
    ends as `skipped`. A same-repository run without a key fails and names the
    input to set.
-5. Load `.elek.yml` and the knowledge files from `origin/<base branch>`. If the
-   base branch has no config, use the checked-out file.
+5. Load `.elek.yml` and the knowledge files from `origin/<base branch>`. If
+   that config cannot be loaded, use the checked-out `.elek.yml` and knowledge
+   files.
 6. Build the diff from the checkout, or fetch it from the GitHub API.
 7. Create or reuse the tracking comment, then run Pi and stream progress into
    it.
