@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-15
+
+### Added
+
+- `opencode-go` provider: new `opencode_api_key` Action input, passed to Pi as
+  `OPENCODE_API_KEY` (OpenCode Zen and Go). `elek-init --provider opencode-go`
+  generates a workflow with model `deepseek-v4.1-flash`.
+- Built-in cost hint for `opencode-go/deepseek-v4.1-flash` ($0.15 / $0.60 per
+  1M input/output tokens, from Pi's model catalog).
+
 ## [1.2.2] - 2026-10-10
 
 ### Changed
