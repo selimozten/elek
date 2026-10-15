@@ -1,53 +1,49 @@
 # Architecture
 
-Elek is a small host wrapper around the Pi CLI. Review mode starts one Pi
-session, gives it native read-only tools, and posts its final answer to GitHub.
+elek is a composite GitHub Action that wraps the Pi CLI. Each run reviews one
+pull request in one read-only Pi session, and the host posts the result.
 
 ## Review flow
 
 ```mermaid
 flowchart LR
-    A[GitHub event] --> B[run.ts]
-    B --> C[Fetch PR diff and discussion]
-    C --> D[Build bounded review prompt]
-    D --> E[One Pi session]
-    E --> F[Native read grep find ls]
-    E --> G[Final review text]
-    G --> H[Sanitize and validate]
-    H --> I[GitHub review or comment]
+    A[pull_request event] --> B[run.ts]
+    B --> C[Gate: action, draft, actor, key]
+    C --> D[Base-branch .elek.yml and knowledge]
+    D --> E[Diff and PR conversation]
+    E --> F[Prompt]
+    F --> G[One Pi session: read grep find ls]
+    G -->|JSON events| H[(Tracking comment)]
+    G --> I[Sanitize and validate]
+    I --> H
+    I --> J[(Inline review comments)]
 ```
 
-The host does this work:
+`src/entrypoints/run.ts` runs these steps:
 
-1. Parse the action inputs and GitHub event.
-2. Load review policy and knowledge from the pull request base branch.
-3. Fetch the diff, pull request data, and prior review discussion.
-4. Build one prompt with the selected review lenses.
-5. Start one `pi --mode json` process.
-6. Stream progress from Pi JSON events.
-7. Sanitize and validate the final model response.
-8. Post the result through Octokit.
+1. Parse the inputs and the `pull_request` payload. Any other event ends the
+   run as `skipped`.
+2. Review only the `opened`, `synchronize`, `reopened`, and `ready_for_review`
+   actions, and skip drafts.
+3. Skip bots and actors who are not repository owners, members, or
+   collaborators. A live permission lookup covers stale webhook data.
+4. Check the provider key before any GitHub write. A fork PR without secrets
+   ends as `skipped`. A same-repository run without a key fails and names the
+   input to set.
+5. Load `.elek.yml` and the knowledge files from `origin/<base branch>`. If the
+   base branch has no config, use the checked-out file.
+6. Build the diff from the checkout, or fetch it from the GitHub API.
+7. Create or reuse the tracking comment, then run Pi and stream progress into
+   it.
+8. Sanitize the final answer, post it with a token usage line, and post the
+   findings as inline comments on changed lines.
 
-Review mode does not add a turn cap or a model-run timeout. Optional action
-inputs can add these limits when a repository needs them.
-
-## Review strategies
-
-Strategies select perspectives. They do not select agent counts.
-
-```text
-solo       -> general review
-crosscheck -> risk + design
-council    -> risk + design + tests + operations
-thermos    -> selected Thermos lenses + Ponytail filter
-```
-
-`src/review/strategy.ts` adds the selected perspectives to one user request.
-The same model session verifies candidates and returns one final review.
+The run succeeds only when Pi succeeds, the answer is a usable review, and
+GitHub accepts it.
 
 ## Pi process
 
-`src/pi.ts` starts Pi with these review-mode controls:
+`src/pi.ts` starts Pi with these flags:
 
 - `--mode json`
 - `--no-session`
@@ -58,56 +54,61 @@ The same model session verifies candidates and returns one final review.
 - `--no-extensions`
 - `-e src/pi-workspace-guard.ts`
 - `--tools read,grep,find,ls`
+- `--append-system-prompt` with the read-only reviewer contract
 
-Pi uses its native tools and normal agent loop. A small tool-call hook blocks
-paths outside the workspace, `.git`, secret files, and symlink escapes. It does
-not replace native tool behavior. Elek closes standard input and reads JSONL.
-Pi includes an MCP client, but Elek disables discovery because the host
-owns review delivery. No MCP adapter, server, or generated MCP configuration
-is required.
+The workspace guard blocks tool calls on paths outside the repository, `.git`,
+secret files, and symlink escapes. The child process gets an environment
+allowlist: locale, temp directories, Pi paths, and provider credentials. It
+never gets `GITHUB_TOKEN`. elek closes Pi's standard input, because Pi waits on
+an open stdin pipe in JSON mode.
 
-The runner records the final assistant message, stop reason, token use, cost,
-turn count, and provider retry count. It retries once only for a confirmed
-transport failure.
+The runner reads the final assistant message and sums the provider-reported
+tokens across turns. When the provider reports no usage, it estimates tokens
+from the prompt and output length. It retries once for a confirmed transport
+failure and never for other failures. `run_timeout_seconds` stops a run that
+takes too long.
 
-## Prompt data
+## Prompt
 
-`src/github/data.ts` builds the review prompt. It includes:
+`src/github/data.ts` builds the prompt. It wraps untrusted evidence in tags:
+the PR title and body, the diff, PR comments, prior review comments, and the
+base-branch config and knowledge. The trusted instructions follow:
 
-- the pull request title and description;
-- the base and head references;
-- the unified diff;
-- prior discussion when available;
-- base-branch policy and bounded project knowledge;
-- the selected review lenses;
-- a concise GitHub review response shape.
+- the review request, which is the `prompt` input or the default request;
+- the review steps;
+- the risk and design lenses and the validation pass, from
+  `src/review/contract.ts`;
+- the finding acceptance gates;
+- the rule to leave review feedback only;
+- the response format.
 
-The diff is the first source of evidence. The model uses repository tools only
-when it must resolve a specific uncertainty.
-
-Pull request changes cannot alter their own review instructions. Elek loads the
-policy and knowledge files from `origin/<base branch>` when that source exists.
+`src/review/diff-context.ts` fits the diff to the model's context budget. It
+includes the full diff when it fits. Otherwise it keeps the file overview and
+per-file slices.
 
 ## Public output
 
-`src/review/public-output.ts` does not require one exact parser contract. It:
+`src/review/public-output.ts` prepares the model answer for GitHub:
 
-- removes internal research text and delivery chatter;
-- removes model-generated cost footers;
-- sanitizes token-shaped secrets;
-- rejects empty output and unsafe merge approval claims;
-- keeps useful findings in normal GitHub review styles.
+- removes research narration and delivery chatter;
+- removes model-written run and token footers;
+- redacts token-shaped secrets;
+- rejects an empty answer and any merge-approval claim.
 
-The action succeeds only when Pi succeeds, the review is usable, and GitHub
-receives the review.
+`src/review/findings.ts` parses the findings, and
+`src/entrypoints/post-buffered.ts` posts the ones anchored to changed lines as
+one grouped `COMMENT` review. A hidden marker on each inline comment lets the
+next run skip findings that are already on the PR.
+
+`src/github/comments.ts` owns the tracking comment. It reuses the newest
+comment for the same provider and model, written by a trusted login, and marks
+older ones as superseded.
 
 ## Security boundary
 
-Review-mode Pi receives no `GITHUB_TOKEN`. It has no shell, write, edit, or MCP
-tool. The workspace guard also blocks token files and parent process paths.
-The host owns GitHub delivery and uses the workflow permission scope.
-
-The normal workflow grants:
+The model has read-only tools and no GitHub token. The host posts comments and
+reviews with the `COMMENT` event. No code path approves, merges, closes, or
+pushes. The workflow grants:
 
 ```yaml
 permissions:
@@ -116,19 +117,19 @@ permissions:
   issues: write
 ```
 
-The model cannot approve, merge, close, or push through the review tool surface.
-
 ## Main modules
 
 | Module | Responsibility |
 |---|---|
-| `src/entrypoints/run.ts` | End-to-end action control and GitHub delivery |
-| `src/config.ts` | Config parsing and trusted base-branch context |
-| `src/github/data.ts` | Diff collection and prompt construction |
-| `src/review/strategy.ts` | One-session review lens selection |
-| `src/pi.ts` | Pi process, JSON events, metrics, and typed failures |
-| `src/review/run-recovery.ts` | One transport-only retry |
-| `src/review/public-output.ts` | Public review sanitation and validation |
-
-Legacy agent mode remains for trusted automation. It does not change the
-default review path.
+| `src/entrypoints/run.ts` | End-to-end run and GitHub delivery |
+| `src/github/context.ts` | Inputs and the `pull_request` payload |
+| `src/github/trigger.ts` | Which events and actors get a review |
+| `src/credentials.ts` | Provider key check and fork skip |
+| `src/config.ts` | `.elek.yml` parsing and base-branch loading |
+| `src/github/data.ts` | Diff collection and the prompt |
+| `src/review/contract.ts` | Review lenses and finding acceptance gates |
+| `src/pi.ts` | Pi process, JSON events, token usage, typed failures |
+| `src/pi-workspace-guard.ts` | Path guard for Pi's read-only tools |
+| `src/review/public-output.ts` | Sanitizing and validating the review |
+| `src/entrypoints/post-buffered.ts` | Inline comments on changed lines |
+| `src/github/comments.ts` | Tracking comment and PR review |

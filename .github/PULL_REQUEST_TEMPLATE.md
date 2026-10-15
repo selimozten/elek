@@ -1,5 +1,5 @@
 <!--
-Thanks for the PR. The dual-model bot review will run automatically.
+Thanks for the PR. An advisory elek review runs automatically on same-repo PRs.
 A few quick checks before you submit:
 -->
 
@@ -25,9 +25,9 @@ A few quick checks before you submit:
 
 <!--
 Please don't:
-- Add new MCP tools beyond the two existing ones (safety story)
+- Give the model shell, write, MCP, or GitHub access (safety story)
+- Add an approve, merge, close, or push code path (safety story)
 - Import a model-specific SDK (model-agnostic story)
-- Add bash to default modes (jailbreak surface)
 
 If your change touches any of those, file an issue first to discuss.
 -->

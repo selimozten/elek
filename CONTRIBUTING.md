@@ -29,7 +29,6 @@ RUNNER_TEMP=/tmp \
 INPUT_PROVIDER=deepseek \
 INPUT_MODEL=deepseek-v4-pro \
 INPUT_THINKING=high \
-INPUT_MODE=review \
 tsx src/entrypoints/run.ts
 ```
 
@@ -40,17 +39,18 @@ dump.
 ## What we welcome
 
 - **Bug fixes** with a regression test.
-- **New providers** — pi already supports them; usually a one-line addition
-  to `action.yml` + `pi.ts`'s key-vars list.
+- **New providers** — pi already supports them; usually a key input in
+  `action.yml`, the key-vars list in `pi.ts`, and an entry in `credentials.ts`.
 - **Prompt improvements** that demonstrably tighten review quality (show
   before/after on a real PR in the description).
 - **Documentation** — especially diagrams (mermaid) and missing edge cases.
 
 ## What we'll likely push back on
 
-- Giving review-mode models GitHub credentials or mutation tools. The host
-  owns GitHub delivery; approval, merge, and close endpoints are outside the
-  review surface.
+- Giving the model GitHub credentials, shell access, or write tools. The host
+  owns GitHub delivery; approval, merge, and close endpoints are out of scope.
+- New triggers, modes, or review knobs. elek reviews pull requests with one
+  read-only session and a small set of inputs on purpose.
 - Adding an `@anthropic-ai/sdk` (or any model-specific SDK) import. pi
   handles providers; staying model-agnostic is the value prop.
 - Refactors that don't fix a problem. If you want to restructure something,
@@ -62,9 +62,9 @@ Use product/work names, not agent or tool names. Branches created by humans
 or coding agents should describe the change:
 
 ```text
-feature/cross-model-review-strategies
+feature/review-timeout-input
 fix/review-token-isolation
-docs/review-strategy-setup
+docs/fork-pr-faq
 ci/self-review-workflow
 ```
 
@@ -77,9 +77,9 @@ PR titles should use Conventional Commit style and describe the product
 outcome:
 
 ```text
-feat(review): add cross-model validation
+feat(review): add a run timeout input
 fix(review): keep GitHub credentials in the host
-docs: document review strategy setup
+docs: explain fork pull request handling
 ```
 
 Avoid titles like "Codex changes", "AI cleanup", or "misc fixes"; they do

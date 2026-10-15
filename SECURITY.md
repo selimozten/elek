@@ -1,8 +1,9 @@
 # Security Policy
 
-elek is designed as a review-only GitHub Action. The model-facing MCP server
-exposes only `create_inline_comment` and `update_tracking_comment`; it has no
-code path for approving, merging, closing, or changing repository settings.
+elek is a review-only GitHub Action. The model gets Pi's read-only `read`,
+`grep`, `find`, and `ls` tools and no GitHub token. The host posts the review.
+elek has no code path that approves, merges, closes, pushes, or changes
+repository settings.
 
 ## Supported Versions
 
@@ -38,7 +39,7 @@ Useful reports include:
 
 In scope:
 
-- Token leakage in prompts, logs, comments, MCP buffers, or temporary files.
+- Token leakage in prompts, logs, comments, or temporary files.
 - A path that lets the model approve, merge, close, or mutate repository
   settings through elek.
 - Unsafe default permissions or tool surfaces.
@@ -51,4 +52,4 @@ Out of scope:
 - Expected GitHub token limitations, such as `GITHUB_TOKEN` reviews not
   satisfying required reviewer counts.
 - Findings that require the workflow owner to deliberately grant broad
-  permissions and use `mode: agent`.
+  permissions or run elek on `pull_request_target` with an untrusted checkout.
