@@ -10,8 +10,6 @@
  */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 
 import { parseInputs, parseEntityContext } from "../github/context.js";
 import {
@@ -157,10 +155,6 @@ async function run(): Promise<void> {
     console.warn("Could not fetch review comments:", err);
   }
 
-  const tmpDir = process.env.RUNNER_TEMP || "/tmp";
-  const promptDir = join(tmpDir, "pi-prompts");
-  mkdirSync(promptDir, { recursive: true });
-
   // ── Phase 4: Run pi with progressive updates ─────────────────────────
   console.log("── Running pi ──");
 
@@ -233,7 +227,6 @@ async function run(): Promise<void> {
     commentId,
     { repoConfig: effectiveRepoConfig },
   );
-  writeFileSync(join(promptDir, "prompt.md"), prompt, "utf-8");
 
   let result: PiRunResult;
   try {
