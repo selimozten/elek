@@ -21,7 +21,7 @@
   "dependencies": {
     "@actions/core": "3.0.1",
     "@actions/github": "9.1.1",
-    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.3.0",
     "tsx": "4.23.15",
     "yaml": "2.9.1"
   },
