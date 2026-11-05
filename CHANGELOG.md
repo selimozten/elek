@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Pi reviews a copy of the reviewed commit's tracked files, including
+  initialized submodules at the commits it records. It is written from raw
+  git blobs, so no checkout filter runs and replace refs are ignored, and it
+  leaves out `.git`, untracked files, symlinks, blobs over 8 MiB, and any
+  protected name (`.env*`, `.git`, secret-, credential-, token- and
+  private-key-named files). Checking paths around a live checkout could not
+  be made airtight: grep and find search hidden files and apply their limits
+  before any filter, so a protected file that is present can leak. The review
+  fails if the copy cannot be made.
+- The workspace guard now also filters `grep`, `find` and `ls` results. It
+  checked only the path a tool was given, and both searches include hidden
+  files, so a search of the repository root could return `.git/config` or an
+  untracked `.env`. Lines naming a protected path are withheld silently: the
+  output reads as if the file did not exist, so match counts cannot be used
+  to spell out protected contents. A file name can contain grep's `:N: `
+  delimiter, so a line is withheld when any split of it names a protected
+  path; an ordinary line quoting a protected file name followed by such a
+  delimiter is withheld too. Malformed grep output is withheld whole.
+- Tool paths are judged the way Pi resolves them: `~`, `~/`, `file://` URLs
+  and Unicode spaces are expanded first, every spelling Pi's `read` falls
+  back to is checked, and protected names are matched on every path
+  component and in NFKC form. On Windows, `~\` is expanded, MSYS drive paths
+  are refused, and NTFS aliases (trailing dots or spaces, `::$DATA`) are
+  refused.
+
+### Changed
+
+- Pi is 1.5.0 (was 1.1.0).
+- With no `model` input, Elek passes no model to Pi and forwards only the
+  selected provider's key, so Pi uses its own default model for that provider.
+  Pi 1.5 read the previous empty `provider/` pattern as a literal model id.
+  Providers without an Elek key input (Bedrock, Vertex, custom) and
+  `opencode`/`opencode-go`, which share one key, now require `model`.
+- Pi receives only the selected provider's key when Elek has an input for it.
+
+### Fixed
+
+- A review cut off by the model's output limit fails instead of posting as
+  complete. Pi 1.5 exits 0 for it in JSON mode.
+- When Pi resolves a `model` input fuzzily to a different id, the run logs a
+  warning naming the model it used.
+- `undici` is overridden to 8.12.4. The previous 8.10.2 override was inside
+  the range of eight advisories, one of them high.
+
 ## [1.3.0] - 2026-10-16
 
 elek is now a self-hosted GitHub Action only. The hosted GitHub App and cloud
