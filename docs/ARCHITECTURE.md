@@ -57,10 +57,13 @@ GitHub accepts it.
 - `--tools read,grep,find,ls`
 - `--append-system-prompt` with the read-only reviewer contract
 
-The workspace guard blocks tool calls on paths outside the repository, `.git`,
-secret files, and symlink escapes. The child process gets an environment
-allowlist: locale, temp directories, Pi paths, and provider credentials. It
-never gets `GITHUB_TOKEN`. elek closes Pi's standard input, because Pi waits on
+Pi runs in a copy of the checkout's tracked files with no `.git`, no untracked
+files, and no protected names, so a search cannot reach a secret that is not
+there. The workspace guard also blocks tool calls on paths outside that copy,
+protected names, and symlink escapes, judging each path as Pi resolves it, and
+withholds protected paths from search results. The child process gets an
+environment allowlist: locale, temp directories, Pi paths, and the selected
+provider's credentials. It never gets `GITHUB_TOKEN`. elek closes Pi's standard input, because Pi waits on
 an open stdin pipe in JSON mode.
 
 The runner reads the final assistant message and sums the provider-reported
@@ -131,6 +134,7 @@ permissions:
 | `src/review/contract.ts` | Review lenses and finding acceptance gates |
 | `src/pi.ts` | Pi process, JSON events, token usage, typed failures |
 | `src/pi-workspace-guard.ts` | Path guard for Pi's read-only tools |
+| `src/review-workspace.ts` | Tracked-files copy that Pi reviews |
 | `src/review/public-output.ts` | Sanitizing and validating the review |
 | `src/entrypoints/post-buffered.ts` | Inline comments on changed lines |
 | `src/github/comments.ts` | Tracking comment and PR review |

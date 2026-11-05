@@ -100,7 +100,7 @@ the checkout.
 | Input | Default | Description |
 |---|---|---|
 | `provider` | `anthropic` | Any Pi provider, for example `deepseek`, `openrouter`, `openai`, `google`, `opencode-go`. |
-| `model` | provider default | Model ID, for example `deepseek-v4-pro` or `claude-sonnet-4-6`. |
+| `model` | Pi's default for the provider | Model ID, for example `deepseek-v4-pro` or `claude-sonnet-4-6`. Required for `opencode`, `opencode-go`, and providers without a key input. |
 | `thinking` | `medium` | Pi thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `*_api_key` | none | The key for your provider. See [Providers](#providers). |
 | `github_token` | `${{ github.token }}` | Token elek uses to post comments. The model never sees it. |

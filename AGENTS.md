@@ -10,10 +10,12 @@ Elek is a self-hosted composite GitHub Action that wraps the Pi CLI. Read
 risk and design lenses. The host sanitizes the final answer and posts GitHub
 comments through Octokit. There is no hosted service.
 
-Pi gets only its native `read`, `grep`, `find`, and `ls` tools.
-`src/pi-workspace-guard.ts` blocks paths outside the repository, `.git`,
-secret files, and symlink escapes. Pi receives no `GITHUB_TOKEN`. Keep these
-boundaries intact.
+Pi gets only its native `read`, `grep`, `find`, and `ls` tools, and runs in
+a copy of the checkout's tracked files (`src/review-workspace.ts`) with no
+`.git`, no untracked files, and no protected names. `src/pi-workspace-guard.ts`
+also blocks paths outside that copy, protected names, and symlink escapes, and
+filters search results. Pi receives no `GITHUB_TOKEN`. Keep these boundaries
+intact.
 
 Pi has a built-in MCP client. Elek runs with `--no-mcp` because the host owns
 GitHub delivery. Keep MCP adapters, servers, and generated configuration out
@@ -36,8 +38,10 @@ problem that the existing inputs and `.elek.yml` cannot solve.
   leave a noninteractive CLI waiting for input.
 - Await the final progress update before publishing the review so it cannot
   overwrite the final comment.
-- Pi requires a model with `--provider`. An empty provider-qualified pattern
-  such as `deepseek/` selects an available model within that provider.
+- Pi requires a model with `--provider`. With no model input, Elek passes
+  neither flag and forwards only the selected provider's key, so Pi starts on
+  its own default model for that provider. Providers Elek has no key input for
+  need an explicit model.
 - Keep `package-lock.json` synchronized with `package.json`. The Action uses
   `npm ci --omit=dev`; CI installs and audits the same lockfile on Node 24.
 
