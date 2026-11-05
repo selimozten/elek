@@ -27,6 +27,8 @@ import { fileURLToPath } from "url";
 import { createInterface } from "readline";
 import type { ActionInputs, PiRunErrorKind, PiRunResult } from "./types";
 import { estimateTokens } from "./review/usage";
+import { providerKeyEnvVars } from "./credentials";
+import { createReviewWorkspace, removeReviewWorkspace } from "./review-workspace";
 
 const REVIEW_SYSTEM_PROMPT = [
   "You are Elek, a noninteractive read-only CI pull-request reviewer.",
@@ -52,6 +54,8 @@ type PiContent = PiTextContent | PiThinkingContent | PiToolCall | { type: string
 interface PiAssistantMessage {
   role: "assistant";
   content: PiContent[];
+  provider?: string;
+  model?: string;
   stopReason?: string;
   errorMessage?: string;
   usage?: PiUsage;
@@ -135,7 +139,7 @@ export async function runPi(
 
   const piBin = findPiBinary();
   const args = buildPiArgs(inputs, promptFile);
-  const env = buildPiEnv();
+  const env = buildPiEnv(inputs.provider);
 
   console.log(`pi binary: ${piBin}`);
   console.log(
@@ -157,8 +161,21 @@ export async function runPi(
   // Streaming text deltas — used as a fallback if agent_end is missing.
   // Reset at every turn_start so we keep only the last turn's text.
   let streamingText = "";
+  // The model Pi actually called, from its first completed turn.
+  let resolvedModel: { provider?: string; model: string } | undefined;
 
-  return new Promise((resolve) => {
+  // Pi works in a copy of the tracked files, not the checkout itself.
+  let reviewWorkspace: string;
+  try {
+    reviewWorkspace = createReviewWorkspace(process.env.GITHUB_WORKSPACE || process.cwd(), tmpDir);
+  } catch (error) {
+    const message = `Could not prepare the review workspace: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(message);
+    return { conclusion: "failure", output: message, errorKind: "process", usage: { inputTokens: 0, outputTokens: 0, estimated: false } };
+  }
+  env.GITHUB_WORKSPACE = reviewWorkspace;
+
+  const run = new Promise<PiRunResult>((resolve) => {
     const finalArgs = [...args, "--mode", "json"];
 
     console.log(
@@ -166,6 +183,7 @@ export async function runPi(
     );
 
     const child = spawn(piBin, finalArgs, {
+      cwd: reviewWorkspace,
       env,
       // pi --mode json waits forever on an open stdin pipe; close it.
       stdio: ["ignore", "pipe", "pipe"],
@@ -251,6 +269,7 @@ export async function runPi(
           const msg = event.message;
           if (msg?.role === "assistant") {
             completedTurnMessages.push(msg);
+            if (msg.model) resolvedModel ??= { provider: msg.provider, model: msg.model };
             console.log(formatTurnMetric(turnMetricFromPi(
               msg,
               turnCount,
@@ -306,6 +325,12 @@ export async function runPi(
         // already logged inside onProgress
       }
 
+      if (resolvedModel) {
+        console.log(`Resolved model: ${resolvedModel.provider ?? inputs.provider}/${resolvedModel.model}`);
+        const mismatch = modelMismatch(inputs, resolvedModel.model);
+        if (mismatch) console.log(`::warning::${mismatch}`);
+      }
+
       const output = extractAssistantText(finalAssistant) || streamingText.trim();
       const usage = runUsage(
         completedTurnMessages.length > 0
@@ -317,7 +342,9 @@ export async function runPi(
         output,
       );
       const stopReason = finalAssistant?.stopReason;
-      const isErrorStop = stopReason === "error" || stopReason === "aborted";
+      // "length": Pi 1.5 exits 0 in JSON mode when the output limit cut the
+      // answer off, so a truncated review would otherwise read as complete.
+      const isErrorStop = stopReason === "error" || stopReason === "aborted" || stopReason === "length";
 
       if (!terminationMessage && code === 0 && output && !isErrorStop) {
         resolve({ conclusion: "success", output, usage });
@@ -359,6 +386,7 @@ export async function runPi(
       });
     });
   });
+  return run.finally(() => removeReviewWorkspace(reviewWorkspace));
 }
 
 function classifyPiFailure(args: {
@@ -501,6 +529,21 @@ function firstNonNegativeInteger(...values: unknown[]): number | undefined {
 }
 
 /**
+ * Pi matches `--model` fuzzily: an exact id wins, otherwise `opus` can select
+ * `claude-opus-5-5`. Name the model Pi chose when it is not the one asked for,
+ * so a typo cannot silently change the reviewer.
+ */
+export function modelMismatch(inputs: Pick<ActionInputs, "provider" | "model">, resolved: string): string | undefined {
+  if (!inputs.model) return undefined;
+  const requested = inputs.model.toLowerCase().startsWith(`${inputs.provider.toLowerCase()}/`)
+    ? inputs.model.slice(inputs.provider.length + 1)
+    : inputs.model;
+  // Pi's exact-id lookup ignores case: `moonshotai/kimi-k3` is `moonshotai/Kimi-K3`.
+  if (requested.toLowerCase() === resolved.toLowerCase()) return undefined;
+  return `model input "${inputs.model}" resolved to "${resolved}"; Pi matches model names fuzzily. Set the exact model id to silence this.`;
+}
+
+/**
  * Build the CLI arguments for pi.
  */
 export function buildPiArgs(
@@ -515,16 +558,20 @@ export function buildPiArgs(
     "--no-approve",
     "--no-mcp",
   ];
-  // Together and OpenRouter model ids can contain a slash without a provider
-  // prefix. Omit --provider only when the value starts with the selected one.
-  if (!inputs.model?.startsWith(`${inputs.provider}/`)) {
-    args.push("--provider", inputs.provider);
-  }
   args.push("--no-extensions", "-e", localWorkspaceGuardPath());
 
-  // Pi 1.0 requires a model with --provider. An empty provider-qualified
-  // pattern selects an available model from that provider without switching.
-  args.push("--model", inputs.model || `${inputs.provider}/`);
+  // With no model input, pass neither flag: Pi then starts on its own default
+  // model for the one provider whose key buildPiEnv passes. Pi 1.5 reads an
+  // empty `provider/` pattern as a literal model id, and a `provider/*` scope
+  // picks whichever model sorts first, not the provider's default.
+  if (inputs.model) {
+    // Together and OpenRouter model ids can contain a slash without a provider
+    // prefix. Omit --provider only when the value starts with the selected one.
+    if (!inputs.model.startsWith(`${inputs.provider}/`)) {
+      args.push("--provider", inputs.provider);
+    }
+    args.push("--model", inputs.model);
+  }
   args.push("--append-system-prompt", REVIEW_SYSTEM_PROMPT);
   args.push("--tools", REVIEW_TOOLS);
 
@@ -542,7 +589,7 @@ function localWorkspaceGuardPath(): string {
  * Build the environment variables for pi from a strict allowlist: locale,
  * temp dirs, pi's own paths, and provider credentials. Never GITHUB_TOKEN.
  */
-function buildPiEnv(): NodeJS.ProcessEnv {
+function buildPiEnv(provider: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
 
   const allowedVars = [
@@ -570,7 +617,12 @@ function buildPiEnv(): NodeJS.ProcessEnv {
     "ANTHROPIC_VERTEX_PROJECT_ID",
   ];
 
-  for (const v of keyVars) {
+  // Only the selected provider's key when Elek wires it, so Pi cannot pick a
+  // model from another provider whose credentials happen to be in the job's
+  // environment. Providers Elek does not wire keep every credential.
+  const providerVars = providerKeyEnvVars(provider);
+  const forwarded = providerVars ? keyVars.filter((v) => providerVars.includes(v) || (v === "GOOGLE_API_KEY" && providerVars.includes("GEMINI_API_KEY"))) : keyVars;
+  for (const v of forwarded) {
     if (process.env[v]) env[v] = process.env[v];
   }
   if (!env.GEMINI_API_KEY && env.GOOGLE_API_KEY) {

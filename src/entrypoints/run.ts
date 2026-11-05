@@ -20,7 +20,7 @@ import {
   loadRepoKnowledge,
 } from "../config.js";
 import { isActorAuthorized, shouldReview } from "../github/trigger.js";
-import { credentialPreflight } from "../credentials.js";
+import { credentialPreflight, missingModelProblem } from "../credentials.js";
 import { fetchGitHubData, buildPrompt } from "../github/data.js";
 import { postBuffered, type PostSummary } from "./post-buffered.js";
 import {
@@ -120,6 +120,16 @@ async function run(): Promise<void> {
     core.setOutput("conclusion", "failure");
     core.setOutput("summary", credentials.message);
     core.setFailed(credentials.message);
+    return;
+  }
+
+  // Pi picks a default model only among the providers it has keys for, so an
+  // empty `model` works only where Elek forwards one provider's key alone.
+  const modelProblem = missingModelProblem(inputs.provider, inputs.model);
+  if (modelProblem) {
+    core.setOutput("conclusion", "failure");
+    core.setOutput("summary", modelProblem);
+    core.setFailed(modelProblem);
     return;
   }
 

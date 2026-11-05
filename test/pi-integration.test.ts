@@ -11,7 +11,10 @@ interface ModelRequest {
   messages: Array<{ role: string; content: string }>;
 }
 
-it("runs the real Pi CLI with guarded native tools and no MCP discovery", async () => {
+// Both ways a workflow selects a model: naming one, and leaving the input
+// empty so Pi picks from the provider.
+for (const model of ["", "test"]) {
+it(`runs the real Pi CLI with guarded native tools and no MCP discovery (model "${model}")`, async () => {
   const dir = mkdtempSync(join(tmpdir(), "elek-pi-native-"));
   const agentDir = join(dir, "agent");
   const mcpStarted = join(dir, "mcp-started");
@@ -66,7 +69,7 @@ it("runs the real Pi CLI with guarded native tools and no MCP discovery", async 
       },
     }));
     const inputs: ActionInputs = {
-      provider: "smoke", model: "", thinking: "off",
+      provider: "smoke", model, thinking: "off",
       prompt: "", runTimeoutSeconds: 20,
       configPath: ".elek.yml", stickyComment: true,
       severityThreshold: "",
@@ -91,3 +94,4 @@ it("runs the real Pi CLI with guarded native tools and no MCP discovery", async 
     rmSync(dir, { recursive: true, force: true });
   }
 }, 30_000);
+}
