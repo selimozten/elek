@@ -210,6 +210,9 @@ export default function registerWorkspaceGuard(pi: ExtensionAPI): void {
   });
   pi.on("tool_result", (event) => {
     if (event.toolName !== "grep" && event.toolName !== "find" && event.toolName !== "ls") return;
+    // A failed call (bad pattern, missing path) keeps its error: replacing it
+    // with an empty result would read to the model as a clean search.
+    if (event.isError) return;
     let withheld = 0;
     const content = event.content.map((part) => {
       if (part.type !== "text") return part;
