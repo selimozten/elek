@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { __buildPiEnv, buildPiArgs, runPi } from "../src/pi";
+import { __buildPiEnv, buildPiArgs, modelMismatch, runPi } from "../src/pi";
 import type { ActionInputs } from "../src/types";
 
 const baseInputs: ActionInputs = {
@@ -30,9 +30,12 @@ describe("buildPiArgs", () => {
   it("selects a default model within the requested provider", () => {
     const args = buildPiArgs({ ...baseInputs, model: "" }, "/tmp/prompt.md");
 
-    expect(args).toContain("--provider");
-    expect(args).toContain("deepseek");
-    expect(args[args.indexOf("--model") + 1]).toBe("deepseek/");
+    // No flag at all: Pi starts on its own default for the one provider whose
+    // key it receives. `deepseek/` is a literal id in Pi 1.5, and a
+    // `deepseek/*` scope picks whichever model sorts first.
+    expect(args).not.toContain("--model");
+    expect(args).not.toContain("--models");
+    expect(args).not.toContain("--provider");
     expect(args).toContain("--no-extensions");
     expect(args).toContain("-e");
     expect(args.join(" ")).toContain("src/pi-workspace-guard.ts");
@@ -47,8 +50,14 @@ describe("buildPiArgs", () => {
       "/tmp/prompt.md",
     );
 
-    expect(args).toContain("--provider");
-    expect(args[args.indexOf("--model") + 1]).toBe("deepseek/");
+    expect(args).not.toContain("--model");
+    expect(args).not.toContain("--provider");
+  });
+
+  it("names the provider and model when a model is given", () => {
+    const args = buildPiArgs({ ...baseInputs, provider: "anthropic", model: "claude-haiku-5-5" }, "/tmp/prompt.md");
+    expect(args[args.indexOf("--provider") + 1]).toBe("anthropic");
+    expect(args[args.indexOf("--model") + 1]).toBe("claude-haiku-5-5");
   });
 
   it("disables native MCP discovery and project approval", () => {
@@ -135,7 +144,7 @@ describe("buildPiEnv", () => {
     process.env.GITHUB_TOKEN = "ghs_fake_token";
     process.env.ANTHROPIC_API_KEY = "sk-ant-fake";
 
-    const env = __buildPiEnv();
+    const env = __buildPiEnv("anthropic");
 
     for (const v of secretVars) {
       expect(env[v]).toBeUndefined();
@@ -154,7 +163,7 @@ describe("buildPiEnv", () => {
     process.env.TOGETHER_API_KEY = "together-fake-key";
     process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
 
-    const env = __buildPiEnv();
+    const env = __buildPiEnv("together");
 
     expect(env.TOGETHER_API_KEY).toBe("together-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
@@ -164,7 +173,7 @@ describe("buildPiEnv", () => {
     process.env.OPENCODE_API_KEY = "opencode-fake-key";
     process.env.SECRET_SHOULD_NOT_LEAK = "leaked-value";
 
-    const env = __buildPiEnv();
+    const env = __buildPiEnv("opencode-go");
 
     expect(env.OPENCODE_API_KEY).toBe("opencode-fake-key");
     expect(env.SECRET_SHOULD_NOT_LEAK).toBeUndefined();
@@ -172,17 +181,58 @@ describe("buildPiEnv", () => {
 
   it("maps the existing Google credential to Pi's Gemini environment variable", () => {
     process.env.GOOGLE_API_KEY = "legacy-google-key";
-    expect(__buildPiEnv().GEMINI_API_KEY).toBe("legacy-google-key");
+    expect(__buildPiEnv("google").GEMINI_API_KEY).toBe("legacy-google-key");
   });
 
   it("preserves an explicitly configured Gemini credential", () => {
     process.env.GOOGLE_API_KEY = "legacy-google-key";
     process.env.GEMINI_API_KEY = "native-gemini-key";
-    expect(__buildPiEnv().GEMINI_API_KEY).toBe("native-gemini-key");
+    expect(__buildPiEnv("google").GEMINI_API_KEY).toBe("native-gemini-key");
+  });
+
+  it("forwards only the selected provider's key, so Pi cannot choose another provider", () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-fake";
+    process.env.DEEPSEEK_API_KEY = "deepseek-fake";
+    process.env.AWS_ACCESS_KEY_ID = "aws-fake";
+    try {
+      const env = __buildPiEnv("anthropic");
+      expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-fake");
+      expect(env.DEEPSEEK_API_KEY).toBeUndefined();
+      expect(env.AWS_ACCESS_KEY_ID).toBeUndefined();
+      // A provider Elek does not wire authenticates in ways it cannot see.
+      expect(__buildPiEnv("amazon-bedrock").AWS_ACCESS_KEY_ID).toBe("aws-fake");
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.DEEPSEEK_API_KEY;
+      delete process.env.AWS_ACCESS_KEY_ID;
+    }
   });
 });
 
 describe("runPi", () => {
+  const fakePiEmitting = (dir: string, lines: string[]) => {
+    const fakePi = join(dir, "pi");
+    writeFileSync(fakePi, ["#!/usr/bin/env bash", "cat <<'JSON'", ...lines, "JSON", ""].join("\n"), "utf-8");
+    chmodSync(fakePi, 0o755);
+    process.env.PI_EXECUTABLE = fakePi;
+  };
+
+  it("fails a review the output limit cut off, though Pi exits 0", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "elek-pi-length-"));
+    const partial = "{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"## Findings\\n- half a find\"}],\"stopReason\":\"length\"}";
+    fakePiEmitting(dir, [
+      `{"type":"message_end","message":${partial}}`,
+      `{"type":"agent_end","messages":[${partial}]}`,
+    ]);
+    try {
+      const result = await runPi("review", baseInputs, undefined, { promptName: "length-test" });
+      expect(result.conclusion).toBe("failure");
+      expect(result.errorKind).toBe("length");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("uses provider-reported JSON usage when pi emits token counts", async () => {
     const dir = mkdtempSync(join(tmpdir(), "elek-pi-usage-"));
     const fakePi = join(dir, "pi");
@@ -318,5 +368,21 @@ describe("runPi", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("modelMismatch", () => {
+  it("is silent for an exact id, with or without the provider prefix, and for no input", () => {
+    expect(modelMismatch({ provider: "anthropic", model: "claude-haiku-5-5" }, "claude-haiku-5-5")).toBeUndefined();
+    expect(modelMismatch({ provider: "anthropic", model: "anthropic/claude-haiku-5-5" }, "claude-haiku-5-5")).toBeUndefined();
+    expect(modelMismatch({ provider: "anthropic", model: "" }, "claude-opus-5-5")).toBeUndefined();
+    // Pi's exact-id lookup ignores case, and slash ids keep their prefix.
+    expect(modelMismatch({ provider: "together", model: "moonshotai/kimi-k3" }, "moonshotai/Kimi-K3")).toBeUndefined();
+    expect(modelMismatch({ provider: "openrouter", model: "openrouter/anthropic/claude-haiku-5.5" }, "anthropic/claude-haiku-5.5")).toBeUndefined();
+    expect(modelMismatch({ provider: "openrouter", model: "OpenRouter/anthropic/claude-haiku-5.5" }, "anthropic/claude-haiku-5.5")).toBeUndefined();
+  });
+
+  it("names the model Pi chose when a fuzzy match changed it", () => {
+    expect(modelMismatch({ provider: "anthropic", model: "opus" }, "claude-opus-5-5")).toContain('resolved to "claude-opus-5-5"');
   });
 });

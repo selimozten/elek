@@ -36,6 +36,37 @@ const PROVIDER_KEYS: Record<string, ProviderKey> = {
   "opencode-go": { envVars: ["OPENCODE_API_KEY"], input: "opencode_api_key", secret: "OPENCODE_API_KEY" },
 };
 
+/** The env vars carrying a provider's key, or undefined when Elek does not wire it. */
+export function providerKeyEnvVars(provider: string): string[] | undefined {
+  const id = normalizeProvider(provider);
+  return Object.hasOwn(PROVIDER_KEYS, id) ? PROVIDER_KEYS[id].envVars : undefined;
+}
+
+/** Pi matches provider ids case-insensitively; so must every lookup here. */
+function normalizeProvider(provider: string): string {
+  return provider.trim().toLowerCase();
+}
+
+/**
+ * Providers whose default model Pi chooses when Elek passes no model: each has
+ * its own key input and an entry in Pi's per-provider defaults (pinned by
+ * test/credentials.test.ts against the installed Pi). opencode and
+ * opencode-go share OPENCODE_API_KEY, so Pi would see both and pick across
+ * them.
+ */
+const DEFAULT_MODEL_PROVIDERS = new Set([
+  "anthropic", "openai", "google", "deepseek", "groq", "mistral", "together", "xai", "openrouter",
+]);
+
+/** Why an empty `model` input cannot run for this provider, if it cannot. */
+export function missingModelProblem(provider: string, model: string): string | undefined {
+  if (model || DEFAULT_MODEL_PROVIDERS.has(normalizeProvider(provider))) return undefined;
+  return `Set the \`model\` input: Elek cannot choose a default model for provider "${provider}".`;
+}
+
+/** Test seam: the providers allowed to run without a model input. */
+export const __defaultModelProviders = DEFAULT_MODEL_PROVIDERS;
+
 export type CredentialPreflight =
   | { action: "continue" }
   | { action: "skip"; message: string }
@@ -50,9 +81,8 @@ export interface CredentialPreflightRequest {
 }
 
 export function credentialPreflight(request: CredentialPreflightRequest): CredentialPreflight {
-  const key = Object.hasOwn(PROVIDER_KEYS, request.provider)
-    ? PROVIDER_KEYS[request.provider]
-    : undefined;
+  const provider = normalizeProvider(request.provider);
+  const key = Object.hasOwn(PROVIDER_KEYS, provider) ? PROVIDER_KEYS[provider] : undefined;
   if (key?.envVars.some((name) => Boolean(request.env[name]?.trim()))) {
     return { action: "continue" };
   }
