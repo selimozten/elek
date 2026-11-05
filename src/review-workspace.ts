@@ -111,7 +111,8 @@ class PathClaims {
       }
       const target = join(this.root, spelling);
       try {
-        if (existsSync(target)) throw Object.assign(new Error("alias"), { code: "EEXIST" });
+        // Both fail with EEXIST, atomically, when the name or an alias of
+        // it is already there; a separate existence check would race.
         if (kind === "dir") mkdirSync(target);
         else writeFileSync(target, "", { flag: "wx" });
       } catch (error) {
